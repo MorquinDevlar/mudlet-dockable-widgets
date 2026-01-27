@@ -1,0 +1,38 @@
+[
+	{
+		"name": "MDW_Config",
+		"isActive": "yes",
+		"script": "",
+		"isFolder": "no"
+	},
+	{
+		"name": "MDW_Init",
+		"isActive": "yes",
+		"script": "",
+		"isFolder": "no"
+	},
+	{
+		"name": "MDW_Widgets",
+		"isActive": "yes",
+		"script": "",
+		"isFolder": "no"
+	},
+	{
+		"name": "MDW_Widget",
+		"isActive": "yes",
+		"script": "",
+		"isFolder": "no"
+	},
+	{
+		"name": "MDW_TabbedWidget",
+		"isActive": "yes",
+		"script": "",
+		"isFolder": "no"
+	},
+	{
+		"name": "MDW_Examples",
+		"isActive": "yes",
+		"script": "",
+		"isFolder": "no"
+	}
+]

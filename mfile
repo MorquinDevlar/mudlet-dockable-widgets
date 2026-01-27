@@ -1,0 +1,8 @@
+{
+  "package": "MDW",
+  "version": "0.1.0",
+  "author": "Jens",
+  "title": "Mudlet Dockable Widgets",
+  "description": "A draggable, dockable widget system for Mudlet",
+  "outputFile": true
+}
