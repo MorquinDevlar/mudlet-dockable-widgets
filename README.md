@@ -1,89 +1,53 @@
 # MDW - Mudlet Dockable Widgets
 
-A draggable, dockable widget system for [Mudlet](https://www.mudlet.org/). Create customizable UI panels that can be freely positioned or docked to sidebars.
+MDW gives your [Mudlet](https://www.mudlet.org/) profile a custom sidebar UI. Create widget panels for vitals, inventory, communication channels, the mapper, or anything else you want to track at a glance. Drag widgets between left and right sidebars, place them side-by-side, stack them vertically, or float them freely over the main display. Layouts persist across reloads.
 
 ## Features
 
-- **Draggable Widgets**: Drag widgets by their title bar to reposition them
-- **Dockable Sidebars**: Dock widgets to left or right sidebars
-- **Side-by-Side Docking**: Place multiple widgets in the same row
-- **Resizable**: Resize docks and widgets interactively
-- **Floating Mode**: Undock widgets to float freely over the main display
-- **Tabbed Widgets**: Create widgets with multiple switchable tabs
+- **Dockable Sidebars**: Left and right sidebars that hold stacked or side-by-side widgets
+- **Draggable Widgets**: Drag widgets by their title bar to reposition or re-dock them
+- **Side-by-Side Docking**: Place multiple widgets in the same row with resizable splitters
+- **Floating Mode**: Undock widgets to float freely with resize handles on all edges
+- **Tabbed Widgets**: Widgets with multiple switchable tabs and an optional "all" channel
 - **Embedded Mapper**: Embed the Mudlet mapper in any widget
-- **Easy API**: Simple object-oriented API for creating and managing widgets
+- **Prompt Bar**: Display your MUD prompt with colors at the bottom of the screen
+- **Header Menus**: Toggle sidebar and widget visibility from dropdown menus
+- **Layout Persistence**: Widget positions, sizes, dock state, and visibility saved automatically
+- **Overflow Modes**: Wrap, ellipsis (truncate with "..."), or hidden text clipping
+- **Resizable**: Drag dock edges, widget borders, and between-widget splitters to resize
+
+## Layout
+
+```
++----------------+------------------------+------------------+
+|           Header Bar (Layout | Widgets menus)              |
++----------------+------------------------+------------------+
+|                |                        |                  |
+|   Left Dock    |    Main Display        |   Right Dock     |
+|   (widgets)    |    (Mudlet default)    |   (widgets)      |
+|                |                        |                  |
+| +-----------+  |                        | +--------------+ |
+| |  Widget   |  |                        | |   Widget     | |
+| +-----------+  |                        | +--------------+ |
+| +-----------+  |                        | +--------------+ |
+| |  Widget   |  |                        | |   Widget     | |
+| +-----------+  |                        | +--------------+ |
+|                |                        |                  |
+|                +------------------------+                  |
+|                |      Prompt Bar        |                  |
++----------------+------------------------+------------------+
+```
+
+- **Header bar** spans the full window width with Layout and Widgets dropdown menus
+- **Left and right docks** hold widgets stacked vertically or side-by-side; drag dock edges to resize
+- **Main display** is the standard Mudlet output area
+- **Prompt bar** sits between the docks at the bottom, showing your MUD prompt with colors
 
 ## Installation
 
 1. Download the latest `MDW.mpackage` file from the releases
 2. In Mudlet, go to **Packages**
 3. Click **Install new package** or **Install from file** depending on your version and select the downloaded `MDW.mpackage` file
-
-## Example Widgets
-
-MDW comes with example widgets to demonstrate its features. These are created automatically when the package loads:
-
-| Widget | Dock | Description |
-|--------|------|-------------|
-| **Items** | Left | Simple text widget showing echo methods |
-| **Affects** | Left | Example status effects display |
-| **Map** | Right | Widget with embedded Mudlet mapper |
-| **Comm** | Right | Tabbed widget with All/Room/Tell/Chat tabs |
-
-The examples also include:
-- **Prompt Bar**: Displays your MUD's prompt (captured via trigger)
-- **MDW_PromptCapture Trigger**: Automatically captures prompts and displays them in the prompt bar
-
-### Disabling Examples
-
-To disable the example widgets, add this before MDW loads:
-
-```lua
-mdw = mdw or {}
-mdw.loadExamples = false
-```
-
-Or remove/deactivate `MDW_Examples` from the package scripts.
-
-## Prompt Bar
-
-The prompt bar at the bottom of the screen displays your MUD's prompt with colors preserved. MDW includes a trigger (`MDW_PromptCapture`) that automatically captures prompts.
-
-### Prompt Bar API
-
-```lua
--- Capture current line and display in prompt bar (call from a trigger)
-mdw.capturePrompt()           -- Captures line, displays in bar, deletes from main window
-mdw.capturePrompt(false)      -- Same, but keeps line in main window
-
--- Set prompt bar text directly
-mdw.setPrompt("<255,200,100>HP: 100")    -- decho format (RGB)
-mdw.setPromptCecho("<green>HP: <white>100")  -- cecho format (named colors)
-
--- Clear the prompt bar
-mdw.clearPrompt()
-```
-
-### Custom Prompt Trigger
-
-If the default trigger doesn't work with your MUD, create your own:
-
-1. Disable the `MDW_PromptCapture` trigger
-2. Create a new trigger matching your MUD's prompt pattern
-3. In the trigger script, call `mdw.capturePrompt()`
-
-### GMCP-Based Prompt
-
-You can also build a custom prompt from GMCP data:
-
-```lua
--- In a script handling gmcp.Char.Vitals event
-local v = gmcp.Char.Vitals
-mdw.setPromptCecho(string.format(
-  "<green>HP:<white>%d/%d <blue>MP:<white>%d/%d",
-  v.health, v.health_max, v.mana, v.mana_max
-))
-```
 
 ## Quick Start
 
@@ -98,7 +62,21 @@ local myWidget = mdw.Widget:new({
 -- Clear and display text (clear first for reload-safe scripts)
 myWidget:clear()
 myWidget:echo("Hello, World!\n")
-myWidget:cecho("<green>Success!</green>\n")
+myWidget:cecho("<green>Success!\n")
+```
+
+```lua
+-- Create a tabbed widget for communication channels
+local comm = mdw.TabbedWidget:new({
+  name = "Comm",
+  title = "Communications",
+  tabs = {"All", "Room", "Chat", "Tells"},
+  allTab = "All",      -- "All" tab receives copies of all messages
+  dock = "right",
+})
+
+-- Send a message to a specific tab (also appears in "All")
+comm:cechoTo("Room", "<white>Someone says: Hello!\n")
 ```
 
 ## Creating Widgets
@@ -186,9 +164,11 @@ end
 | `height` | number | 200 | Widget height in pixels |
 | `visible` | boolean | true | Whether widget starts visible |
 | `row` | number | auto | Row index in dock (auto-assigned if nil) |
+| `rowPosition` | number | 0 | Position within a row for side-by-side placement |
+| `subRow` | number | 0 | Sub-row within a column for vertical sub-stacking |
+| `overflow` | string | `"wrap"` | Text overflow mode: `"wrap"`, `"ellipsis"`, or `"hidden"` |
 | `onClose` | function | nil | Callback when widget is hidden |
 | `onClick` | function | nil | Callback when content area is clicked |
-| `overflow` | string | `"wrap"` | Text overflow mode: `"wrap"`, `"ellipsis"`, or `"hidden"` |
 
 ### Overflow Modes
 
@@ -220,7 +200,7 @@ local log = mdw.Widget:new({
 })
 ```
 
-Ellipsis mode works with all echo methods (`echo`, `cecho`, `decho`, `hecho`), preserving color codes up to the truncation point.
+Ellipsis mode works with all echo methods (`echo`, `cecho`, `decho`, `hecho`), preserving color codes up to the truncation point. Both "wrap" and "ellipsis" modes buffer recent lines (up to 50) so text can be reflowed when the widget is resized.
 
 ### Callbacks
 
@@ -275,7 +255,7 @@ widget:isVisible()   -- Returns true/false
 ```lua
 widget:setTitle("New Title")                    -- Change title
 widget:setFont("Consolas", 12)                  -- Set font and size
-widget:setBackgroundColor(20, 20, 20)           -- Set content background (RGB)
+widget:setBackgroundColor(20, 20, 20)           -- Set MiniConsole background (RGB)
 widget:setTitleStyleSheet([[                    -- Custom title bar style
   background-color: rgb(60,60,60);
   color: white;
@@ -285,11 +265,13 @@ widget:setContentStyleSheet([[                  -- Custom content area style
 ]])
 ```
 
+`setBackgroundColor()` sets the MiniConsole background color. `setContentStyleSheet()` sets the background label behind the console (visible in padding areas).
+
 ### Size and Position Methods
 
 ```lua
 widget:resize(300, 200)      -- Resize to width, height
-widget:resize(nil, 250)      -- Resize height only
+widget:resize(nil, 250)      -- Resize height only (pass nil to skip a dimension)
 widget:move(100, 100)        -- Move (floating only)
 widget:raise()               -- Bring to front
 
@@ -341,9 +323,33 @@ local comm = mdw.TabbedWidget:new({
 | `allTab` | string | nil | Tab that receives copies of all messages |
 | `activeTab` | string | first tab | Initially active tab |
 | `dock` | string | nil | `"left"`, `"right"`, or `nil` for floating |
+| `x` | number | 100 | Initial X position (floating only) |
+| `y` | number | 100 | Initial Y position (floating only) |
 | `height` | number | 200 | Widget height in pixels |
-| `onTabChange` | function | nil | Callback when tab is switched |
+| `visible` | boolean | true | Whether widget starts visible |
+| `row` | number | auto | Row index in dock (auto-assigned if nil) |
+| `rowPosition` | number | 0 | Position within a row for side-by-side placement |
+| `subRow` | number | 0 | Sub-row within a column for vertical sub-stacking |
 | `overflow` | string | `"wrap"` | Text overflow mode: `"wrap"`, `"ellipsis"`, or `"hidden"` (applies to all tabs) |
+| `onClose` | function | nil | Callback when widget is hidden |
+| `onTabChange` | function | nil | Callback when tab is switched |
+
+### Callbacks
+
+```lua
+local comm = mdw.TabbedWidget:new({
+  name = "Comm",
+  tabs = {"All", "Room", "Chat"},
+  allTab = "All",
+  dock = "right",
+  onTabChange = function(self, tabName)
+    echo("Switched to tab: " .. tabName .. "\n")
+  end,
+  onClose = function(self)
+    echo("Comm widget was hidden\n")
+  end,
+})
+```
 
 ### Display Methods
 
@@ -392,6 +398,7 @@ comm:show()
 comm:hide()
 comm:setTitle("New Title")
 comm:setFont("Consolas", 12)  -- Sets font for all tabs
+comm:setContentStyleSheet([[background-color: rgb(20,20,30);]])
 comm:resize(nil, 400)
 comm:destroy()
 ```
@@ -399,10 +406,10 @@ comm:destroy()
 ### Tabbed Widget Class Methods
 
 ```lua
--- Get a tabbed widget by name
+-- Get a tabbed widget by name (returns nil for regular widgets)
 local comm = mdw.TabbedWidget.get("Comm")
 
--- Get list of all tabbed widget names
+-- Get list of tabbed widget names only
 local names = mdw.TabbedWidget.list()
 ```
 
@@ -425,22 +432,116 @@ comm:cechoTo("Say", "<white>You say: Hello!\n")
 comm:cechoTo("All", "<gray>--- Session started ---\n")
 ```
 
+## Header Menus
+
+The header bar at the top of the screen contains two dropdown menus:
+
+- **Layout**: Toggle visibility of the left sidebar, right sidebar, and prompt bar. When a sidebar is hidden, its border space is reclaimed by the main display. Docked widgets are preserved and restored when the sidebar is shown again.
+- **Widgets**: Toggle visibility of individual widgets. Each widget is listed with a checkmark indicating its current state.
+
+Click anywhere outside a menu to close it.
+
+### Programmatic Toggle
+
+```lua
+-- Toggle a widget's visibility by name
+mdw.toggleWidget("Inventory")
+```
+
+## Side-by-Side Docking
+
+Widgets in the same dock can share a row. Drag a widget to the left or right edge of an existing widget to place them side-by-side. A vertical drop indicator shows where the widget will be inserted.
+
+Once side-by-side, a splitter appears between the widgets. Drag it horizontally to adjust their relative widths. The width ratios are preserved in the saved layout.
+
+When resizing widget heights within a shared row, heights snap to match adjacent widgets when they are within 15 pixels (configurable via `snapThreshold`).
+
+## Prompt Bar
+
+The prompt bar at the bottom of the screen displays your MUD's prompt with colors preserved. MDW includes a trigger (`MDW_PromptCapture`) that automatically captures prompts.
+
+### Prompt Bar API
+
+```lua
+-- Capture current line and display in prompt bar (call from a trigger)
+mdw.capturePrompt()           -- Captures line, displays in bar, deletes from main window
+mdw.capturePrompt(false)      -- Same, but keeps line in main window
+
+-- Set prompt bar text directly
+mdw.setPrompt("<255,200,100>HP: 100")    -- decho format (RGB)
+mdw.setPromptCecho("<green>HP: <white>100")  -- cecho format (named colors)
+
+-- Clear the prompt bar
+mdw.clearPrompt()
+```
+
+### Custom Prompt Trigger
+
+If the default trigger doesn't work with your MUD, create your own:
+
+1. Disable the `MDW_PromptCapture` trigger
+2. Create a new trigger matching your MUD's prompt pattern
+3. In the trigger script, call `mdw.capturePrompt()`
+
+### GMCP-Based Prompt
+
+You can also build a custom prompt from GMCP data:
+
+```lua
+-- In a script handling gmcp.Char.Vitals event
+local v = gmcp.Char.Vitals
+mdw.setPromptCecho(string.format(
+  "<green>HP:<white>%d/%d <blue>MP:<white>%d/%d",
+  v.health, v.health_max, v.mana, v.mana_max
+))
+```
+
+## Layout Persistence
+
+MDW automatically saves and restores widget layouts across profile reloads and package updates. The following state is preserved:
+
+- Widget dock positions (left, right, or floating)
+- Widget sizes and positions
+- Row order and side-by-side arrangements (including width ratios)
+- Visibility state
+- Active tab for tabbed widgets
+- Dock widths
+- Sidebar and prompt bar visibility
+
+Layout is saved automatically when:
+- The profile exits
+- The package is updated
+
+### Layout API
+
+```lua
+mdw.saveLayout()     -- Manually save current layout
+mdw.loadLayout()     -- Manually load saved layout (usually automatic)
+mdw.clearLayout()    -- Delete saved layout, reset to defaults
+mdw.showLayout()     -- Print saved layout details to main window
+mdw.showWidgets()    -- Print current widget state to main window
+```
+
+The layout file is stored at: `getMudletHomeDir() .. "/mdw_layout.lua"`
+
 ## Class Methods
 
 ```lua
--- Get a widget by name
+-- Get a widget by name (returns nil for tabbed widgets)
 local widget = mdw.Widget.get("Inventory")
 
--- Get list of all widget names
+-- Get list of all widget names (both types)
 local names = mdw.Widget.list()
 
 -- Show/hide all widgets
 mdw.Widget.showAll()
 mdw.Widget.hideAll()
 
--- Low-level: get sorted list of all widget names
+-- Get sorted list of all widget names
 local allNames = mdw.getWidgetNames()
 ```
+
+`Widget.get()` only returns regular widgets; use `TabbedWidget.get()` for tabbed widgets. `Widget.list()` returns names of all widget types.
 
 ## Accessing Widgets from Other Scripts
 
@@ -610,32 +711,30 @@ end
 2. **Use separate scripts** for widget creation and GMCP handlers to keep code organized
 3. **Use the `mdwReady` event** for widget creation to ensure MDW is fully initialized
 4. **Use `widget:clear()` before redrawing** for vitals/stats that replace their entire content
-5. **Use `echoTo()` for communication** to take advantage of the "all tab" feature
+5. **Use `echoTo()`/`cechoTo()`/`dechoTo()`/`hechoTo()` for communication** to take advantage of the "all tab" feature
 
-## Layout Persistence
+## Drag and Drop
 
-MDW automatically saves and restores widget layouts across profile reloads and package updates. The following state is preserved:
+Drag a widget by its title bar to reposition it. A short movement threshold (5 pixels by default) distinguishes clicks from drags, so clicking the title bar won't accidentally undock the widget.
 
-- Widget dock positions (left, right, or floating)
-- Widget sizes and positions
-- Row order and side-by-side arrangements
-- Visibility state
-- Active tab for tabbed widgets
-- Dock widths
+### Drop Zones
 
-Layout is saved automatically when:
-- The profile exits
-- The package is updated
+When dragging over a sidebar, visual indicators show where the widget will land:
 
-### Layout API
+- **Horizontal indicator** (top/bottom of a row): the widget will be inserted as a new row above or below
+- **Vertical indicator** (left/right edge of a widget): the widget will be placed side-by-side in the same row
+- **Dock highlight**: the entire dock lights up when a widget is over the drop area
+- **No indicator**: dropping the widget will leave it floating
 
-```lua
-mdw.saveLayout()    -- Manually save current layout
-mdw.loadLayout()    -- Manually load saved layout (usually automatic)
-mdw.clearLayout()   -- Delete saved layout, reset to defaults
-```
+The top and bottom ~10% of each row triggers vertical insertion. The middle area allows side-by-side placement when the widget is dragged past the edge of an existing widget.
 
-The layout file is stored at: `getMudletHomeDir() .. "/mdw_layout.lua"`
+### Floating Widgets
+
+Floating (undocked) widgets have resize handles on all four edges. Drag any edge to resize. Minimum dimensions are enforced (`minFloatingWidth`, `minWidgetHeight`).
+
+### Docked Widget Resizing
+
+Docked widgets have a bottom resize handle for adjusting height. When resizing in a shared row, heights snap to adjacent widgets within the `snapThreshold` distance. Dock edge splitters resize the entire sidebar width.
 
 ## Configuration
 
@@ -686,56 +785,102 @@ mdw.buildStyles()
 | | `minFloatingWidth` | 100 | Minimum width for floating widgets |
 | **Layout** |
 | | `dockSplitterWidth` | 4 | Width of dock edge splitters (resize handles) |
-| | `widgetSplitterHeight` | 2 | Height of between-widget splitters |
+| | `separatorHeight` | 2 | Height of horizontal separators (header/prompt) |
+| | `widgetSplitterHeight` | 2 | Height of between-widget splitters (vertical resize) |
 | | `widgetSplitterWidth` | 2 | Width of between-widget splitters (horizontal resize) |
+| | `resizeBorderWidth` | 2 | Width of floating widget resize handles |
 | | `headerHeight` | 30 | Height of top header bar |
 | | `promptBarHeight` | 30 | Height of bottom prompt bar |
 | | `widgetMargin` | 2 | Margin around widgets in docks |
+| **Tabs** |
+| | `tabBarHeight` | 22 | Height of tab button bar |
+| | `tabPadding` | 5 | Horizontal padding inside tab buttons |
+| **Menus** |
+| | `menuItemHeight` | 28 | Height of dropdown menu items |
+| | `menuPadding` | 8 | Vertical padding inside dropdown menus |
+| | `menuPaddingLeft` | 10 | Left padding for menu item text |
+| | `headerButtonWidth` | 80 | Width of header menu buttons |
+| | `menuWidth` | 150 | Width of dropdown menus |
+| | `menuOverlap` | 4 | Overlap between menu and header button border |
+| **Margins** |
+| | `contentPaddingLeft` | 5 | Left padding inside widget content area |
+| | `contentPaddingTop` | 5 | Top padding inside widget content area |
+| | `promptBarTopPadding` | 2 | Top padding inside prompt bar |
+| | `floatingStartX` | 100 | Default X position for new floating widgets |
+| | `floatingStartY` | 100 | Default Y position for new floating widgets |
 | **Drag Behavior** |
 | | `dragThreshold` | 5 | Pixels before click becomes drag |
 | | `dockDropBuffer` | 200 | Detection area beyond dock bounds |
-| | `snapThreshold` | 15 | Distance for height snap |
-| **Colors** |
+| | `snapThreshold` | 15 | Distance for height snap between widgets |
+| | `sideBySideOffset` | 20 | Offset to trigger side-by-side docking |
+| | `verticalInsertZone` | 0.1 | Top/bottom fraction of row for vertical insert |
+| | `sideBySideZone` | 0.2 | Top/bottom fraction that disallows side-by-side |
+| **Colors: Backgrounds** |
 | | `sidebarBackground` | rgb(26,24,21) | Sidebar background color |
 | | `widgetBackground` | rgb(30,30,30) | Widget content background (CSS) |
 | | `widgetBackgroundRGB` | {30,30,30} | Widget content background (RGB table) |
+| | `widgetForegroundRGB` | {200,200,200} | Widget text color (RGB table) |
 | | `headerBackground` | rgb(38,38,38) | Header/title bar background |
+| | `menuBackground` | rgb(50,48,45) | Dropdown menu background |
+| **Colors: Accents** |
 | | `splitterColor` | rgb(57,53,49) | Splitter/border color |
 | | `splitterHoverColor` | rgb(106,91,58) | Splitter hover color |
-| | `headerTextColor` | 140,120,80 | Title text color (R,G,B) |
+| | `dropIndicatorColor` | rgb(106,91,58) | Drop target indicator color |
+| | `resizeBorderColor` | rgb(57,53,49) | Floating widget resize handle color |
+| | `checkboxColor` | rgb(140,120,80) | Menu checkbox color |
+| **Colors: Text** |
+| | `headerTextColor` | 140,120,80 | Title/header text color (R,G,B) |
+| | `menuTextColor` | 230,221,202 | Menu item text color |
+| | `menuHighlightColor` | 196,169,106 | Menu item hover text color |
+| | `tabActiveTextColor` | 196,169,106 | Active tab text color |
+| | `tabInactiveTextColor` | 140,120,80 | Inactive tab text color |
+| **Colors: Tab Backgrounds** |
+| | `tabActiveBackground` | rgb(50,48,45) | Active tab background |
+| | `tabInactiveBackground` | rgb(38,38,38) | Inactive tab background |
 | **Typography** |
 | | `fontFamily` | JetBrains Mono NL | Default font family |
 | | `fontSize` | 11 | Default font size |
+| **Menu Items** |
+| | `layoutMenuItems` | (table) | Items in the Layout dropdown menu |
 
-## Layout Structure
+## Example Widgets
 
+MDW comes with example widgets to demonstrate its features. These are created automatically when the package loads:
+
+| Widget | Dock | Description |
+|--------|------|-------------|
+| **Items** | Left | Simple text widget showing echo methods |
+| **Affects** | Left | Example status effects display |
+| **Map** | Right | Widget with embedded Mudlet mapper |
+| **Comm** | Right | Tabbed widget with All/Room/Tell/Chat tabs |
+
+The examples also include:
+- **Prompt Bar**: Displays your MUD's prompt (captured via trigger)
+- **MDW_PromptCapture Trigger**: Automatically captures prompts and displays them in the prompt bar
+
+### Disabling Examples
+
+To disable the example widgets, add this before MDW loads:
+
+```lua
+mdw = mdw or {}
+mdw.loadExamples = false
 ```
-+----------------+------------------------+------------------+
-|           Header Bar (Layout | Widgets menus)             |
-+----------------+------------------------+------------------+
-|                |                        |                  |
-|   Left Dock    |    Main Display        |   Right Dock     |
-|   (widgets)    |    (Mudlet default)    |   (widgets)      |
-|                |                        |                  |
-| +-----------+  |                        | +--------------+ |
-| |  Widget   |  |                        | |   Widget     | |
-| +-----------+  |                        | +--------------+ |
-| +-----------+  |                        | +--------------+ |
-| |  Widget   |  |                        | |   Widget     | |
-| +-----------+  |                        | +--------------+ |
-|                |                        |                  |
-|                +------------------------+                  |
-|                |      Prompt Bar        |                  |
-+----------------+------------------------+------------------+
+
+Or remove/deactivate `MDW_Examples` from the package scripts.
+
+## Debugging
+
+```lua
+-- Enable debug output (prints drag/drop, layout, and dock operations)
+mdw.debugMode = true
+
+-- Print saved layout details to main window
+mdw.showLayout()
+
+-- Print current widget state to main window
+mdw.showWidgets()
 ```
-
-## Drag and Drop
-
-- **Drag** a widget by its title bar
-- **Drop on sidebar** to dock the widget
-- **Drop between widgets** to insert at that position
-- **Drop on widget edge** to place side-by-side
-- **Drop outside docks** to make the widget floating
 
 ## Building from Source
 
