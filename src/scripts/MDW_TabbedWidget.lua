@@ -29,7 +29,7 @@
     comm:selectTab("Tells")
     local current = comm:getActiveTab()
 
-  Dependencies: MDW_Config.lua, MDW_Init.lua, MDW_Widgets.lua, MDW_Widget.lua
+  Dependencies: MDW_Config.lua, MDW_Helpers.lua, MDW_Init.lua, MDW_WidgetCore.lua, MDW_Widget.lua
 ]]
 
 ---------------------------------------------------------------------------
@@ -38,6 +38,17 @@
 
 mdw.TabbedWidget = mdw.TabbedWidget or {}
 mdw.TabbedWidget.__index = mdw.TabbedWidget
+
+--- Sanitize a tab name for use in Geyser element names.
+-- Why: Tab names may contain spaces or special characters that could cause
+-- issues in element naming. This ensures safe element IDs.
+-- NOTE: Different tab names can produce the same sanitized name (e.g.
+-- "My Tab" and "My_Tab" both become "My_Tab"). Callers should ensure
+-- tab names are unique after sanitization.
+local function sanitizeTabName(tabName)
+  -- Replace spaces and special characters with underscores
+  return tabName:gsub("[^%w]", "_")
+end
 
 --- Default configuration for new tabbed widgets.
 mdw.TabbedWidget.defaults = {
@@ -48,28 +59,14 @@ mdw.TabbedWidget.defaults = {
   visible = true,         -- Whether widget starts visible
   row = nil,              -- Row in dock (auto-assigned if nil)
   rowPosition = 0,        -- Position within row for side-by-side
+  subRow = 0,             -- Sub-row within column for sub-column stacking
   tabs = {},              -- Array of tab names
   allTab = nil,           -- Name of "all" tab (receives copies of messages)
   activeTab = nil,        -- Initially active tab name (defaults to first)
+  overflow = "wrap",      -- "wrap", "ellipsis", or "hidden"
 }
 
 --- Create a new TabbedWidget instance.
--- @tparam table cons Configuration table with the following options:
---   - name (string, required): Unique identifier for the widget
---   - title (string, optional): Display title, defaults to name
---   - tabs (table, required): Array of tab names
---   - allTab (string, optional): Name of tab that receives all messages
---   - activeTab (string, optional): Initially active tab (defaults to first)
---   - dock (string, optional): "left", "right", or nil for floating
---   - x (number, optional): Initial X position for floating widgets
---   - y (number, optional): Initial Y position for floating widgets
---   - height (number, optional): Widget height in pixels
---   - visible (boolean, optional): Start visible? Default true
---   - row (number, optional): Row index in dock (auto-assigned if nil)
---   - rowPosition (number, optional): Position within row
---   - onClose (function, optional): Callback when widget is hidden
---   - onTabChange (function, optional): Callback when tab is switched
--- @return TabbedWidget instance
 function mdw.TabbedWidget:new(cons)
   cons = cons or {}
 
@@ -77,12 +74,10 @@ function mdw.TabbedWidget:new(cons)
   assert(type(cons.name) == "string" and cons.name ~= "", "TabbedWidget name is required")
   assert(type(cons.tabs) == "table" and #cons.tabs > 0, "TabbedWidget requires at least one tab")
 
-  -- Return existing widget if one with this name already exists (EMCO pattern)
+  -- Return existing widget if one with this name already exists
+  -- This allows scripts to be reloaded without creating duplicates
   if mdw.widgets[cons.name] then
-    local existing = mdw.widgets[cons.name]
-    if existing._tabbedClass then
-      return existing._tabbedClass
-    end
+    return mdw.widgets[cons.name]
   end
 
   -- Apply defaults
@@ -117,23 +112,44 @@ function mdw.TabbedWidget:new(cons)
     if cons.dock == "left" then
       x = cfg.widgetMargin
     elseif cons.dock == "right" then
-      x = winW - cfg.rightDockWidth + cfg.splitterWidth + cfg.widgetMargin
+      x = winW - cfg.rightDockWidth + cfg.dockSplitterWidth + cfg.widgetMargin
     end
     y = cfg.headerHeight + cfg.widgetMargin
   end
 
   -- Create the underlying widget structure
-  self._widget = mdw.createTabbedWidgetInternal(self, x, y)
+  local internalWidget = mdw.createTabbedWidgetInternal(self, x, y)
 
-  -- Copy widget properties
-  self.container = self._widget.container
-  self.titleBar = self._widget.titleBar
-  self.tabBar = self._widget.tabBar
-  self.resizeLeft = self._widget.resizeLeft
-  self.resizeRight = self._widget.resizeRight
-  self.resizeTop = self._widget.resizeTop
-  self.resizeBottom = self._widget.resizeBottom
-  self.bottomResizeHandle = self._widget.bottomResizeHandle
+  -- Copy widget properties to the class
+  -- Why: The class IS the widget now - mdw.widgets stores the class directly.
+  self.container = internalWidget.container
+  self.titleBar = internalWidget.titleBar
+  self.tabBar = internalWidget.tabBar
+  self.contentBg = internalWidget.contentBg
+  self.resizeLeft = internalWidget.resizeLeft
+  self.resizeRight = internalWidget.resizeRight
+  self.resizeTop = internalWidget.resizeTop
+  self.resizeBottom = internalWidget.resizeBottom
+  self.bottomResizeHandle = internalWidget.bottomResizeHandle
+
+  -- State properties (accessed by internal functions via mdw.widgets iteration)
+  self.docked = nil            -- "left", "right", or nil for floating
+  self.row = nil               -- Row index in dock
+  self.rowPosition = 0         -- Position within row (for side-by-side)
+  self.subRow = 0              -- Sub-row within column for sub-column stacking
+  self.originalDock = nil      -- Saved dock when sidebar is hidden
+  self.isTabbed = true         -- Distinguishes from Widget
+
+  -- Overflow mode
+  self.overflow = cons.overflow or "wrap"
+  if self.overflow ~= "wrap" then
+    for _, tabObj in ipairs(self.tabObjects) do
+      tabObj.console:setWrap(10000)
+    end
+  end
+  if #self.tabObjects > 0 then
+    self._wrapWidth = mdw.calculateWrap(self.tabObjects[1].console:get_width())
+  end
 
   -- Apply height
   if self.height ~= cfg.widgetHeight then
@@ -141,18 +157,15 @@ function mdw.TabbedWidget:new(cons)
     mdw.resizeTabbedWidgetContent(self, self.container:get_width(), self.height)
   end
 
-  -- Register in mdw.widgets
-  mdw.widgets[self.name] = self._widget
-
-  -- Copy class reference to internal widget for compatibility
-  self._widget._tabbedClass = self
+  -- Register the CLASS instance directly in mdw.widgets
+  mdw.widgets[self.name] = self
 
   -- Apply docking
   if cons.dock then
     self:dock(cons.dock, cons.row)
   else
-    self._widget.docked = nil
-    mdw.showResizeHandles(self._widget)
+    self.docked = nil
+    mdw.showResizeHandles(self)
   end
 
   -- Apply visibility
@@ -160,9 +173,16 @@ function mdw.TabbedWidget:new(cons)
     self:hide()
   end
 
-  -- Select initial tab
-  local initialTab = cons.activeTab or self.tabs[1]
-  self:selectTab(initialTab)
+  -- Apply saved layout if available (uses shared helper to avoid duplication)
+  local applied, saved = mdw.applyPendingLayout(self)
+
+  -- Restore active tab from saved layout or use provided/default
+  if applied and saved and saved.activeTab then
+    self:selectTab(saved.activeTab)
+  else
+    local initialTab = cons.activeTab or self.tabs[1]
+    self:selectTab(initialTab)
+  end
 
   -- Update widgets menu to include new widget
   if mdw.rebuildWidgetsMenu then
@@ -177,10 +197,6 @@ end
 ---------------------------------------------------------------------------
 
 --- Create the internal widget structure for a tabbed widget.
--- @param tabbedWidget TabbedWidget The parent tabbed widget instance
--- @param x number Initial X position
--- @param y number Initial Y position
--- @return table Internal widget structure
 function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
   local cfg = mdw.config
   local name = tabbedWidget.name
@@ -189,14 +205,11 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
   local widget = {
     name = name,
     title = title,
-    docked = nil,
-    visible = true,
-    isTabbed = true,
   }
 
   -- Calculate dimensions
   local totalMargin = cfg.widgetMargin * 2
-  local containerWidth = cfg.leftDockWidth - totalMargin - cfg.splitterWidth
+  local containerWidth = cfg.leftDockWidth - totalMargin - cfg.dockSplitterWidth
   local contentAreaHeight = cfg.widgetHeight - cfg.titleHeight - cfg.tabBarHeight
   local contentHeight = contentAreaHeight - cfg.contentPaddingTop
 
@@ -254,10 +267,11 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 
   for i, tabName in ipairs(tabbedWidget.tabs) do
     local tabX = (i - 1) * tabWidth
+    local safeTabName = sanitizeTabName(tabName)
 
     -- Tab button
     local tabButton = mdw.trackElement(Geyser.Label:new({
-      name = "MDW_" .. name .. "_Tab_" .. tabName,
+      name = "MDW_" .. name .. "_Tab_" .. safeTabName,
       x = tabX,
       y = cfg.titleHeight,
       width = tabWidth,
@@ -269,7 +283,7 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 
     -- Tab console (MiniConsole for scrollable text)
     -- Offset by padding to create left and top padding
-    local consoleName = "MDW_" .. name .. "_Console_" .. tabName
+    local consoleName = "MDW_" .. name .. "_Console_" .. safeTabName
     local tabConsole = mdw.trackElement(Geyser.MiniConsole:new({
       name = consoleName,
       x = cfg.contentPaddingLeft,
@@ -289,6 +303,7 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
     -- Create tab object
     local tabObj = {
       name = tabName,
+      safeName = safeTabName,
       button = tabButton,
       console = tabConsole,
       index = i,
@@ -298,8 +313,7 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
     tabbedWidget.tabsByName[tabName] = tabObj
 
     -- Set up tab click callback
-    local tabIndex = i
-    setLabelClickCallback("MDW_" .. name .. "_Tab_" .. tabName, function()
+    setLabelClickCallback("MDW_" .. name .. "_Tab_" .. safeTabName, function()
       tabbedWidget:selectTab(tabName)
     end)
   end
@@ -312,7 +326,10 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
     width = actualWidth,
     height = cfg.widgetSplitterHeight,
   }, widget.container))
-  widget.bottomResizeHandle:setStyleSheet([[background-color: transparent;]])
+  widget.bottomResizeHandle:setStyleSheet(string.format([[
+    QLabel { background-color: %s; }
+    QLabel:hover { background-color: %s; }
+  ]], cfg.resizeBorderColor, cfg.splitterHoverColor))
   widget.bottomResizeHandle:setCursor(mudlet.cursor.ResizeVertical)
   widget.bottomResizeHandle:hide()  -- Hidden by default, shown when docked
 
@@ -329,9 +346,6 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 end
 
 --- Resize tabbed widget content after container changes.
--- @param tabbedWidget TabbedWidget The widget to resize
--- @param targetWidth number Optional explicit width (avoids Geyser timing issues)
--- @param targetHeight number Optional explicit height
 function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
   local cfg = mdw.config
 
@@ -340,10 +354,10 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
   local ch = targetHeight or tabbedWidget.container:get_height()
 
   -- Reserve space for bottom resize handle when docked
-  local widget = tabbedWidget._widget
-  local resizeHandleHeight = (widget and widget.docked) and cfg.widgetSplitterHeight or 0
+  local resizeHandleHeight = tabbedWidget.docked and cfg.widgetSplitterHeight or 0
   local contentAreaHeight = ch - cfg.titleHeight - cfg.tabBarHeight - resizeHandleHeight
-  local consoleWidth = cw - cfg.contentPaddingLeft
+  local contentAreaWidth = cw  -- Full width - splitters are separate elements now
+  local consoleWidth = contentAreaWidth - cfg.contentPaddingLeft
   local consoleHeight = contentAreaHeight - cfg.contentPaddingTop
 
   -- Resize title bar
@@ -354,10 +368,10 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
   tabbedWidget.tabBar:move(0, cfg.titleHeight)
   tabbedWidget.tabBar:resize(cw, cfg.tabBarHeight)
 
-  -- Resize background label that fills the padding area
-  if widget and widget.contentBg then
-    widget.contentBg:move(0, cfg.titleHeight + cfg.tabBarHeight)
-    widget.contentBg:resize(cw, contentAreaHeight)
+  -- Resize background label that fills the padding area (not overlapping right splitter)
+  if tabbedWidget.contentBg then
+    tabbedWidget.contentBg:move(0, cfg.titleHeight + cfg.tabBarHeight)
+    tabbedWidget.contentBg:resize(contentAreaWidth, contentAreaHeight)
   end
 
   -- Resize tabs
@@ -374,13 +388,26 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
     -- Resize tab console
     tabObj.console:move(cfg.contentPaddingLeft, cfg.titleHeight + cfg.tabBarHeight + cfg.contentPaddingTop)
     tabObj.console:resize(consoleWidth, consoleHeight)
-    tabObj.console:setWrap(mdw.calculateWrap(consoleWidth))
+    local wrapWidth = mdw.calculateWrap(consoleWidth)
+    local overflow = tabbedWidget.overflow or "wrap"
+    if overflow == "wrap" then
+      tabObj.console:setWrap(wrapWidth)
+    else
+      tabObj.console:setWrap(10000)
+    end
   end
 
+  -- Update wrap width for ellipsis truncation
+  tabbedWidget._wrapWidth = mdw.calculateWrap(consoleWidth)
+
+  -- Reflow text at new wrap width (skip for "hidden" mode)
+  local overflow = tabbedWidget.overflow or "wrap"
+  if overflow ~= "hidden" and tabbedWidget.reflow then tabbedWidget:reflow() end
+
   -- Position bottom resize handle at widget bottom
-  if widget and widget.bottomResizeHandle then
-    widget.bottomResizeHandle:move(0, ch - cfg.widgetSplitterHeight)
-    widget.bottomResizeHandle:resize(cw, cfg.widgetSplitterHeight)
+  if tabbedWidget.bottomResizeHandle then
+    tabbedWidget.bottomResizeHandle:move(0, ch - cfg.widgetSplitterHeight)
+    tabbedWidget.bottomResizeHandle:resize(cw, cfg.widgetSplitterHeight)
   end
 end
 
@@ -388,8 +415,6 @@ end
 -- TAB MANAGEMENT
 ---------------------------------------------------------------------------
 
---- Select a tab by name.
--- @tparam string tabName The name of the tab to select
 function mdw.TabbedWidget:selectTab(tabName)
   local tabObj = self.tabsByName[tabName]
   if not tabObj then
@@ -420,24 +445,16 @@ function mdw.TabbedWidget:selectTab(tabName)
   end
 end
 
---- Get the index of a tab by name.
--- @tparam string tabName The tab name
--- @return number|nil The tab index or nil if not found
 function mdw.TabbedWidget:getTabIndex(tabName)
   local tabObj = self.tabsByName[tabName]
   return tabObj and tabObj.index or nil
 end
 
---- Get the currently active tab name.
--- @return string The active tab name
 function mdw.TabbedWidget:getActiveTab()
   local tabObj = self.tabObjects[self.activeTabIndex]
   return tabObj and tabObj.name or nil
 end
 
---- Get a tab's MiniConsole directly.
--- @tparam string tabName The tab name
--- @return Geyser.MiniConsole|nil The console or nil if not found
 function mdw.TabbedWidget:getTab(tabName)
   local tabObj = self.tabsByName[tabName]
   return tabObj and tabObj.console or nil
@@ -448,41 +465,54 @@ end
 -- Methods for displaying text in the currently active tab.
 ---------------------------------------------------------------------------
 
---- Internal helper to call a method on the active tab's console.
-local function callOnActiveTab(self, method, ...)
-  local tabObj = self.tabObjects[self.activeTabIndex]
-  if tabObj then
-    tabObj.console[method](tabObj.console, ...)
+local MAX_BUFFER = 50
+
+--- Buffer an echo call on a tab object for later replay on reflow.
+-- Skips buffering when overflow is "hidden" (no reflow needed).
+local function bufferTabEcho(tabObj, method, text, overflow)
+  if overflow == "hidden" then return end
+  if not tabObj._buffer then tabObj._buffer = {} end
+  tabObj._buffer[#tabObj._buffer + 1] = {method, text}
+  while #tabObj._buffer > MAX_BUFFER do
+    table.remove(tabObj._buffer, 1)
   end
 end
 
---- Echo plain text to the active tab's console.
--- @tparam string text The text to display
+--- Internal helper to call a method on the active tab's console.
+local function callOnActiveTab(self, method, text)
+  local tabObj = self.tabObjects[self.activeTabIndex]
+  if tabObj then
+    bufferTabEcho(tabObj, method, text, self.overflow)
+    local displayText = text
+    if self.overflow == "ellipsis" and self._wrapWidth then
+      displayText = mdw.truncateFormatted(text, method, self._wrapWidth)
+    end
+    tabObj.console[method](tabObj.console, displayText)
+  end
+end
+
 function mdw.TabbedWidget:echo(text)
   callOnActiveTab(self, "echo", text)
 end
 
---- Echo text with cecho color codes to the active tab.
--- @tparam string text The text with color codes
 function mdw.TabbedWidget:cecho(text)
   callOnActiveTab(self, "cecho", text)
 end
 
---- Echo text with decho color codes to the active tab.
--- @tparam string text The text with RGB codes
 function mdw.TabbedWidget:decho(text)
   callOnActiveTab(self, "decho", text)
 end
 
---- Echo text with hecho color codes to the active tab.
--- @tparam string text The text with hex codes
 function mdw.TabbedWidget:hecho(text)
   callOnActiveTab(self, "hecho", text)
 end
 
---- Clear the active tab's console.
 function mdw.TabbedWidget:clear()
-  callOnActiveTab(self, "clear")
+  local tabObj = self.tabObjects[self.activeTabIndex]
+  if tabObj then
+    tabObj._buffer = {}
+    tabObj.console:clear()
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -491,67 +521,83 @@ end
 ---------------------------------------------------------------------------
 
 --- Internal helper to echo to a tab with "all" tab support.
--- @param self TabbedWidget instance
--- @param method string The echo method name ("echo", "cecho", "decho", "hecho")
--- @param tabName string The target tab name
--- @param text string The text to display
 local function echoToTab(self, method, tabName, text)
   local tabObj = self.tabsByName[tabName]
   if tabObj then
-    tabObj.console[method](tabObj.console, text)
+    bufferTabEcho(tabObj, method, text, self.overflow)
+    local displayText = text
+    if self.overflow == "ellipsis" and self._wrapWidth then
+      displayText = mdw.truncateFormatted(text, method, self._wrapWidth)
+    end
+    tabObj.console[method](tabObj.console, displayText)
+  else
+    mdw.debugEcho("TabbedWidget '%s': tab '%s' not found", self.name, tostring(tabName))
+    return
   end
 
   -- Echo to "all" tab if set and this isn't the all tab
   if self.allTab and tabName ~= self.allTab then
     local allTabObj = self.tabsByName[self.allTab]
     if allTabObj then
-      allTabObj.console[method](allTabObj.console, text)
+      bufferTabEcho(allTabObj, method, text, self.overflow)
+      local displayText = text
+      if self.overflow == "ellipsis" and self._wrapWidth then
+        displayText = mdw.truncateFormatted(text, method, self._wrapWidth)
+      end
+      allTabObj.console[method](allTabObj.console, displayText)
     end
   end
 end
 
---- Echo plain text to a specific tab.
 -- Also echoes to the "all" tab if set and the target is not the all tab.
--- @tparam string tabName The target tab name
--- @tparam string text The text to display
 function mdw.TabbedWidget:echoTo(tabName, text)
   echoToTab(self, "echo", tabName, text)
 end
 
---- Echo text with cecho color codes to a specific tab.
--- @tparam string tabName The target tab name
--- @tparam string text The text with color codes
 function mdw.TabbedWidget:cechoTo(tabName, text)
   echoToTab(self, "cecho", tabName, text)
 end
 
---- Echo text with decho color codes to a specific tab.
--- @tparam string tabName The target tab name
--- @tparam string text The text with RGB codes
 function mdw.TabbedWidget:dechoTo(tabName, text)
   echoToTab(self, "decho", tabName, text)
 end
 
---- Echo text with hecho color codes to a specific tab.
--- @tparam string tabName The target tab name
--- @tparam string text The text with hex codes
 function mdw.TabbedWidget:hechoTo(tabName, text)
   echoToTab(self, "hecho", tabName, text)
 end
 
---- Clear a specific tab's console.
--- @tparam string tabName The tab name to clear
 function mdw.TabbedWidget:clearTab(tabName)
   local tabObj = self.tabsByName[tabName]
   if tabObj then
+    tabObj._buffer = {}
     tabObj.console:clear()
   end
 end
 
---- Clear all tab consoles.
 function mdw.TabbedWidget:clearAll()
   for _, tabObj in ipairs(self.tabObjects) do
+    tabObj._buffer = {}
     tabObj.console:clear()
+  end
+end
+
+--- Replay buffered echo calls on all tabs after clearing content.
+-- Used to reflow text at a new wrap width after resize.
+-- For "ellipsis" mode, re-truncates each entry to current width.
+-- For "hidden" mode, does nothing (no buffer).
+function mdw.TabbedWidget:reflow()
+  if self.overflow == "hidden" then return end
+  for _, tabObj in ipairs(self.tabObjects) do
+    if tabObj._buffer and #tabObj._buffer > 0 then
+      tabObj.console:clear()
+      for _, entry in ipairs(tabObj._buffer) do
+        local text = entry[2]
+        if self.overflow == "ellipsis" and self._wrapWidth then
+          text = mdw.truncateFormatted(text, entry[1], self._wrapWidth)
+        end
+        tabObj.console[entry[1]](tabObj.console, text)
+      end
+    end
   end
 end
 
@@ -560,57 +606,16 @@ end
 -- Methods for controlling widget docking state.
 ---------------------------------------------------------------------------
 
---- Dock the widget to a sidebar.
--- @tparam string side "left" or "right"
--- @tparam number row Optional row index (auto-assigned if nil)
 function mdw.TabbedWidget:dock(side, row)
-  assert(side == "left" or side == "right", "dock side must be 'left' or 'right'")
-
-  self._widget.docked = side
-
-  if row then
-    self._widget.row = row
-    self._widget.rowPosition = 0
-  else
-    local docked = mdw.getDockedWidgets(side, self._widget)
-    local maxRow = -1
-    for _, w in ipairs(docked) do
-      maxRow = math.max(maxRow, w.row or 0)
-    end
-    self._widget.row = maxRow + 1
-    self._widget.rowPosition = 0
-  end
-
-  mdw.hideResizeHandles(self._widget)
-  mdw.reorganizeDock(side)
+  mdw.dockWidgetClass(self, side, row)
 end
 
---- Undock the widget (make it floating).
--- @tparam number x Optional X position
--- @tparam number y Optional Y position
 function mdw.TabbedWidget:undock(x, y)
-  local previousDock = self._widget.docked
-
-  self._widget.docked = nil
-  self._widget.row = nil
-  self._widget.rowPosition = nil
-
-  if x and y then
-    self.container:move(x, y)
-  end
-
-  mdw.showResizeHandles(self._widget)
-  mdw.updateResizeBorders(self._widget)
-
-  if previousDock then
-    mdw.reorganizeDock(previousDock)
-  end
+  mdw.undockWidgetClass(self, x, y)
 end
 
---- Check if the widget is currently docked.
--- @return string|nil The dock side ("left" or "right") or nil if floating
 function mdw.TabbedWidget:isDocked()
-  return self._widget.docked
+  return self.docked
 end
 
 ---------------------------------------------------------------------------
@@ -618,63 +623,32 @@ end
 -- Methods for showing and hiding widgets.
 ---------------------------------------------------------------------------
 
---- Show the widget.
 function mdw.TabbedWidget:show()
-  self._widget.visible = true
-  self.container:show()
-
-  if self._widget.docked then
-    mdw.hideResizeHandles(self._widget)
-    mdw.reorganizeDock(self._widget.docked)
-  else
-    mdw.showResizeHandles(self._widget)
-  end
-
-  -- Show the active tab's console
-  local activeTab = self.tabObjects[self.activeTabIndex]
-  if activeTab then
-    activeTab.console:show()
-    activeTab.console:raise()
-  end
-
-  if mdw.updateWidgetsMenuState then
-    mdw.updateWidgetsMenuState()
-  end
+  local selfRef = self
+  mdw.showWidgetClass(self, function()
+    -- Show the active tab's console
+    local activeTab = selfRef.tabObjects[selfRef.activeTabIndex]
+    if activeTab then
+      activeTab.console:show()
+      activeTab.console:raise()
+    end
+  end)
 end
 
---- Hide the widget.
 function mdw.TabbedWidget:hide()
-  self._widget.visible = false
-  self.container:hide()
-  mdw.hideResizeHandles(self._widget)
-
-  -- Reorganize docks (will update vertical splitters for side-by-side widgets)
-  if self._widget.docked then
-    mdw.reorganizeDock(self._widget.docked)
-  end
-
-  if mdw.updateWidgetsMenuState then
-    mdw.updateWidgetsMenuState()
-  end
-
-  if self.onClose then
-    self.onClose(self)
-  end
+  mdw.hideWidgetClass(self)
 end
 
---- Toggle widget visibility.
 function mdw.TabbedWidget:toggle()
-  if self._widget.visible then
+  if self.visible then
     self:hide()
   else
     self:show()
   end
 end
 
---- Check if the widget is visible.
--- @return boolean
 function mdw.TabbedWidget:isVisible()
-  return self._widget.visible ~= false
+  return self.visible ~= false
 end
 
 ---------------------------------------------------------------------------
@@ -682,23 +656,23 @@ end
 -- Methods for customizing widget appearance.
 ---------------------------------------------------------------------------
 
---- Set the widget's title.
--- @tparam string title The new title
 function mdw.TabbedWidget:setTitle(title)
   self.title = title
-  self._widget.title = title
   self.titleBar:decho("<" .. mdw.config.headerTextColor .. ">" .. title)
 end
 
---- Set a custom stylesheet for the title bar.
--- @tparam string css Qt stylesheet string
 function mdw.TabbedWidget:setTitleStyleSheet(css)
   self.titleBar:setStyleSheet(css)
 end
 
---- Set the font for all tab consoles.
--- @tparam string font Font name
--- @tparam number size Font size (optional)
+--- Set a custom stylesheet for the content background area.
+-- Note: This affects the background label behind the tab consoles.
+function mdw.TabbedWidget:setContentStyleSheet(css)
+  if self.contentBg then
+    self.contentBg:setStyleSheet(css)
+  end
+end
+
 function mdw.TabbedWidget:setFont(font, size)
   for _, tabObj in ipairs(self.tabObjects) do
     if font then
@@ -715,51 +689,24 @@ end
 -- Methods for controlling widget geometry.
 ---------------------------------------------------------------------------
 
---- Resize the widget.
--- @tparam number|nil width New width (nil to keep current)
--- @tparam number|nil height New height (nil to keep current)
 function mdw.TabbedWidget:resize(width, height)
-  self.container:resize(width, height)
-  -- Get actual dimensions (may have been nil in the resize call)
-  local actualWidth = width or self.container:get_width()
-  local actualHeight = height or self.container:get_height()
-  mdw.resizeTabbedWidgetContent(self, actualWidth, actualHeight)
-
-  if self._widget.docked then
-    mdw.reorganizeDock(self._widget.docked)
-  else
-    mdw.updateResizeBorders(self._widget)
-  end
+  mdw.resizeWidgetClass(self, width, height, mdw.resizeTabbedWidgetContent)
 end
 
---- Move the widget (only works for floating widgets).
--- @tparam number x New X position
--- @tparam number y New Y position
 function mdw.TabbedWidget:move(x, y)
-  if self._widget.docked then
-    mdw.debugEcho("Cannot move docked widget - undock it first")
-    return
-  end
-
-  self.container:move(x, y)
-  mdw.updateResizeBorders(self._widget)
+  mdw.moveWidgetClass(self, x, y)
 end
 
---- Get the widget's current position.
--- @return number x, number y
 function mdw.TabbedWidget:getPosition()
   return self.container:get_x(), self.container:get_y()
 end
 
---- Get the widget's current size.
--- @return number width, number height
 function mdw.TabbedWidget:getSize()
   return self.container:get_width(), self.container:get_height()
 end
 
---- Raise the widget above others.
 function mdw.TabbedWidget:raise()
-  mdw.raiseWidget(self._widget)
+  mdw.raiseWidget(self)
 end
 
 ---------------------------------------------------------------------------
@@ -767,26 +714,8 @@ end
 -- Methods for removing widgets.
 ---------------------------------------------------------------------------
 
---- Destroy the widget and clean up resources.
 function mdw.TabbedWidget:destroy()
-  self:hide()
-
-  -- Remove from mdw.widgets
-  mdw.widgets[self.name] = nil
-
-  -- Hide resize borders
-  if self.resizeLeft then self.resizeLeft:hide() end
-  if self.resizeRight then self.resizeRight:hide() end
-  if self.resizeTop then self.resizeTop:hide() end
-  if self.resizeBottom then self.resizeBottom:hide() end
-
-  -- Hide container
-  self.container:hide()
-
-  -- Rebuild menu
-  if mdw.rebuildWidgetsMenu then
-    mdw.rebuildWidgetsMenu()
-  end
+  mdw.destroyWidgetClass(self)
 end
 
 ---------------------------------------------------------------------------
@@ -794,23 +723,19 @@ end
 -- Static methods for working with tabbed widgets.
 ---------------------------------------------------------------------------
 
---- Get a tabbed widget by name.
--- @tparam string name Widget name
--- @return TabbedWidget instance or nil
 function mdw.TabbedWidget.get(name)
   local widget = mdw.widgets[name]
-  if widget and widget._tabbedClass then
-    return widget._tabbedClass
+  -- Only return if it's a TabbedWidget
+  if widget and widget.isTabbed then
+    return widget
   end
   return nil
 end
 
---- Get all tabbed widget names.
--- @return table Array of widget names
 function mdw.TabbedWidget.list()
   local names = {}
   for name, widget in pairs(mdw.widgets) do
-    if widget._tabbedClass then
+    if widget.isTabbed then
       names[#names + 1] = name
     end
   end

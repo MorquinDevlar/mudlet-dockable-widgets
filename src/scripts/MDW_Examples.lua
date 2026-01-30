@@ -11,7 +11,7 @@
   2. Comment out the mdw.registerWidgets() call at the bottom
   3. Set mdw.loadExamples = false before the package loads
 
-  Dependencies: MDW_Config.lua, MDW_Init.lua, MDW_Widgets.lua,
+  Dependencies: MDW_Config.lua, MDW_Helpers.lua, MDW_Init.lua, MDW_WidgetCore.lua,
                 MDW_Widget.lua, MDW_TabbedWidget.lua
 ]]
 
@@ -93,9 +93,59 @@ local function createExampleWidgets()
   comm:cechoTo("Tell", "<magenta>Bob tells you: Hey there!\n")
   comm:cechoTo("Tell", "<magenta>You tell Bob: Hello!\n")
 
-  comm:cechoTo("Chat", "<cyan>[Chat] Player1: Hello everyone!\n")
+  comm:cechoTo("Chat", "<cyan>[Chat] Player1: Hello everyone! This is a longer message to demonstrate that word wrap is handled automatically when text exceeds the widget width.\n")
   comm:cechoTo("Chat", "<cyan>[Chat] Player2: Welcome to the game!\n")
+
+  ---------------------------------------------------------------------------
+  -- PROMPT BAR FALLBACK
+  ---------------------------------------------------------------------------
+
+  -- Show placeholder text if no prompt has been captured yet
+  -- This will be replaced by the actual prompt when connected to a game
+  if mdw.promptBar then
+    mdw.setPromptCecho("<dim_gray>This is where your prompt will show")
+  end
 end
+
+--[[
+  ---------------------------------------------------------------------------
+  PROMPT BAR USAGE GUIDE
+  ---------------------------------------------------------------------------
+
+  MDW includes a prompt trigger (MDW_PromptCapture) that automatically
+  captures your MUD's prompt and displays it in the prompt bar.
+
+  The trigger uses Mudlet's "prompt" detection, which works with most MUDs.
+  If your prompt isn't being captured, you may need to:
+  1. Disable the MDW_PromptCapture trigger
+  2. Create your own trigger with a pattern matching your MUD's prompt
+  3. Call mdw.capturePrompt() in your trigger script
+
+  AVAILABLE FUNCTIONS:
+
+  mdw.capturePrompt()
+    - Captures current line with colors, displays in prompt bar, deletes from main
+    - Call from a prompt trigger
+
+  mdw.capturePrompt(false)
+    - Same as above, but does NOT delete from main window
+
+  mdw.setPrompt("<255,200,100>Custom text")
+    - Set prompt bar text directly using decho format (RGB colors)
+
+  mdw.setPromptCecho("<green>Custom <white>text")
+    - Set prompt bar text directly using cecho format (named colors)
+
+  mdw.clearPrompt()
+    - Clear the prompt bar
+
+  CUSTOM PROMPT EXAMPLE:
+
+  -- Build a custom formatted prompt from GMCP data
+  local hp = gmcp.Char.Vitals.hp or 100
+  local maxHp = gmcp.Char.Vitals.maxHp or 100
+  mdw.setPromptCecho(string.format("<green>HP: <white>%d/%d", hp, maxHp))
+]]
 
 ---------------------------------------------------------------------------
 -- REGISTRATION

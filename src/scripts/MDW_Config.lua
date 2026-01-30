@@ -1,9 +1,10 @@
 --[[
   MDW_Config.lua
-  Configuration, styles, and shared state for MDW (Mudlet Dockable Widgets).
+  Configuration and shared state for MDW (Mudlet Dockable Widgets).
 
-  This module centralizes all user-adjustable values and visual styling.
-  Modify config values here to customize the UI appearance and behavior.
+  This module contains only static data declarations: user-adjustable config
+  values, style table initialization, and shared state tables. All runtime
+  functions live in MDW_Helpers.lua.
 
   Dependencies: None (this is the root configuration module)
 ]]
@@ -35,9 +36,11 @@ mdw.config = {
   minFloatingWidth = 100,        -- Minimum width for floating widgets
 
   -- Layout: Splitters and borders
-  splitterWidth = 2,             -- Width of dock edge splitters
+  dockSplitterWidth = 4,         -- Width of vertical dock edge splitters (resize handles)
+  separatorHeight = 2,           -- Height of horizontal separator lines (header/prompt)
   dropIndicatorHeight = 2,       -- Height of drop target indicators
-  widgetSplitterHeight = 2,      -- Height of between-widget splitters
+  widgetSplitterHeight = 2,      -- Height of between-widget splitters (vertical resize)
+  widgetSplitterWidth = 2,       -- Width of between-widget splitters (horizontal resize)
   resizeBorderWidth = 2,         -- Width of floating widget resize handles
 
   -- Layout: Header and prompt bar
@@ -57,9 +60,10 @@ mdw.config = {
   menuOverlap = 4,               -- Overlap between menu and header button border
 
   -- Layout: Margins
-  widgetMargin = 5,              -- Margin around widgets in docks (px)
+  widgetMargin = 2,              -- Margin around widgets in docks (px)
   contentPaddingLeft = 5,        -- Left padding inside widget content area (px)
   contentPaddingTop = 5,         -- Top padding inside widget content area (px)
+  promptBarTopPadding = 2,       -- Top padding inside prompt bar (px)
   floatingStartX = 100,          -- Default X position for new floating widgets
   floatingStartY = 100,          -- Default Y position for new floating widgets
 
@@ -102,142 +106,23 @@ mdw.config = {
   -- Typography
   fontFamily = "JetBrains Mono NL",
   fontSize = 11,
+
+  -- Layout Menu Items
+  -- Define the items that appear in the Layout dropdown menu.
+  -- Each item has: name (visibility key), label (display text)
+  layoutMenuItems = {
+    {name = "leftSidebar", label = "Left Sidebar"},
+    {name = "rightSidebar", label = "Right Sidebar"},
+    {name = "promptBar", label = "Prompt Bar"},
+  },
 }
 
 ---------------------------------------------------------------------------
 -- STYLES
--- Pre-built stylesheets for consistency across components.
--- Why: Centralizing styles prevents duplication and ensures visual consistency.
--- Changes to appearance only need to happen in one place.
+-- Populated by mdw.buildStyles() in MDW_Helpers.lua.
 ---------------------------------------------------------------------------
 
 mdw.styles = {}
-
---- Generate all stylesheets from current config.
--- Why: Called after config changes to regenerate styles with new values.
-function mdw.buildStyles()
-  local cfg = mdw.config
-
-  mdw.styles.sidebar = string.format([[
-    background-color: %s;
-  ]], cfg.sidebarBackground)
-
-  mdw.styles.splitter = string.format([[
-    QLabel { background-color: %s; }
-    QLabel:hover { background-color: %s; }
-  ]], cfg.splitterColor, cfg.splitterHoverColor)
-
-  mdw.styles.titleBar = string.format([[
-    background-color: %s;
-    qproperty-alignment: 'AlignCenter';
-    font-family: '%s';
-    font-size: %dpx;
-  ]], cfg.headerBackground, cfg.fontFamily, cfg.fontSize)
-
-  mdw.styles.titleBarDragging = string.format([[
-    background-color: %s;
-    qproperty-alignment: 'AlignCenter';
-    font-family: '%s';
-    font-size: %dpx;
-    opacity: 0.6;
-  ]], cfg.headerBackground, cfg.fontFamily, cfg.fontSize)
-
-  mdw.styles.widgetContent = string.format([[
-    background-color: %s;
-    font-family: '%s';
-    font-size: %dpx;
-  ]], cfg.widgetBackground, cfg.fontFamily, cfg.fontSize)
-
-  mdw.styles.widgetContentDragging = string.format([[
-    background-color: %s;
-    font-family: '%s';
-    font-size: %dpx;
-    opacity: 0.6;
-  ]], cfg.widgetBackground, cfg.fontFamily, cfg.fontSize)
-
-  mdw.styles.headerPane = string.format([[
-    background-color: %s;
-    font-family: '%s';
-    font-size: %dpx;
-  ]], cfg.sidebarBackground, cfg.fontFamily, cfg.fontSize)
-
-  mdw.styles.headerButton = string.format([[
-    QLabel {
-      background-color: transparent;
-      font-family: '%s';
-      font-size: %dpx;
-      padding-left: %dpx;
-      border: 2px solid transparent;
-    }
-    QLabel:hover {
-      background-color: rgb(51,51,51);
-      border: 2px solid rgb(85,85,85);
-    }
-  ]], cfg.fontFamily, cfg.fontSize, cfg.menuPaddingLeft)
-
-  -- Active state for header buttons when their menu is open
-  mdw.styles.headerButtonActive = string.format([[
-    QLabel {
-      background-color: rgb(51,51,51);
-      font-family: '%s';
-      font-size: %dpx;
-      padding-left: %dpx;
-      border: 2px solid rgb(85,85,85);
-    }
-  ]], cfg.fontFamily, cfg.fontSize, cfg.menuPaddingLeft)
-
-  mdw.styles.menuItem = string.format([[
-    QLabel {
-      background-color: transparent;
-      font-family: '%s';
-      font-size: %dpx;
-      padding-left: %dpx;
-    }
-  ]], cfg.fontFamily, cfg.fontSize, cfg.menuPaddingLeft)
-
-  mdw.styles.menuBackground = [[
-    background-color: rgb(51,51,51);
-    border: 2px solid rgb(85,85,85);
-  ]]
-
-  mdw.styles.dropIndicator = string.format([[
-    background-color: %s;
-  ]], cfg.dropIndicatorColor)
-
-  mdw.styles.dockHighlight = string.format([[
-    background-color: rgba(106,91,58,0.4);
-    outline: 2px dashed %s;
-  ]], cfg.dropIndicatorColor)
-
-  mdw.styles.separatorLine = string.format([[
-    background-color: %s;
-  ]], cfg.splitterColor)
-
-  mdw.styles.tabBar = string.format([[
-    background-color: %s;
-  ]], cfg.headerBackground)
-
-  mdw.styles.tabActive = string.format([[
-    background-color: %s;
-    qproperty-alignment: 'AlignCenter';
-    font-family: '%s';
-    font-size: %dpx;
-    padding-left: %dpx;
-    padding-right: %dpx;
-  ]], cfg.tabActiveBackground, cfg.fontFamily, cfg.fontSize, cfg.tabPadding, cfg.tabPadding)
-
-  mdw.styles.tabInactive = string.format([[
-    background-color: %s;
-    qproperty-alignment: 'AlignCenter';
-    font-family: '%s';
-    font-size: %dpx;
-    padding-left: %dpx;
-    padding-right: %dpx;
-  ]], cfg.tabInactiveBackground, cfg.fontFamily, cfg.fontSize, cfg.tabPadding, cfg.tabPadding)
-end
-
--- Build styles on load
-mdw.buildStyles()
 
 ---------------------------------------------------------------------------
 -- SHARED STATE
@@ -246,10 +131,16 @@ mdw.buildStyles()
 -- cleanup/reset operations straightforward.
 ---------------------------------------------------------------------------
 
--- UI element tracking for cleanup
+-- Widget storage: maps widget name -> Widget/TabbedWidget class instance
+-- Access widgets directly: mdw.widgets["MyWidget"]:echo("hello")
+-- Or use class methods: mdw.Widget.get("MyWidget"), mdw.TabbedWidget.get("MyWidget")
 mdw.widgets = {}
 mdw.elements = {}
 mdw.handlers = {}
+
+-- Row splitters: separate elements between side-by-side widgets
+-- Key format: "{side}_{rowIndex}_{leftWidgetPosition}"
+mdw.rowSplitters = {}
 
 -- Drag state for widget movement
 mdw.drag = {
@@ -270,6 +161,7 @@ mdw.drag = {
   originalDock = nil,
   originalRow = nil,
   originalRowPosition = nil,
+  originalSubRow = nil,
   -- Debug tracking
   lastDebugKey = nil,
 }
@@ -329,184 +221,12 @@ mdw.menus = {
   widgetsOpen = false,
 }
 
--- Splitter tracking (horizontal splitters for vertical resize)
-mdw.widgetSplitters = {
-  left = {},
-  right = {},
-}
-
--- Vertical splitter tracking (for horizontal resize between side-by-side widgets)
-mdw.verticalWidgetSplitters = {
-  left = {},
-  right = {},
-}
-
 -- Update flag to prevent teardown during package update
 mdw.isUpdating = false
 
----------------------------------------------------------------------------
--- DEBUG
----------------------------------------------------------------------------
+-- Layout persistence
+mdw.pendingLayouts = {}
+mdw.layoutFile = getMudletHomeDir() .. "/mdw_layout.lua"
 
+-- Debug mode flag
 mdw.debugMode = false
-
---- Output debug message if debug mode is enabled.
--- Why: Conditional debug output helps diagnose drag/drop issues without
--- cluttering normal operation. Set mdw.debugMode = true to enable.
-function mdw.debugEcho(msg)
-  if mdw.debugMode then
-    cecho("<dim_gray>[DEBUG] " .. msg .. "\n")
-  end
-end
-
----------------------------------------------------------------------------
--- HELPER FUNCTIONS
--- Shared utilities used across all UI modules.
----------------------------------------------------------------------------
-
---- Output a formatted message to the console.
--- @param msg string The message to display
-function mdw.echo(msg)
-  cecho("<gray>[<white>MDW<gray>] " .. msg .. "\n")
-end
-
---- Clamp a value between min and max bounds.
--- Why: Prevents dimension values from exceeding valid ranges,
--- which would cause layout corruption or negative coordinates.
--- @param value number The value to clamp
--- @param min number Minimum allowed value
--- @param max number Maximum allowed value
--- @return number The clamped value
-function mdw.clamp(value, min, max)
-  return math.max(min, math.min(max, value))
-end
-
---- Calculate wrap value for a MiniConsole based on pixel width.
--- Uses calcFontSize to get exact character width for the configured font.
--- @param pixelWidth number The width of the console in pixels
--- @return number The number of characters to wrap at
-function mdw.calculateWrap(pixelWidth)
-  local cfg = mdw.config
-  local charWidth, _ = calcFontSize(cfg.fontSize, cfg.fontFamily)
-  if charWidth and charWidth > 0 then
-    return math.floor(pixelWidth / charWidth)
-  end
-  -- Fallback: assume ~7px per character for typical monospace fonts
-  return math.floor(pixelWidth / 7)
-end
-
---- Get configuration values for a specific dock side.
--- Why: Reduces repetitive if/else blocks throughout the codebase when
--- operations differ only by which dock side they target.
--- @param side string "left" or "right"
--- @return table Configuration for the specified dock
-function mdw.getDockConfig(side)
-  local cfg = mdw.config
-  local winW = getMainWindowSize()
-
-  local totalMargin = cfg.widgetMargin * 2  -- margin on both sides
-
-  if side == "left" then
-    return {
-      dock = mdw.leftDock,
-      splitter = mdw.leftSplitter,
-      dropIndicator = mdw.leftDropIndicator,
-      width = cfg.leftDockWidth,
-      fullWidgetWidth = cfg.leftDockWidth - totalMargin - cfg.splitterWidth,
-      xPos = cfg.widgetMargin,
-      widgetSplitters = mdw.widgetSplitters.left,
-      verticalSplitters = mdw.verticalWidgetSplitters.left,
-      setBorder = setBorderLeft,
-      visibilityKey = "leftSidebar",
-    }
-  else
-    return {
-      dock = mdw.rightDock,
-      splitter = mdw.rightSplitter,
-      dropIndicator = mdw.rightDropIndicator,
-      width = cfg.rightDockWidth,
-      fullWidgetWidth = cfg.rightDockWidth - totalMargin - cfg.splitterWidth,
-      xPos = winW - cfg.rightDockWidth + cfg.splitterWidth + cfg.widgetMargin,
-      widgetSplitters = mdw.widgetSplitters.right,
-      verticalSplitters = mdw.verticalWidgetSplitters.right,
-      setBorder = setBorderRight,
-      visibilityKey = "rightSidebar",
-    }
-  end
-end
-
---- Register a UI element for cleanup on package uninstall.
--- Why: Mudlet doesn't automatically clean up Geyser elements when
--- packages are removed, leading to orphaned UI and memory leaks.
--- @param element Geyser element to track
--- @return The same element (for chaining)
-function mdw.trackElement(element)
-  mdw.elements[#mdw.elements + 1] = element
-  return element
-end
-
---- Register a named event handler for cleanup.
--- Why: Named handlers can accumulate if not properly cleaned up on
--- package reinstall, causing duplicate event processing.
--- @param event string The event name to listen for
--- @param name string Unique identifier for this handler
--- @param func function|string The handler function or function name
-function mdw.registerHandler(event, name, func)
-  local handlerName = mdw.packageName .. "_" .. name
-  registerNamedEventHandler(mdw.packageName, handlerName, event, func)
-  mdw.handlers[handlerName] = true
-end
-
---- Kill all registered event handlers.
--- Why: Essential for clean package uninstall to prevent orphaned handlers.
-function mdw.killAllHandlers()
-  for handlerName in pairs(mdw.handlers) do
-    deleteNamedEventHandler(mdw.packageName, handlerName)
-  end
-  mdw.handlers = {}
-end
-
---- Destroy all tracked UI elements.
--- Why: Ensures complete cleanup on uninstall, preventing visual artifacts
--- and memory leaks from orphaned Geyser elements.
-function mdw.destroyAllElements()
-  -- Helper to safely delete a label by name
-  local function safeDeleteLabel(name)
-    if Geyser.Label.all and Geyser.Label.all[name] then
-      pcall(function()
-        Geyser.Label.all[name]:hide()
-      end)
-      pcall(deleteLabel, name)
-    end
-  end
-
-  -- Delete all tracked elements
-  for _, element in ipairs(mdw.elements) do
-    if element then
-      pcall(function()
-        if element.hide then element:hide() end
-      end)
-      pcall(function()
-        if element.name then
-          deleteLabel(element.name)
-        end
-      end)
-    end
-  end
-
-  -- Also delete any splitters by name pattern to catch orphans
-  -- This handles splitters that weren't properly tracked
-  for _, side in ipairs({"left", "right"}) do
-    for i = 1, 20 do
-      safeDeleteLabel("MDW_WidgetSplitter_" .. side .. "_" .. i)
-      safeDeleteLabel("MDW_VertWidgetSplitter_" .. side .. "_" .. i)
-    end
-  end
-
-  mdw.elements = {}
-  mdw.widgets = {}
-
-  -- Reset splitter tracking arrays to prevent stale references
-  mdw.widgetSplitters = { left = {}, right = {} }
-  mdw.verticalWidgetSplitters = { left = {}, right = {} }
-end

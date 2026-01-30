@@ -2,8 +2,7 @@
   MDW_Widget.lua
   Widget class for MDW (Mudlet Dockable Widgets).
 
-  Provides an object-oriented API for creating and managing dockable widgets,
-  inspired by the EMCO pattern from Demonnic's MDK.
+  Provides an object-oriented API for creating and managing dockable widgets.
 
   Usage:
     local myWidget = mdw.Widget:new({
@@ -26,7 +25,7 @@
     myWidget:hide()
     myWidget:setTitle("New Title")
 
-  Dependencies: MDW_Config.lua, MDW_Init.lua, MDW_Widgets.lua must be loaded first
+  Dependencies: MDW_Config.lua, MDW_Helpers.lua, MDW_Init.lua, MDW_WidgetCore.lua must be loaded first
 ]]
 
 ---------------------------------------------------------------------------
@@ -47,22 +46,10 @@ mdw.Widget.defaults = {
   visible = true,         -- Whether widget starts visible
   row = nil,              -- Row in dock (auto-assigned if nil)
   rowPosition = 0,        -- Position within row for side-by-side
+  subRow = 0,             -- Sub-row within column for sub-column stacking
+  overflow = "wrap",      -- "wrap", "ellipsis", or "hidden"
 }
 
---- Create a new Widget instance.
--- @tparam table cons Configuration table with the following options:
---   - name (string, required): Unique identifier for the widget
---   - title (string, optional): Display title, defaults to name
---   - dock (string, optional): "left", "right", or nil for floating
---   - x (number, optional): Initial X position for floating widgets
---   - y (number, optional): Initial Y position for floating widgets
---   - height (number, optional): Widget height in pixels
---   - visible (boolean, optional): Start visible? Default true
---   - row (number, optional): Row index in dock (auto-assigned if nil)
---   - rowPosition (number, optional): Position within row
---   - onClose (function, optional): Callback when widget is hidden
---   - onClick (function, optional): Callback when content area is clicked
--- @return Widget instance
 function mdw.Widget:new(cons)
   cons = cons or {}
 
@@ -70,12 +57,9 @@ function mdw.Widget:new(cons)
   assert(type(cons.name) == "string" and cons.name ~= "", "Widget name is required")
 
   -- Return existing widget if one with this name already exists
-  -- This allows scripts to be reloaded without errors (EMCO pattern)
+  -- This allows scripts to be reloaded without creating duplicates
   if mdw.widgets[cons.name] then
-    local existing = mdw.widgets[cons.name]
-    if existing._class then
-      return existing._class
-    end
+    return mdw.widgets[cons.name]
   end
 
   -- Apply defaults
@@ -102,7 +86,7 @@ function mdw.Widget:new(cons)
     if cons.dock == "left" then
       x = cfg.widgetMargin
     elseif cons.dock == "right" then
-      x = winW - cfg.rightDockWidth + cfg.splitterWidth + cfg.widgetMargin
+      x = winW - cfg.rightDockWidth + cfg.dockSplitterWidth + cfg.widgetMargin
     end
     y = cfg.headerHeight + cfg.widgetMargin
   end
@@ -110,11 +94,14 @@ function mdw.Widget:new(cons)
   -- Create the underlying widget using existing infrastructure
   local widget = mdw.createWidget(self.name, self.title, x, y)
 
-  -- Copy the internal widget properties
-  self._widget = widget
+  -- Copy the internal widget properties to the class
+  -- Why: The class IS the widget now - mdw.widgets stores the class directly.
+  -- Internal functions access .docked, .container, etc. on what they receive,
+  -- so the class must expose all these properties.
   self.container = widget.container
   self.titleBar = widget.titleBar
   self.content = widget.content
+  self.contentBg = widget.contentBg
   self.mapper = widget.mapper
   self.resizeLeft = widget.resizeLeft
   self.resizeRight = widget.resizeRight
@@ -122,24 +109,37 @@ function mdw.Widget:new(cons)
   self.resizeBottom = widget.resizeBottom
   self.bottomResizeHandle = widget.bottomResizeHandle
 
+  -- State properties (accessed by internal functions via mdw.widgets iteration)
+  self.docked = nil            -- "left", "right", or nil for floating
+  self.row = nil               -- Row index in dock
+  self.rowPosition = 0         -- Position within row (for side-by-side)
+  self.subRow = 0              -- Sub-row within column for sub-column stacking
+  self.originalDock = nil      -- Saved dock when sidebar is hidden
+  self.isTabbed = false        -- Distinguishes from TabbedWidget
+
+  -- Overflow mode
+  self.overflow = cons.overflow or "wrap"
+  if self.overflow ~= "wrap" then
+    self.content:setWrap(10000)
+  end
+  self._wrapWidth = mdw.calculateWrap(self.content:get_width())
+
   -- Apply height
   if self.height ~= mdw.config.widgetHeight then
     self.container:resize(nil, self.height)
-    mdw.resizeWidgetContent(self._widget, self.container:get_width(), self.height)
+    mdw.resizeWidgetContent(self, self.container:get_width(), self.height)
   end
 
-  -- Register in mdw.widgets
-  mdw.widgets[self.name] = self._widget
-
-  -- Copy class reference to internal widget for compatibility
-  self._widget._class = self
+  -- Register the CLASS instance directly in mdw.widgets
+  -- This replaces the old pattern of storing _widget with a _class back-reference
+  mdw.widgets[self.name] = self
 
   -- Apply docking
   if cons.dock then
     self:dock(cons.dock, cons.row)
   else
-    self._widget.docked = nil
-    mdw.showResizeHandles(self._widget)
+    self.docked = nil
+    mdw.showResizeHandles(self)
   end
 
   -- Apply visibility
@@ -155,6 +155,9 @@ function mdw.Widget:new(cons)
     end)
   end
 
+  -- Apply saved layout if available (uses shared helper to avoid duplication)
+  mdw.applyPendingLayout(self)
+
   -- Update widgets menu to include new widget
   if mdw.rebuildWidgetsMenu then
     mdw.rebuildWidgetsMenu()
@@ -168,32 +171,68 @@ end
 -- Methods for displaying text in the widget's content area.
 ---------------------------------------------------------------------------
 
---- Echo plain text to the widget's content area.
--- @tparam string text The text to display
+local MAX_BUFFER = 50
+
+-- Skips buffering when overflow is "hidden" (no reflow needed).
+function mdw.Widget:_bufferEcho(method, text)
+  if self.overflow == "hidden" then return end
+  if not self._buffer then self._buffer = {} end
+  self._buffer[#self._buffer + 1] = {method, text}
+  while #self._buffer > MAX_BUFFER do
+    table.remove(self._buffer, 1)
+  end
+end
+
+--- Replay buffered echo calls to reflow text at a new wrap width after resize.
+-- For "ellipsis" mode, re-truncates each entry to current width.
+-- For "hidden" mode, does nothing (no buffer).
+function mdw.Widget:reflow()
+  if self.overflow == "hidden" then return end
+  if not self._buffer or #self._buffer == 0 then return end
+  self.content:clear()
+  for _, entry in ipairs(self._buffer) do
+    local text = entry[2]
+    if self.overflow == "ellipsis" and self._wrapWidth then
+      text = mdw.truncateFormatted(text, entry[1], self._wrapWidth)
+    end
+    self.content[entry[1]](self.content, text)
+  end
+end
+
 function mdw.Widget:echo(text)
+  self:_bufferEcho("echo", text)
+  if self.overflow == "ellipsis" and self._wrapWidth then
+    text = mdw.truncateFormatted(text, "echo", self._wrapWidth)
+  end
   self.content:echo(text)
 end
 
---- Echo text with cecho color codes.
--- @tparam string text The text with color codes (e.g., "<red>Hello")
 function mdw.Widget:cecho(text)
+  self:_bufferEcho("cecho", text)
+  if self.overflow == "ellipsis" and self._wrapWidth then
+    text = mdw.truncateFormatted(text, "cecho", self._wrapWidth)
+  end
   self.content:cecho(text)
 end
 
---- Echo text with decho color codes.
--- @tparam string text The text with RGB codes (e.g., "<255,0,0>Hello")
 function mdw.Widget:decho(text)
+  self:_bufferEcho("decho", text)
+  if self.overflow == "ellipsis" and self._wrapWidth then
+    text = mdw.truncateFormatted(text, "decho", self._wrapWidth)
+  end
   self.content:decho(text)
 end
 
---- Echo text with hecho color codes.
--- @tparam string text The text with hex codes (e.g., "#FF0000Hello")
 function mdw.Widget:hecho(text)
+  self:_bufferEcho("hecho", text)
+  if self.overflow == "ellipsis" and self._wrapWidth then
+    text = mdw.truncateFormatted(text, "hecho", self._wrapWidth)
+  end
   self.content:hecho(text)
 end
 
---- Clear the widget's content area.
 function mdw.Widget:clear()
+  self._buffer = {}
   self.content:clear()
 end
 
@@ -202,59 +241,16 @@ end
 -- Methods for controlling widget docking state.
 ---------------------------------------------------------------------------
 
---- Dock the widget to a sidebar.
--- @tparam string side "left" or "right"
--- @tparam number row Optional row index (auto-assigned if nil)
 function mdw.Widget:dock(side, row)
-  assert(side == "left" or side == "right", "dock side must be 'left' or 'right'")
-
-  self._widget.docked = side
-
-  if row then
-    self._widget.row = row
-    self._widget.rowPosition = 0
-  else
-    -- Auto-assign to next row
-    local docked = mdw.getDockedWidgets(side, self._widget)
-    local maxRow = -1
-    for _, w in ipairs(docked) do
-      maxRow = math.max(maxRow, w.row or 0)
-    end
-    self._widget.row = maxRow + 1
-    self._widget.rowPosition = 0
-  end
-
-  mdw.hideResizeHandles(self._widget)
-  mdw.reorganizeDock(side)
+  mdw.dockWidgetClass(self, side, row)
 end
 
---- Undock the widget (make it floating).
--- @tparam number x Optional X position
--- @tparam number y Optional Y position
 function mdw.Widget:undock(x, y)
-  local previousDock = self._widget.docked
-
-  self._widget.docked = nil
-  self._widget.row = nil
-  self._widget.rowPosition = nil
-
-  if x and y then
-    self.container:move(x, y)
-  end
-
-  mdw.showResizeHandles(self._widget)
-  mdw.updateResizeBorders(self._widget)
-
-  -- Reorganize the dock we left
-  if previousDock then
-    mdw.reorganizeDock(previousDock)
-  end
+  mdw.undockWidgetClass(self, x, y)
 end
 
---- Check if the widget is currently docked.
--- @return string|nil The dock side ("left" or "right") or nil if floating
 function mdw.Widget:isDocked()
-  return self._widget.docked
+  return self.docked
 end
 
 ---------------------------------------------------------------------------
@@ -262,59 +258,24 @@ end
 -- Methods for showing and hiding widgets.
 ---------------------------------------------------------------------------
 
---- Show the widget.
 function mdw.Widget:show()
-  self._widget.visible = true
-  self.container:show()
-
-  if self._widget.docked then
-    mdw.hideResizeHandles(self._widget)
-    mdw.reorganizeDock(self._widget.docked)
-  else
-    mdw.showResizeHandles(self._widget)
-  end
-
-  -- Update menu state if it exists
-  if mdw.updateWidgetsMenuState then
-    mdw.updateWidgetsMenuState()
-  end
+  mdw.showWidgetClass(self)
 end
 
---- Hide the widget.
 function mdw.Widget:hide()
-  self._widget.visible = false
-  self.container:hide()
-  mdw.hideResizeHandles(self._widget)
-
-  -- Reorganize docks (will update vertical splitters for side-by-side widgets)
-  if self._widget.docked then
-    mdw.reorganizeDock(self._widget.docked)
-  end
-
-  -- Update menu state
-  if mdw.updateWidgetsMenuState then
-    mdw.updateWidgetsMenuState()
-  end
-
-  -- Call onClose callback
-  if self.onClose then
-    self.onClose(self)
-  end
+  mdw.hideWidgetClass(self)
 end
 
---- Toggle widget visibility.
 function mdw.Widget:toggle()
-  if self._widget.visible then
+  if self.visible then
     self:hide()
   else
     self:show()
   end
 end
 
---- Check if the widget is visible.
--- @return boolean
 function mdw.Widget:isVisible()
-  return self._widget.visible ~= false
+  return self.visible ~= false
 end
 
 ---------------------------------------------------------------------------
@@ -322,31 +283,27 @@ end
 -- Methods for customizing widget appearance.
 ---------------------------------------------------------------------------
 
---- Set the widget's title.
--- @tparam string title The new title
 function mdw.Widget:setTitle(title)
   self.title = title
-  self._widget.title = title
   self.titleBar:decho("<" .. mdw.config.headerTextColor .. ">" .. title)
 end
 
---- Set a custom stylesheet for the title bar.
--- @tparam string css Qt stylesheet string
 function mdw.Widget:setTitleStyleSheet(css)
   self.titleBar:setStyleSheet(css)
 end
 
---- Set the background color for the content area.
--- @tparam number r Red value (0-255)
--- @tparam number g Green value (0-255)
--- @tparam number b Blue value (0-255)
+-- Note: This affects the background label behind the MiniConsole, not the console itself.
+-- For MiniConsole colors, use setBackgroundColor() instead.
+function mdw.Widget:setContentStyleSheet(css)
+  if self.contentBg then
+    self.contentBg:setStyleSheet(css)
+  end
+end
+
 function mdw.Widget:setBackgroundColor(r, g, b)
   self.content:setColor(r, g, b, 255)
 end
 
---- Set the font for the content area.
--- @tparam string font Font name
--- @tparam number size Font size (optional)
 function mdw.Widget:setFont(font, size)
   if font then
     self.content:setFont(font)
@@ -361,51 +318,24 @@ end
 -- Methods for controlling widget geometry.
 ---------------------------------------------------------------------------
 
---- Resize the widget.
--- @tparam number|nil width New width (nil to keep current)
--- @tparam number|nil height New height (nil to keep current)
 function mdw.Widget:resize(width, height)
-  self.container:resize(width, height)
-  -- Get actual dimensions (may have been nil in the resize call)
-  local actualWidth = width or self.container:get_width()
-  local actualHeight = height or self.container:get_height()
-  mdw.resizeWidgetContent(self._widget, actualWidth, actualHeight)
-
-  if self._widget.docked then
-    mdw.reorganizeDock(self._widget.docked)
-  else
-    mdw.updateResizeBorders(self._widget)
-  end
+  mdw.resizeWidgetClass(self, width, height, mdw.resizeWidgetContent)
 end
 
---- Move the widget (only works for floating widgets).
--- @tparam number x New X position
--- @tparam number y New Y position
 function mdw.Widget:move(x, y)
-  if self._widget.docked then
-    mdw.debugEcho("Cannot move docked widget - undock it first")
-    return
-  end
-
-  self.container:move(x, y)
-  mdw.updateResizeBorders(self._widget)
+  mdw.moveWidgetClass(self, x, y)
 end
 
---- Get the widget's current position.
--- @return number x, number y
 function mdw.Widget:getPosition()
   return self.container:get_x(), self.container:get_y()
 end
 
---- Get the widget's current size.
--- @return number width, number height
 function mdw.Widget:getSize()
   return self.container:get_width(), self.container:get_height()
 end
 
---- Raise the widget above others.
 function mdw.Widget:raise()
-  mdw.raiseWidget(self._widget)
+  mdw.raiseWidget(self)
 end
 
 ---------------------------------------------------------------------------
@@ -413,30 +343,31 @@ end
 -- Methods for embedding special content like the mapper.
 ---------------------------------------------------------------------------
 
---- Embed the Mudlet mapper in this widget.
 -- Note: Only one widget can have the mapper at a time.
 function mdw.Widget:embedMapper()
   -- Hide the default content label
   self.content:hide()
 
   -- Create mapper if not exists
-  if not self._widget.mapper then
-    self._widget.mapper = Geyser.Mapper:new({
+  if not self.mapper then
+    self.mapper = Geyser.Mapper:new({
       name = "MDW_" .. self.name .. "_Mapper",
       x = 0,
       y = mdw.config.titleHeight,
       width = "100%",
       height = self.container:get_height() - mdw.config.titleHeight,
     }, self.container)
-    self.mapper = self._widget.mapper
+
+    -- If widget is hidden, hide the mapper too
+    if self.visible == false then
+      self.mapper:hide()
+    end
   end
 end
 
---- Remove the embedded mapper and restore normal content.
 function mdw.Widget:removeMapper()
-  if self._widget.mapper then
-    self._widget.mapper:hide()
-    self._widget.mapper = nil
+  if self.mapper then
+    self.mapper:hide()
     self.mapper = nil
     self.content:show()
   end
@@ -447,32 +378,8 @@ end
 -- Methods for removing widgets.
 ---------------------------------------------------------------------------
 
---- Destroy the widget and clean up resources.
 function mdw.Widget:destroy()
-  -- Hide everything
-  self:hide()
-
-  -- Remove from mdw.widgets
-  mdw.widgets[self.name] = nil
-
-  -- Hide and cleanup resize borders
-  if self.resizeLeft then self.resizeLeft:hide() end
-  if self.resizeRight then self.resizeRight:hide() end
-  if self.resizeTop then self.resizeTop:hide() end
-  if self.resizeBottom then self.resizeBottom:hide() end
-
-  -- Hide mapper if exists
-  if self.mapper then
-    self.mapper:hide()
-  end
-
-  -- Hide container
-  self.container:hide()
-
-  -- Rebuild menu to remove destroyed widget
-  if mdw.rebuildWidgetsMenu then
-    mdw.rebuildWidgetsMenu()
-  end
+  mdw.destroyWidgetClass(self)
 end
 
 ---------------------------------------------------------------------------
@@ -480,19 +387,15 @@ end
 -- Static methods for working with all widgets.
 ---------------------------------------------------------------------------
 
---- Get a widget by name.
--- @tparam string name Widget name
--- @return Widget instance or nil
 function mdw.Widget.get(name)
   local widget = mdw.widgets[name]
-  if widget and widget._class then
-    return widget._class
+  -- Only return if it's a Widget (not a TabbedWidget)
+  if widget and not widget.isTabbed then
+    return widget
   end
   return nil
 end
 
---- Get all widget names.
--- @return table Array of widget names
 function mdw.Widget.list()
   local names = {}
   for name, _ in pairs(mdw.widgets) do
@@ -502,26 +405,14 @@ function mdw.Widget.list()
   return names
 end
 
---- Hide all widgets.
 function mdw.Widget.hideAll()
   for _, widget in pairs(mdw.widgets) do
-    if widget._class then
-      widget._class:hide()
-    else
-      widget.visible = false
-      widget.container:hide()
-    end
+    widget:hide()
   end
 end
 
---- Show all widgets.
 function mdw.Widget.showAll()
   for _, widget in pairs(mdw.widgets) do
-    if widget._class then
-      widget._class:show()
-    else
-      widget.visible = true
-      widget.container:show()
-    end
+    widget:show()
   end
 end

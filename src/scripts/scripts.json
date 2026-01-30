@@ -6,13 +6,19 @@
 		"isFolder": "no"
 	},
 	{
+		"name": "MDW_Helpers",
+		"isActive": "yes",
+		"script": "",
+		"isFolder": "no"
+	},
+	{
 		"name": "MDW_Init",
 		"isActive": "yes",
 		"script": "",
 		"isFolder": "no"
 	},
 	{
-		"name": "MDW_Widgets",
+		"name": "MDW_WidgetCore",
 		"isActive": "yes",
 		"script": "",
 		"isFolder": "no"

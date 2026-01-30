@@ -19,6 +19,72 @@ A draggable, dockable widget system for [Mudlet](https://www.mudlet.org/). Creat
 2. In Mudlet, go to **Packages**
 3. Click **Install new package** or **Install from file** depending on your version and select the downloaded `MDW.mpackage` file
 
+## Example Widgets
+
+MDW comes with example widgets to demonstrate its features. These are created automatically when the package loads:
+
+| Widget | Dock | Description |
+|--------|------|-------------|
+| **Items** | Left | Simple text widget showing echo methods |
+| **Affects** | Left | Example status effects display |
+| **Map** | Right | Widget with embedded Mudlet mapper |
+| **Comm** | Right | Tabbed widget with All/Room/Tell/Chat tabs |
+
+The examples also include:
+- **Prompt Bar**: Displays your MUD's prompt (captured via trigger)
+- **MDW_PromptCapture Trigger**: Automatically captures prompts and displays them in the prompt bar
+
+### Disabling Examples
+
+To disable the example widgets, add this before MDW loads:
+
+```lua
+mdw = mdw or {}
+mdw.loadExamples = false
+```
+
+Or remove/deactivate `MDW_Examples` from the package scripts.
+
+## Prompt Bar
+
+The prompt bar at the bottom of the screen displays your MUD's prompt with colors preserved. MDW includes a trigger (`MDW_PromptCapture`) that automatically captures prompts.
+
+### Prompt Bar API
+
+```lua
+-- Capture current line and display in prompt bar (call from a trigger)
+mdw.capturePrompt()           -- Captures line, displays in bar, deletes from main window
+mdw.capturePrompt(false)      -- Same, but keeps line in main window
+
+-- Set prompt bar text directly
+mdw.setPrompt("<255,200,100>HP: 100")    -- decho format (RGB)
+mdw.setPromptCecho("<green>HP: <white>100")  -- cecho format (named colors)
+
+-- Clear the prompt bar
+mdw.clearPrompt()
+```
+
+### Custom Prompt Trigger
+
+If the default trigger doesn't work with your MUD, create your own:
+
+1. Disable the `MDW_PromptCapture` trigger
+2. Create a new trigger matching your MUD's prompt pattern
+3. In the trigger script, call `mdw.capturePrompt()`
+
+### GMCP-Based Prompt
+
+You can also build a custom prompt from GMCP data:
+
+```lua
+-- In a script handling gmcp.Char.Vitals event
+local v = gmcp.Char.Vitals
+mdw.setPromptCecho(string.format(
+  "<green>HP:<white>%d/%d <blue>MP:<white>%d/%d",
+  v.health, v.health_max, v.mana, v.mana_max
+))
+```
+
 ## Quick Start
 
 ```lua
@@ -52,7 +118,11 @@ local widget = mdw.Widget:new({
 
 ### Persisting Widgets Across Package Reloads
 
-When the MDW package reloads, custom widgets are destroyed. To automatically recreate your widgets, listen for the `mdwReady` event:
+When the MDW package reloads, custom widgets are destroyed. To automatically recreate your widgets, listen for the `mdwReady` event.
+
+**Option 1: Using the Mudlet Script UI**
+
+Create a Script in Mudlet and add `mdwReady` to the "Add User Defined Event Handler" list:
 
 ```lua
 -- In a Mudlet Script, add "mdwReady" to the event handlers list
@@ -67,7 +137,28 @@ function myWidgetSetup()
 end
 ```
 
-Alternatively, register your widget creation function (must be called before MDW loads):
+**Option 2: Using registerAnonymousEventHandler**
+
+Register an anonymous event handler directly in your script code. This is useful when you want to keep everything in code without using the UI:
+
+```lua
+function myWidgetSetup()
+  local myWidget = mdw.Widget:new({
+    name = "MyWidget",
+    title = "My Custom Widget",
+    dock = "left",
+  })
+  myWidget:clear()
+  myWidget:echo("Widget ready!\n")
+end
+
+-- Register the event handler programmatically
+registerAnonymousEventHandler("mdwReady", myWidgetSetup)
+```
+
+**Option 3: Register before MDW loads**
+
+Register your widget creation function before MDW loads (must be called before MDW initializes):
 
 ```lua
 mdw = mdw or {}
@@ -97,6 +188,39 @@ end
 | `row` | number | auto | Row index in dock (auto-assigned if nil) |
 | `onClose` | function | nil | Callback when widget is hidden |
 | `onClick` | function | nil | Callback when content area is clicked |
+| `overflow` | string | `"wrap"` | Text overflow mode: `"wrap"`, `"ellipsis"`, or `"hidden"` |
+
+### Overflow Modes
+
+The `overflow` option controls how text behaves when it exceeds the widget width:
+
+| Mode | Behavior | On Resize |
+|------|----------|-----------|
+| `"wrap"` | Lines wrap at the widget edge (default) | Text reflows to new width |
+| `"ellipsis"` | Long lines are truncated with "..." | Text re-truncated to new width |
+| `"hidden"` | Text clips at widget edge, no wrapping | No reflow |
+
+```lua
+-- Default: text wraps and reflows on resize
+local inv = mdw.Widget:new({
+  name = "Inventory",
+  overflow = "wrap",
+})
+
+-- Long lines show "..." instead of wrapping
+local status = mdw.Widget:new({
+  name = "Status",
+  overflow = "ellipsis",
+})
+
+-- Text clips at the edge, no buffer or reflow
+local log = mdw.Widget:new({
+  name = "Log",
+  overflow = "hidden",
+})
+```
+
+Ellipsis mode works with all echo methods (`echo`, `cecho`, `decho`, `hecho`), preserving color codes up to the truncation point.
 
 ### Callbacks
 
@@ -152,9 +276,12 @@ widget:isVisible()   -- Returns true/false
 widget:setTitle("New Title")                    -- Change title
 widget:setFont("Consolas", 12)                  -- Set font and size
 widget:setBackgroundColor(20, 20, 20)           -- Set content background (RGB)
-widget:setTitleStyleSheet([[
+widget:setTitleStyleSheet([[                    -- Custom title bar style
   background-color: rgb(60,60,60);
   color: white;
+]])
+widget:setContentStyleSheet([[                  -- Custom content area style
+  background-color: rgb(20,20,30);
 ]])
 ```
 
@@ -216,6 +343,7 @@ local comm = mdw.TabbedWidget:new({
 | `dock` | string | nil | `"left"`, `"right"`, or `nil` for floating |
 | `height` | number | 200 | Widget height in pixels |
 | `onTabChange` | function | nil | Callback when tab is switched |
+| `overflow` | string | `"wrap"` | Text overflow mode: `"wrap"`, `"ellipsis"`, or `"hidden"` (applies to all tabs) |
 
 ### Display Methods
 
@@ -309,6 +437,9 @@ local names = mdw.Widget.list()
 -- Show/hide all widgets
 mdw.Widget.showAll()
 mdw.Widget.hideAll()
+
+-- Low-level: get sorted list of all widget names
+local allNames = mdw.getWidgetNames()
 ```
 
 ## Accessing Widgets from Other Scripts
@@ -481,6 +612,31 @@ end
 4. **Use `widget:clear()` before redrawing** for vitals/stats that replace their entire content
 5. **Use `echoTo()` for communication** to take advantage of the "all tab" feature
 
+## Layout Persistence
+
+MDW automatically saves and restores widget layouts across profile reloads and package updates. The following state is preserved:
+
+- Widget dock positions (left, right, or floating)
+- Widget sizes and positions
+- Row order and side-by-side arrangements
+- Visibility state
+- Active tab for tabbed widgets
+- Dock widths
+
+Layout is saved automatically when:
+- The profile exits
+- The package is updated
+
+### Layout API
+
+```lua
+mdw.saveLayout()    -- Manually save current layout
+mdw.loadLayout()    -- Manually load saved layout (usually automatic)
+mdw.clearLayout()   -- Delete saved layout, reset to defaults
+```
+
+The layout file is stored at: `getMudletHomeDir() .. "/mdw_layout.lua"`
+
 ## Configuration
 
 Customize the appearance by modifying `mdw.config` before widgets are created:
@@ -529,11 +685,12 @@ mdw.buildStyles()
 | | `minWidgetWidth` | 50 | Minimum width for side-by-side widgets |
 | | `minFloatingWidth` | 100 | Minimum width for floating widgets |
 | **Layout** |
-| | `splitterWidth` | 2 | Width of dock edge splitters |
+| | `dockSplitterWidth` | 4 | Width of dock edge splitters (resize handles) |
 | | `widgetSplitterHeight` | 2 | Height of between-widget splitters |
+| | `widgetSplitterWidth` | 2 | Width of between-widget splitters (horizontal resize) |
 | | `headerHeight` | 30 | Height of top header bar |
 | | `promptBarHeight` | 30 | Height of bottom prompt bar |
-| | `widgetMargin` | 5 | Margin around widgets in docks |
+| | `widgetMargin` | 2 | Margin around widgets in docks |
 | **Drag Behavior** |
 | | `dragThreshold` | 5 | Pixels before click becomes drag |
 | | `dockDropBuffer` | 200 | Detection area beyond dock bounds |
@@ -567,9 +724,9 @@ mdw.buildStyles()
 | |  Widget   |  |                        | |   Widget     | |
 | +-----------+  |                        | +--------------+ |
 |                |                        |                  |
+|                +------------------------+                  |
+|                |      Prompt Bar        |                  |
 +----------------+------------------------+------------------+
-|                    Prompt Bar                              |
-+------------------------------------------------------------+
 ```
 
 ## Drag and Drop
@@ -592,7 +749,8 @@ The built package will be in `./build/`.
 
 ## Credits
 
-- Inspired by [Demonnic's MDK](https://github.com/demonnic/MDK) EMCO pattern
+- This project grew out of conversations with [MentalThinking](https://github.com/MentalThinking)
+- Inspired by [Demonnic's MDK](https://github.com/demonnic/MDK)
 - Built for [Mudlet](https://www.mudlet.org/)
 
 ## License
