@@ -898,7 +898,7 @@ The built package will be in `./build/`.
 ## Credits
 
 - This project grew out of conversations with [MentalThinking](https://github.com/MentalThinking)
-- Inspired by [Demonnic's MDK](https://github.com/demonnic/MDK) and [Edru's Tabbed Widgets](https://github.com/Edru2/AdjustableTabWindow)
+- Inspired by [Demonnic's MDK](https://github.com/demonnic/MDK) and [Edru's AdjustableTabWindow](https://github.com/Edru2/AdjustableTabWindow)
 - Built for [Mudlet](https://www.mudlet.org/)
 
 ## License
