@@ -123,6 +123,11 @@ function mdw.buildStyles()
     background-color: %s;
   ]], cfg.splitterColor)
 
+  mdw.styles.resizableSeparator = string.format([[
+    QLabel { background-color: %s; }
+    QLabel:hover { background-color: %s; }
+  ]], cfg.splitterColor, cfg.splitterHoverColor)
+
   mdw.styles.tabBar = string.format([[
     background-color: %s;
   ]], cfg.headerBackground)
@@ -167,7 +172,7 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.echo(msg)
-  cecho("<gray>[<white>MDW<gray>] " .. msg .. "\n")
+  debugc("[MDW] " .. msg)
 end
 
 --- Clamp a value between min and max bounds.

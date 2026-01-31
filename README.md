@@ -2,6 +2,8 @@
 
 MDW gives your [Mudlet](https://www.mudlet.org/) profile a custom sidebar UI. Create widget panels for vitals, inventory, communication channels, the mapper, or anything else you want to track at a glance. Drag widgets between left and right sidebars, place them side-by-side, stack them vertically, or float them freely over the main display. Layouts persist across reloads.
 
+![MDW Demo](MDW.gif)
+
 ## Features
 
 - **Dockable Sidebars**: Left and right sidebars that hold stacked or side-by-side widgets
@@ -458,7 +460,7 @@ When resizing widget heights within a shared row, heights snap to match adjacent
 
 ## Prompt Bar
 
-The prompt bar at the bottom of the screen displays your MUD's prompt with colors preserved. MDW includes a trigger (`MDW_PromptCapture`) that automatically captures prompts.
+The prompt bar at the bottom of the screen displays your MUD's prompt with colors preserved. Drag the separator line above the prompt bar to resize it vertically. MDW includes a trigger (`MDW_PromptCapture`) that automatically captures prompts.
 
 ### Prompt Bar API
 
@@ -791,6 +793,7 @@ mdw.buildStyles()
 | | `resizeBorderWidth` | 2 | Width of floating widget resize handles |
 | | `headerHeight` | 30 | Height of top header bar |
 | | `promptBarHeight` | 30 | Height of bottom prompt bar |
+| | `minPromptBarHeight` | 20 | Minimum prompt bar height when resizing |
 | | `widgetMargin` | 2 | Margin around widgets in docks |
 | **Tabs** |
 | | `tabBarHeight` | 22 | Height of tab button bar |

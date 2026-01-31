@@ -46,6 +46,7 @@ mdw.config = {
   -- Layout: Header and prompt bar
   headerHeight = 30,             -- Height of top header bar
   promptBarHeight = 30,          -- Height of bottom prompt bar
+  minPromptBarHeight = 25,       -- Minimum prompt bar height when resizing
 
   -- Layout: Tabbed widgets
   tabBarHeight = 22,             -- Height of tab button bar
@@ -63,7 +64,7 @@ mdw.config = {
   widgetMargin = 2,              -- Margin around widgets in docks (px)
   contentPaddingLeft = 5,        -- Left padding inside widget content area (px)
   contentPaddingTop = 5,         -- Top padding inside widget content area (px)
-  promptBarTopPadding = 2,       -- Top padding inside prompt bar (px)
+  promptBarTopPadding = 5,       -- Top padding inside prompt bar (px)
   floatingStartX = 100,          -- Default X position for new floating widgets
   floatingStartY = 100,          -- Default Y position for new floating widgets
 
@@ -171,6 +172,12 @@ mdw.splitterDrag = {
   active = false,
   side = nil,
   offsetX = 0,
+}
+
+-- Prompt bar splitter drag state for vertical resize
+mdw.promptBarDrag = {
+  active = false,
+  offsetY = 0,
 }
 
 -- Widget splitter drag state for vertical resize

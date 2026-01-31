@@ -103,10 +103,9 @@ function mdw.createPromptBar(winW)
     width = promptBarWidth,
     height = cfg.separatorHeight,
   }))
-  mdw.promptSeparator:setStyleSheet(mdw.styles.separatorLine)
-  setLabelClickCallback("MDW_PromptSeparator", function()
-    if mdw.closeAllMenus then mdw.closeAllMenus() end
-  end)
+  mdw.promptSeparator:setStyleSheet(mdw.styles.resizableSeparator)
+  mdw.promptSeparator:setCursor(mudlet.cursor.ResizeVertical)
+  mdw.setupPromptBarSplitter()
 
   -- Prompt bar container (handles positioning and click events)
   local consoleWidth = promptBarWidth - cfg.contentPaddingLeft
@@ -421,6 +420,71 @@ function mdw.applyDockWidth(side, newWidth)
 end
 
 ---------------------------------------------------------------------------
+-- PROMPT BAR SPLITTER HANDLING
+-- Enables dragging the prompt separator to resize the prompt bar height.
+---------------------------------------------------------------------------
+
+--- Set up drag handling for the prompt bar separator.
+-- Follows the same click/move/release pattern as dock splitters.
+function mdw.setupPromptBarSplitter()
+  local splitterName = "MDW_PromptSeparator"
+
+  setLabelClickCallback(splitterName, function(event)
+    mdw.promptBarDrag.active = true
+    mdw.promptBarDrag.offsetY = event.globalY - mdw.promptSeparator:get_y()
+  end)
+
+  setLabelMoveCallback(splitterName, function(event)
+    if not mdw.promptBarDrag.active then return end
+    local cfg = mdw.config
+    local _, winH = getMainWindowSize()
+    local separatorY = event.globalY - mdw.promptBarDrag.offsetY
+    local newHeight = winH - separatorY
+    local maxHeight = winH - cfg.headerHeight
+    newHeight = mdw.clamp(newHeight, cfg.minPromptBarHeight, maxHeight)
+    mdw.applyPromptBarHeight(newHeight)
+  end)
+
+  setLabelReleaseCallback(splitterName, function()
+    if mdw.promptBarDrag.active then
+      mdw.promptBarDrag.active = false
+      mdw.saveLayout()
+    end
+  end)
+end
+
+--- Apply a new prompt bar height, repositioning all prompt bar elements.
+-- @param newHeight number The new total prompt bar height
+function mdw.applyPromptBarHeight(newHeight)
+  local cfg = mdw.config
+  cfg.promptBarHeight = newHeight
+
+  if mdw.visibility.promptBar then
+    setBorderBottom(newHeight)
+  end
+
+  local promptBarContentHeight = newHeight - cfg.separatorHeight
+
+  if mdw.promptSeparator then
+    mdw.promptSeparator:move(nil, -newHeight)
+  end
+
+  if mdw.promptBarContainer then
+    mdw.promptBarContainer:move(nil, -newHeight + cfg.separatorHeight)
+    mdw.promptBarContainer:resize(nil, promptBarContentHeight)
+  end
+
+  if mdw.promptBarBg then
+    mdw.promptBarBg:resize(nil, promptBarContentHeight)
+  end
+
+  if mdw.promptBar then
+    local consoleHeight = promptBarContentHeight - cfg.promptBarTopPadding
+    mdw.promptBar:resize(nil, consoleHeight)
+  end
+end
+
+---------------------------------------------------------------------------
 -- LAYOUT PERSISTENCE
 -- Save and restore widget layouts across profile reloads.
 ---------------------------------------------------------------------------
@@ -436,6 +500,7 @@ function mdw.saveLayout()
       leftVisible = mdw.visibility.leftSidebar,
       rightVisible = mdw.visibility.rightSidebar,
       promptBarVisible = mdw.visibility.promptBar,
+      promptBarHeight = mdw.config.promptBarHeight,
     },
     widgets = {},
   }
@@ -494,6 +559,9 @@ function mdw.loadLayout()
     if layout.docks.promptBarVisible ~= nil then
       mdw.visibility.promptBar = layout.docks.promptBarVisible
     end
+    if layout.docks.promptBarHeight then
+      mdw.config.promptBarHeight = layout.docks.promptBarHeight
+    end
   end
 
   -- Store widget layouts for application during widget creation
@@ -535,6 +603,7 @@ function mdw.showLayout()
     mdw.echo("  Left visible: " .. tostring(layout.docks.leftVisible))
     mdw.echo("  Right visible: " .. tostring(layout.docks.rightVisible))
     mdw.echo("  Prompt bar visible: " .. tostring(layout.docks.promptBarVisible))
+    mdw.echo("  Prompt bar height: " .. tostring(layout.docks.promptBarHeight or "default"))
   end
 
   if layout.widgets then
