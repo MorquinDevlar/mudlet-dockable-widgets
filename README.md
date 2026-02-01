@@ -2,7 +2,7 @@
 
 MDW gives your [Mudlet](https://www.mudlet.org/) profile a custom sidebar UI. Create widget panels for vitals, inventory, communication channels, the mapper, or anything else you want to track at a glance. Drag widgets between left and right sidebars, place them side-by-side, stack them vertically, or float them freely over the main display. Layouts persist across reloads.
 
-<video src="MDW.mp4" autoplay loop muted playsinline></video>
+<video src="https://github.com/MorquinDevlar/mudlet-dockable-widgets/raw/main/MDW.mp4" autoplay loop muted playsinline></video>
 
 ## Features
 
