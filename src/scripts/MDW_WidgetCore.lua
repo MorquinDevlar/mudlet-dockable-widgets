@@ -18,219 +18,223 @@
 -- Why: Widgets are the primary UI component. Each widget has a draggable
 -- title bar, content area, and optional resize borders for floating mode.
 function mdw.createWidget(name, title, x, y)
-  assert(type(name) == "string" and name ~= "", "name must be a non-empty string")
-  assert(type(title) == "string", "title must be a string")
-  assert(type(x) == "number", "x must be a number")
-  assert(type(y) == "number", "y must be a number")
+	assert(type(name) == "string" and name ~= "", "name must be a non-empty string")
+	assert(type(title) == "string", "title must be a string")
+	assert(type(x) == "number", "x must be a number")
+	assert(type(y) == "number", "y must be a number")
 
-  local cfg = mdw.config
+	local cfg = mdw.config
 
-  local widget = {
-    name = name,
-    title = title,
-    docked = nil,
-    visible = true,
-  }
+	local widget = {
+		name = name,
+		title = title,
+		docked = nil,
+		visible = true,
+	}
 
-  -- Main container
-  local totalMargin = cfg.widgetMargin * 2
-  widget.container = mdw.trackElement(Geyser.Container:new({
-    name = "MDW_" .. name,
-    x = x,
-    y = y,
-    width = cfg.leftDockWidth - totalMargin - cfg.dockSplitterWidth,
-    height = cfg.widgetHeight,
-  }))
+	-- Main container
+	local totalMargin = cfg.widgetMargin * 2
+	widget.container = mdw.trackElement(Geyser.Container:new({
+		name = "MDW_" .. name,
+		x = x,
+		y = y,
+		width = cfg.leftDockWidth - totalMargin - cfg.dockSplitterWidth,
+		height = cfg.widgetHeight,
+	}))
 
-  -- Get container's actual width for child elements
-  local containerWidth = widget.container:get_width()
-  local contentAreaHeight = cfg.widgetHeight - cfg.titleHeight
-  local contentWidth = containerWidth - cfg.contentPaddingLeft
-  local contentHeight = contentAreaHeight - cfg.contentPaddingTop
-  local bgRGB = cfg.widgetBackgroundRGB
+	-- Get container's actual width for child elements
+	local containerWidth = widget.container:get_width()
+	local contentAreaHeight = cfg.widgetHeight - cfg.titleHeight
+	local contentWidth = containerWidth - cfg.contentPaddingLeft
+	local contentHeight = contentAreaHeight - cfg.contentPaddingTop
+	local bgRGB = cfg.widgetBackgroundRGB
 
-  -- Background label to fill the padding area
-  widget.contentBg = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_" .. name .. "_ContentBg",
-    x = 0,
-    y = cfg.titleHeight,
-    width = containerWidth,
-    height = contentAreaHeight,
-  }, widget.container))
-  widget.contentBg:setStyleSheet(string.format(
-    [[background-color: rgb(%d,%d,%d);]],
-    bgRGB[1], bgRGB[2], bgRGB[3]
-  ))
+	-- Background label to fill the padding area
+	widget.contentBg = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_" .. name .. "_ContentBg",
+		x = 0,
+		y = cfg.titleHeight,
+		width = containerWidth,
+		height = contentAreaHeight,
+	}, widget.container))
+	widget.contentBg:setStyleSheet(string.format(
+		[[background-color: rgb(%d,%d,%d);]],
+		bgRGB[1], bgRGB[2], bgRGB[3]
+	))
 
-  -- Title bar (drag handle)
-  widget.titleBar = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_" .. name .. "_Title",
-    x = 0,
-    y = 0,
-    width = containerWidth,
-    height = cfg.titleHeight,
-  }, widget.container))
-  widget.titleBar:setStyleSheet(mdw.styles.titleBar)
-  widget.titleBar:decho("<" .. cfg.headerTextColor .. ">" .. title)
-  widget.titleBar:setCursor(mudlet.cursor.OpenHand)
+	-- Title bar (drag handle)
+	widget.titleBar = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_" .. name .. "_Title",
+		x = 0,
+		y = 0,
+		width = containerWidth,
+		height = cfg.titleHeight,
+	}, widget.container))
+	widget.titleBar:setStyleSheet(mdw.styles.titleBar)
+	widget.titleBar:setFontSize(cfg.widgetHeaderFontSize)
+	widget.titleBar:decho("<" .. cfg.headerTextColor .. ">" .. title)
+	widget.titleBar:setCursor(mudlet.cursor.OpenHand)
 
-  -- Content area (MiniConsole for scrollable, appendable text)
-  -- Offset by padding to create left and top padding
-  local contentName = "MDW_" .. name .. "_Content"
-  widget.content = mdw.trackElement(Geyser.MiniConsole:new({
-    name = contentName,
-    x = cfg.contentPaddingLeft,
-    y = cfg.titleHeight + cfg.contentPaddingTop,
-    width = contentWidth,
-    height = contentHeight - cfg.widgetSplitterHeight,
-  }, widget.container))
-  local fgRGB = cfg.widgetForegroundRGB
-  widget.content:setColor(bgRGB[1], bgRGB[2], bgRGB[3], 255)
-  widget.content:setFont(cfg.fontFamily)
-  widget.content:setFontSize(cfg.fontSize)
-  widget.content:setWrap(mdw.calculateWrap(contentWidth))
-  -- Set default text colors so echo() matches the background
-  setBgColor(contentName, bgRGB[1], bgRGB[2], bgRGB[3])
-  setFgColor(contentName, fgRGB[1], fgRGB[2], fgRGB[3])
+	-- Content area (MiniConsole for scrollable, appendable text)
+	-- Offset by padding to create left and top padding
+	local contentName = "MDW_" .. name .. "_Content"
+	widget.content = mdw.trackElement(Geyser.MiniConsole:new({
+		name = contentName,
+		x = cfg.contentPaddingLeft,
+		y = cfg.titleHeight + cfg.contentPaddingTop,
+		width = contentWidth,
+		height = contentHeight - cfg.widgetSplitterHeight,
+	}, widget.container))
+	local fgRGB = cfg.widgetForegroundRGB
+	widget.content:setColor(bgRGB[1], bgRGB[2], bgRGB[3], 255)
+	widget.content:setFont(cfg.fontFamily)
+	widget.content:setFontSize(cfg.fontSize)
+	widget.content:setWrap(mdw.calculateWrap(contentWidth))
+	-- Set default text colors so echo() matches the background
+	setBgColor(contentName, bgRGB[1], bgRGB[2], bgRGB[3])
+	setFgColor(contentName, fgRGB[1], fgRGB[2], fgRGB[3])
 
-  -- Bottom resize handle - part of widget so it moves with dragging
-  widget.bottomResizeHandle = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_" .. name .. "_BottomResize",
-    x = 0,
-    y = cfg.widgetHeight - cfg.widgetSplitterHeight,
-    width = containerWidth,
-    height = cfg.widgetSplitterHeight,
-  }, widget.container))
-  widget.bottomResizeHandle:setStyleSheet(string.format([[
+	-- Bottom resize handle - part of widget so it moves with dragging
+	widget.bottomResizeHandle = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_" .. name .. "_BottomResize",
+		x = 0,
+		y = cfg.widgetHeight - cfg.widgetSplitterHeight,
+		width = containerWidth,
+		height = cfg.widgetSplitterHeight,
+	}, widget.container))
+	widget.bottomResizeHandle:setStyleSheet(string.format([[
     QLabel { background-color: %s; }
     QLabel:hover { background-color: %s; }
   ]], cfg.resizeBorderColor, cfg.splitterHoverColor))
-  widget.bottomResizeHandle:setCursor(mudlet.cursor.ResizeVertical)
-  widget.bottomResizeHandle:hide()  -- Hidden by default, shown when docked
+	widget.bottomResizeHandle:setCursor(mudlet.cursor.ResizeVertical)
+	widget.bottomResizeHandle:hide() -- Hidden by default, shown when docked
 
-  -- Create resize borders (hidden by default, shown when floating)
-  mdw.createResizeBorders(widget)
+	-- Create resize borders (hidden by default, shown when floating)
+	mdw.createResizeBorders(widget)
 
-  -- Set up docked resize handle callbacks
-  mdw.setupDockedResizeHandle(widget)
+	-- Set up docked resize handle callbacks
+	mdw.setupDockedResizeHandle(widget)
 
-  -- Set up drag callbacks
-  mdw.setupWidgetDrag(widget)
+	-- Set up drag callbacks
+	mdw.setupWidgetDrag(widget)
 
-  return widget
+	return widget
 end
 
 --- Create resize borders for a widget (used in floating mode).
 -- Why: Floating widgets need resize handles so users can adjust dimensions.
 -- Borders are absolute-positioned labels that track the widget's position.
 function mdw.createResizeBorders(widget)
-  local cfg = mdw.config
-  local baseName = "MDW_" .. widget.name
+	local cfg = mdw.config
+	local baseName = "MDW_" .. widget.name
 
-  -- Left border
-  widget.resizeLeft = mdw.trackElement(Geyser.Label:new({
-    name = baseName .. "_ResizeLeft",
-    x = 0, y = 0,
-    width = cfg.resizeBorderWidth,
-    height = 100,
-  }))
-  widget.resizeLeft:setStyleSheet(mdw.styles.splitter)
-  widget.resizeLeft:setCursor(mudlet.cursor.ResizeHorizontal)
-  widget.resizeLeft:hide()
+	-- Left border
+	widget.resizeLeft = mdw.trackElement(Geyser.Label:new({
+		name = baseName .. "_ResizeLeft",
+		x = 0,
+		y = 0,
+		width = cfg.resizeBorderWidth,
+		height = 100,
+	}))
+	widget.resizeLeft:setStyleSheet(mdw.styles.splitter)
+	widget.resizeLeft:setCursor(mudlet.cursor.ResizeHorizontal)
+	widget.resizeLeft:hide()
 
-  -- Right border
-  widget.resizeRight = mdw.trackElement(Geyser.Label:new({
-    name = baseName .. "_ResizeRight",
-    x = 0, y = 0,
-    width = cfg.resizeBorderWidth,
-    height = 100,
-  }))
-  widget.resizeRight:setStyleSheet(mdw.styles.splitter)
-  widget.resizeRight:setCursor(mudlet.cursor.ResizeHorizontal)
-  widget.resizeRight:hide()
+	-- Right border
+	widget.resizeRight = mdw.trackElement(Geyser.Label:new({
+		name = baseName .. "_ResizeRight",
+		x = 0,
+		y = 0,
+		width = cfg.resizeBorderWidth,
+		height = 100,
+	}))
+	widget.resizeRight:setStyleSheet(mdw.styles.splitter)
+	widget.resizeRight:setCursor(mudlet.cursor.ResizeHorizontal)
+	widget.resizeRight:hide()
 
-  -- Bottom border
-  widget.resizeBottom = mdw.trackElement(Geyser.Label:new({
-    name = baseName .. "_ResizeBottom",
-    x = 0, y = 0,
-    width = 100,
-    height = cfg.resizeBorderWidth,
-  }))
-  widget.resizeBottom:setStyleSheet(mdw.styles.splitter)
-  widget.resizeBottom:setCursor(mudlet.cursor.ResizeVertical)
-  widget.resizeBottom:hide()
+	-- Bottom border
+	widget.resizeBottom = mdw.trackElement(Geyser.Label:new({
+		name = baseName .. "_ResizeBottom",
+		x = 0,
+		y = 0,
+		width = 100,
+		height = cfg.resizeBorderWidth,
+	}))
+	widget.resizeBottom:setStyleSheet(mdw.styles.splitter)
+	widget.resizeBottom:setCursor(mudlet.cursor.ResizeVertical)
+	widget.resizeBottom:hide()
 
-  -- Top border
-  widget.resizeTop = mdw.trackElement(Geyser.Label:new({
-    name = baseName .. "_ResizeTop",
-    x = 0, y = 0,
-    width = 100,
-    height = cfg.resizeBorderWidth,
-  }))
-  widget.resizeTop:setStyleSheet(mdw.styles.splitter)
-  widget.resizeTop:setCursor(mudlet.cursor.ResizeVertical)
-  widget.resizeTop:hide()
+	-- Top border
+	widget.resizeTop = mdw.trackElement(Geyser.Label:new({
+		name = baseName .. "_ResizeTop",
+		x = 0,
+		y = 0,
+		width = 100,
+		height = cfg.resizeBorderWidth,
+	}))
+	widget.resizeTop:setStyleSheet(mdw.styles.splitter)
+	widget.resizeTop:setCursor(mudlet.cursor.ResizeVertical)
+	widget.resizeTop:hide()
 
-  mdw.setupResizeBorders(widget)
+	mdw.setupResizeBorders(widget)
 end
 
 --- Resize and reposition widget content after container changes.
 -- Why: Ensures children match container dimensions after resize.
 -- Uses relative positioning (children are parented to container).
 function mdw.resizeWidgetContent(widget, targetWidth, targetHeight)
-  local cfg = mdw.config
+	local cfg = mdw.config
 
-  -- Handle tabbed widgets (check function exists to avoid errors if TabbedWidget not loaded)
-  if widget.isTabbed and mdw.resizeTabbedWidgetContent then
-    mdw.resizeTabbedWidgetContent(widget, targetWidth, targetHeight)
-    return
-  end
+	-- Handle tabbed widgets (check function exists to avoid errors if TabbedWidget not loaded)
+	if widget.isTabbed and mdw.resizeTabbedWidgetContent then
+		mdw.resizeTabbedWidgetContent(widget, targetWidth, targetHeight)
+		return
+	end
 
-  -- Use provided dimensions or fall back to container dimensions
-  local cw = targetWidth or widget.container:get_width()
-  local ch = targetHeight or widget.container:get_height()
+	-- Use provided dimensions or fall back to container dimensions
+	local cw = targetWidth or widget.container:get_width()
+	local ch = targetHeight or widget.container:get_height()
 
-  -- Reserve space for bottom resize handle when docked
-  local resizeHandleHeight = widget.docked and cfg.widgetSplitterHeight or 0
-  local contentAreaHeight = ch - cfg.titleHeight - resizeHandleHeight
-  local contentAreaWidth = cw  -- Full width - splitters are separate elements now
-  local contentWidth = contentAreaWidth - cfg.contentPaddingLeft
-  local contentHeight = contentAreaHeight - cfg.contentPaddingTop
+	-- Reserve space for bottom resize handle when docked
+	local resizeHandleHeight = widget.docked and cfg.widgetSplitterHeight or 0
+	local contentAreaHeight = ch - cfg.titleHeight - resizeHandleHeight
+	local contentAreaWidth = cw -- Full width - splitters are separate elements now
+	local contentWidth = contentAreaWidth - cfg.contentPaddingLeft
+	local contentHeight = contentAreaHeight - cfg.contentPaddingTop
 
-  -- Use RELATIVE positions (children are parented to container)
-  widget.titleBar:move(0, 0)
-  widget.titleBar:resize(cw, cfg.titleHeight)
+	-- Use RELATIVE positions (children are parented to container)
+	widget.titleBar:move(0, 0)
+	widget.titleBar:resize(cw, cfg.titleHeight)
 
-  -- Resize background label that fills the padding area (not overlapping right splitter)
-  if widget.contentBg then
-    widget.contentBg:move(0, cfg.titleHeight)
-    widget.contentBg:resize(contentAreaWidth, contentAreaHeight)
-  end
+	-- Resize background label that fills the padding area (not overlapping right splitter)
+	if widget.contentBg then
+		widget.contentBg:move(0, cfg.titleHeight)
+		widget.contentBg:resize(contentAreaWidth, contentAreaHeight)
+	end
 
-  widget.content:move(cfg.contentPaddingLeft, cfg.titleHeight + cfg.contentPaddingTop)
-  widget.content:resize(contentWidth, contentHeight)
-  local wrapWidth = mdw.calculateWrap(contentWidth)
-  local overflow = widget.overflow or "wrap"
-  if overflow == "wrap" then
-    widget.content:setWrap(wrapWidth)
-  else
-    widget.content:setWrap(10000)
-  end
-  widget._wrapWidth = wrapWidth
-  if overflow ~= "hidden" and widget.reflow then widget:reflow() end
+	widget.content:move(cfg.contentPaddingLeft, cfg.titleHeight + cfg.contentPaddingTop)
+	widget.content:resize(contentWidth, contentHeight)
+	local wrapWidth = mdw.calculateWrap(contentWidth)
+	local overflow = widget.overflow or "wrap"
+	if overflow == "wrap" then
+		widget.content:setWrap(wrapWidth)
+	else
+		widget.content:setWrap(10000)
+	end
+	widget._wrapWidth = wrapWidth
+	if overflow ~= "hidden" and widget.reflow then widget:reflow() end
 
-  if widget.mapper then
-    widget.mapper:move(cfg.contentPaddingLeft, cfg.titleHeight + cfg.contentPaddingTop)
-    widget.mapper:resize(contentWidth, contentHeight)
-  end
+	if widget.mapper then
+		widget.mapper:move(cfg.contentPaddingLeft, cfg.titleHeight + cfg.contentPaddingTop)
+		widget.mapper:resize(contentWidth, contentHeight)
+	end
 
-  -- Position bottom resize handle at widget bottom
-  if widget.bottomResizeHandle then
-    widget.bottomResizeHandle:move(0, ch - cfg.widgetSplitterHeight)
-    widget.bottomResizeHandle:resize(cw, cfg.widgetSplitterHeight)
-  end
+	-- Position bottom resize handle at widget bottom
+	if widget.bottomResizeHandle then
+		widget.bottomResizeHandle:move(0, ch - cfg.widgetSplitterHeight)
+		widget.bottomResizeHandle:resize(cw, cfg.widgetSplitterHeight)
+	end
 end
-
 
 ---------------------------------------------------------------------------
 -- WIDGET DRAG HANDLING
@@ -238,283 +242,285 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.setupWidgetDrag(internalWidget)
-  local titleName = "MDW_" .. internalWidget.name .. "_Title"
-  local widgetName = internalWidget.name
+	local titleName = "MDW_" .. internalWidget.name .. "_Title"
+	local widgetName = internalWidget.name
 
-  -- Callbacks look up the class instance from mdw.widgets
-  -- Why: The class instance has docked/row/visible state, not the internal structure
-  setLabelClickCallback(titleName, function(event)
-    local widget = mdw.widgets[widgetName]
-    if widget then
-      mdw.startDrag(widget, event)
-    end
-  end)
+	-- Callbacks look up the class instance from mdw.widgets
+	-- Why: The class instance has docked/row/visible state, not the internal structure
+	setLabelClickCallback(titleName, function(event)
+		local widget = mdw.widgets[widgetName]
+		if widget then
+			mdw.startDrag(widget, event)
+		end
+	end)
 
-  setLabelMoveCallback(titleName, function(event)
-    local widget = mdw.widgets[widgetName]
-    if widget and mdw.drag.active and mdw.drag.widget == widget then
-      mdw.handleDragMove(widget, event)
-    end
-  end)
+	setLabelMoveCallback(titleName, function(event)
+		local widget = mdw.widgets[widgetName]
+		if widget and mdw.drag.active and mdw.drag.widget == widget then
+			mdw.handleDragMove(widget, event)
+		end
+	end)
 
-  setLabelReleaseCallback(titleName, function(event)
-    local widget = mdw.widgets[widgetName]
-    if widget and mdw.drag.active and mdw.drag.widget == widget then
-      mdw.endDrag(widget, event)
-    end
-  end)
+	setLabelReleaseCallback(titleName, function(event)
+		local widget = mdw.widgets[widgetName]
+		if widget and mdw.drag.active and mdw.drag.widget == widget then
+			mdw.endDrag(widget, event)
+		end
+	end)
 end
 
 --- Set up the docked bottom resize handle for vertical resizing.
 -- Why: This handle is part of the widget itself (inside the container), so it
 -- moves with the widget and doesn't need separate tracking/cleanup.
 function mdw.setupDockedResizeHandle(internalWidget)
-  local handleName = "MDW_" .. internalWidget.name .. "_BottomResize"
-  local widgetName = internalWidget.name
+	local handleName = "MDW_" .. internalWidget.name .. "_BottomResize"
+	local widgetName = internalWidget.name
 
-  setLabelClickCallback(handleName, function(event)
-    local widget = mdw.widgets[widgetName]
-    if not widget then return end
-    mdw.widgetSplitterDrag.active = true
-    mdw.widgetSplitterDrag.widget = widget
-    mdw.widgetSplitterDrag.side = widget.docked
-    mdw.widgetSplitterDrag.offsetY = event.globalY - widget.container:get_y() - widget.container:get_height()
-  end)
+	setLabelClickCallback(handleName, function(event)
+		local widget = mdw.widgets[widgetName]
+		if not widget then return end
+		mdw.widgetSplitterDrag.active = true
+		mdw.widgetSplitterDrag.widget = widget
+		mdw.widgetSplitterDrag.side = widget.docked
+		mdw.widgetSplitterDrag.offsetY = event.globalY - widget.container:get_y() - widget.container:get_height()
+	end)
 
-  setLabelMoveCallback(handleName, function(event)
-    local widget = mdw.widgets[widgetName]
-    if not widget then return end
-    if mdw.widgetSplitterDrag.active and mdw.widgetSplitterDrag.widget == widget then
-      local side = widget.docked
-      if side then
-        local targetY = event.globalY - mdw.widgetSplitterDrag.offsetY
-        mdw.resizeWidgetWithSnap(widget, side, targetY)
-      end
-    end
-  end)
+	setLabelMoveCallback(handleName, function(event)
+		local widget = mdw.widgets[widgetName]
+		if not widget then return end
+		if mdw.widgetSplitterDrag.active and mdw.widgetSplitterDrag.widget == widget then
+			local side = widget.docked
+			if side then
+				local targetY = event.globalY - mdw.widgetSplitterDrag.offsetY
+				mdw.resizeWidgetWithSnap(widget, side, targetY)
+			end
+		end
+	end)
 
-  setLabelReleaseCallback(handleName, function()
-    local widget = mdw.widgets[widgetName]
-    if not widget then return end
-    if mdw.widgetSplitterDrag.active and mdw.widgetSplitterDrag.widget == widget then
-      local side = widget.docked
-      mdw.widgetSplitterDrag.active = false
-      mdw.widgetSplitterDrag.widget = nil
-      mdw.widgetSplitterDrag.side = nil
-      if side then
-        mdw.reorganizeDock(side)
-      end
-      mdw.saveLayout()
-    end
-  end)
+	setLabelReleaseCallback(handleName, function()
+		local widget = mdw.widgets[widgetName]
+		if not widget then return end
+		if mdw.widgetSplitterDrag.active and mdw.widgetSplitterDrag.widget == widget then
+			local side = widget.docked
+			mdw.widgetSplitterDrag.active = false
+			mdw.widgetSplitterDrag.widget = nil
+			mdw.widgetSplitterDrag.side = nil
+			if side then
+				mdw.reorganizeDock(side)
+			end
+			mdw.saveLayout()
+		end
+	end)
 end
 
 --- Start dragging a widget.
 -- Why: Records initial state but doesn't undock until actual movement occurs.
 -- This prevents accidental undocking on simple clicks.
 function mdw.startDrag(widget, event)
-  mdw.closeAllMenus()
+	mdw.closeAllMenus()
 
-  mdw.drag.active = true
-  mdw.drag.widget = widget
-  mdw.drag.offsetX = event.globalX - widget.container:get_x()
-  mdw.drag.offsetY = event.globalY - widget.container:get_y()
-  mdw.drag.startMouseX = event.globalX
-  mdw.drag.startMouseY = event.globalY
-  mdw.drag.hasMoved = false
+	mdw.drag.active = true
+	mdw.drag.widget = widget
+	mdw.drag.offsetX = event.globalX - widget.container:get_x()
+	mdw.drag.offsetY = event.globalY - widget.container:get_y()
+	mdw.drag.startMouseX = event.globalX
+	mdw.drag.startMouseY = event.globalY
+	mdw.drag.hasMoved = false
 
-  -- Remember original dock info for cancel/restore
-  mdw.drag.originalDock = widget.docked
-  mdw.drag.originalRow = widget.row
-  mdw.drag.originalRowPosition = widget.rowPosition
-  mdw.drag.originalSubRow = widget.subRow
+	-- Remember original dock info for cancel/restore
+	mdw.drag.originalDock = widget.docked
+	mdw.drag.originalRow = widget.row
+	mdw.drag.originalRowPosition = widget.rowPosition
+	mdw.drag.originalSubRow = widget.subRow
 
-  widget.titleBar:setCursor(mudlet.cursor.ClosedHand)
-  mdw.raiseWidget(widget)
+	widget.titleBar:setCursor(mudlet.cursor.ClosedHand)
+	mdw.raiseWidget(widget)
 end
 
 function mdw.handleDragMove(widget, event)
-  if not widget or not widget.container then return end
+	if not widget or not widget.container then return end
 
-  local cfg = mdw.config
-  local movedX = math.abs(event.globalX - mdw.drag.startMouseX)
-  local movedY = math.abs(event.globalY - mdw.drag.startMouseY)
+	local cfg = mdw.config
+	local movedX = math.abs(event.globalX - mdw.drag.startMouseX)
+	local movedY = math.abs(event.globalY - mdw.drag.startMouseY)
 
-  -- Commit drag start once movement threshold is exceeded
-  if movedX > cfg.dragThreshold or movedY > cfg.dragThreshold then
-    mdw.commitDragStart(widget)
-  end
+	-- Commit drag start once movement threshold is exceeded
+	if movedX > cfg.dragThreshold or movedY > cfg.dragThreshold then
+		mdw.commitDragStart(widget)
+	end
 
-  -- Only move if drag has been committed
-  if mdw.drag.hasMoved then
-    local newX = math.max(0, event.globalX - mdw.drag.offsetX)
-    local newY = math.max(0, event.globalY - mdw.drag.offsetY)
-    widget.container:move(newX, newY)
+	-- Only move if drag has been committed
+	if mdw.drag.hasMoved then
+		local newX = math.max(0, event.globalX - mdw.drag.offsetX)
+		local newY = math.max(0, event.globalY - mdw.drag.offsetY)
+		widget.container:move(newX, newY)
 
-    if not widget.docked then
-      mdw.updateResizeBorders(widget)
-    end
+		if not widget.docked then
+			mdw.updateResizeBorders(widget)
+		end
 
-    mdw.updateDropIndicator(widget)
-    mdw.raiseWidget(widget)
-  end
+		mdw.updateDropIndicator(widget)
+		mdw.raiseWidget(widget)
+	end
 end
 
 --- Commit to a drag operation after movement threshold is exceeded.
 -- Why: Separates click (no movement) from drag (movement detected).
 -- Undocking and visual feedback only happen once we're sure it's a drag.
 function mdw.commitDragStart(widget)
-  if mdw.drag.hasMoved then return end
-  mdw.drag.hasMoved = true
+	if mdw.drag.hasMoved then return end
+	mdw.drag.hasMoved = true
 
-  -- Now undock the widget
-  widget.docked = nil
-  widget.row = nil
-  widget.rowPosition = nil
-  widget.subRow = nil
+	-- Now undock the widget
+	widget.docked = nil
+	widget.row = nil
+	widget.rowPosition = nil
+	widget.subRow = nil
 
-  -- Reorganize the dock we left (this handles splitters automatically)
-  if mdw.drag.originalDock then
-    mdw.reorganizeDock(mdw.drag.originalDock)
-  end
+	-- Reorganize the dock we left (this handles splitters automatically)
+	if mdw.drag.originalDock then
+		mdw.reorganizeDock(mdw.drag.originalDock)
+	end
 
-  -- Apply dragging visual feedback (titleBar only, MiniConsole doesn't support setStyleSheet)
-  widget.titleBar:setStyleSheet(mdw.styles.titleBarDragging)
+	-- Apply dragging visual feedback (titleBar only, MiniConsole doesn't support setStyleSheet)
+	widget.titleBar:setStyleSheet(mdw.styles.titleBarDragging)
+	widget.titleBar:setFontSize(mdw.config.widgetHeaderFontSize)
 
-  mdw.raiseWidget(widget)
+	mdw.raiseWidget(widget)
 end
 
 function mdw.endDrag(widget, event)
-  if not mdw.drag.active or mdw.drag.widget ~= widget then return end
+	if not mdw.drag.active or mdw.drag.widget ~= widget then return end
 
-  -- Capture state before clearing
-  local insertSide = mdw.drag.insertSide
-  local dropType = mdw.drag.dropType
-  local rowIndex = mdw.drag.rowIndex
-  local positionInRow = mdw.drag.positionInRow
-  local targetWidget = mdw.drag.targetWidget
-  local hasMoved = mdw.drag.hasMoved
-  local originalDock = mdw.drag.originalDock
-  local originalRow = mdw.drag.originalRow
-  local originalRowPosition = mdw.drag.originalRowPosition
-  local originalSubRow = mdw.drag.originalSubRow
+	-- Capture state before clearing
+	local insertSide = mdw.drag.insertSide
+	local dropType = mdw.drag.dropType
+	local rowIndex = mdw.drag.rowIndex
+	local positionInRow = mdw.drag.positionInRow
+	local targetWidget = mdw.drag.targetWidget
+	local hasMoved = mdw.drag.hasMoved
+	local originalDock = mdw.drag.originalDock
+	local originalRow = mdw.drag.originalRow
+	local originalRowPosition = mdw.drag.originalRowPosition
+	local originalSubRow = mdw.drag.originalSubRow
 
-  mdw.debugEcho("ENDDRAG: widget=%s, hasMoved=%s, insertSide=%s, dropType=%s",
-    widget.name, tostring(hasMoved), tostring(insertSide), tostring(dropType))
+	mdw.debugEcho("ENDDRAG: widget=%s, hasMoved=%s, insertSide=%s, dropType=%s",
+		widget.name, tostring(hasMoved), tostring(insertSide), tostring(dropType))
 
-  -- Clear drag state
-  mdw.drag.active = false
-  mdw.drag.widget = nil
-  mdw.drag.originalDock = nil
-  mdw.drag.originalRow = nil
-  mdw.drag.originalRowPosition = nil
-  mdw.drag.originalSubRow = nil
-  mdw.drag.insertSide = nil
-  mdw.drag.dropType = nil
-  mdw.drag.rowIndex = nil
-  mdw.drag.positionInRow = nil
-  mdw.drag.targetWidget = nil
-  mdw.drag.hasMoved = nil
-  mdw.drag.startMouseX = nil
-  mdw.drag.startMouseY = nil
+	-- Clear drag state
+	mdw.drag.active = false
+	mdw.drag.widget = nil
+	mdw.drag.originalDock = nil
+	mdw.drag.originalRow = nil
+	mdw.drag.originalRowPosition = nil
+	mdw.drag.originalSubRow = nil
+	mdw.drag.insertSide = nil
+	mdw.drag.dropType = nil
+	mdw.drag.rowIndex = nil
+	mdw.drag.positionInRow = nil
+	mdw.drag.targetWidget = nil
+	mdw.drag.hasMoved = nil
+	mdw.drag.startMouseX = nil
+	mdw.drag.startMouseY = nil
 
-  widget.titleBar:setCursor(mudlet.cursor.OpenHand)
+	widget.titleBar:setCursor(mudlet.cursor.OpenHand)
 
-  -- Restore normal styling
-  if hasMoved then
-    widget.titleBar:setStyleSheet(mdw.styles.titleBar)
-  end
+	-- Restore normal styling
+	if hasMoved then
+		widget.titleBar:setStyleSheet(mdw.styles.titleBar)
+		widget.titleBar:setFontSize(mdw.config.widgetHeaderFontSize)
+	end
 
-  mdw.hideDropIndicator()
-  mdw.updateDockHighlight(nil)
+	mdw.hideDropIndicator()
+	mdw.updateDockHighlight(nil)
 
-  -- Restore original position if no movement
-  if not hasMoved then
-    if originalDock then
-      widget.docked = originalDock
-      widget.row = originalRow
-      widget.rowPosition = originalRowPosition
-      widget.subRow = originalSubRow
-    end
-    -- Still need to reorganize docks to restore splitters that were hidden during drag
-    mdw.reorganizeDock("left")
-    mdw.reorganizeDock("right")
-    return
-  end
+	-- Restore original position if no movement
+	if not hasMoved then
+		if originalDock then
+			widget.docked = originalDock
+			widget.row = originalRow
+			widget.rowPosition = originalRowPosition
+			widget.subRow = originalSubRow
+		end
+		-- Still need to reorganize docks to restore splitters that were hidden during drag
+		mdw.reorganizeDock("left")
+		mdw.reorganizeDock("right")
+		return
+	end
 
-  -- Dock or float based on drop position
-  if insertSide then
-    mdw.dockWidgetWithPosition(widget, insertSide, dropType, rowIndex, positionInRow, targetWidget)
-    mdw.hideResizeHandles(widget)
-  else
-    widget.docked = nil
-    widget.row = nil
-    widget.rowPosition = nil
-    widget.subRow = nil
-    mdw.showResizeHandles(widget)
-  end
+	-- Dock or float based on drop position
+	if insertSide then
+		mdw.dockWidgetWithPosition(widget, insertSide, dropType, rowIndex, positionInRow, targetWidget)
+		mdw.hideResizeHandles(widget)
+	else
+		widget.docked = nil
+		widget.row = nil
+		widget.rowPosition = nil
+		widget.subRow = nil
+		mdw.showResizeHandles(widget)
+	end
 
-  -- Always reorganize both docks to ensure splitters are properly cleaned up
-  -- This handles cases where widgets move between docks or are undocked
-  mdw.reorganizeDock("left")
-  mdw.reorganizeDock("right")
+	-- Always reorganize both docks to ensure splitters are properly cleaned up
+	-- This handles cases where widgets move between docks or are undocked
+	mdw.reorganizeDock("left")
+	mdw.reorganizeDock("right")
 
-  mdw.saveLayout()
+	mdw.saveLayout()
 end
 
 --- Raise a widget above all others.
 -- Why: Geyser doesn't automatically raise children with their container.
 -- We must explicitly raise container AND all its children.
 function mdw.raiseWidget(widget)
-  if not widget or not widget.container then return end
+	if not widget or not widget.container then return end
 
-  -- Safely raise an element, logging failures via debugEcho.
-  local function safeRaise(element, label)
-    local ok, err = pcall(function() element:raise() end)
-    if not ok then
-      mdw.debugEcho("raiseWidget: failed to raise %s: %s", label, tostring(err))
-    end
-  end
+	-- Safely raise an element, logging failures via debugEcho.
+	local function safeRaise(element, label)
+		local ok, err = pcall(function() element:raise() end)
+		if not ok then
+			mdw.debugEcho("raiseWidget: failed to raise %s: %s", label, tostring(err))
+		end
+	end
 
-  -- Just raise the target widget and its children - don't lower others
-  -- as that can push them below dock backgrounds
-  safeRaise(widget.container, "container")
-  if widget.titleBar then
-    safeRaise(widget.titleBar, "titleBar")
-  end
+	-- Just raise the target widget and its children - don't lower others
+	-- as that can push them below dock backgrounds
+	safeRaise(widget.container, "container")
+	if widget.titleBar then
+		safeRaise(widget.titleBar, "titleBar")
+	end
 
-  -- Handle tabbed widgets
-  if widget.isTabbed then
-    if widget.tabBar then
-      safeRaise(widget.tabBar, "tabBar")
-    end
-    for _, tabObj in ipairs(widget.tabObjects or {}) do
-      if tabObj.button then
-        safeRaise(tabObj.button, "tabButton")
-      end
-    end
-    -- Raise only the active tab's console
-    local activeTab = widget.tabObjects[widget.activeTabIndex]
-    if activeTab and activeTab.console then
-      safeRaise(activeTab.console, "activeConsole")
-    end
-  else
-    if widget.content then
-      safeRaise(widget.content, "content")
-    end
-    if widget.mapper then
-      safeRaise(widget.mapper, "mapper")
-    end
-  end
+	-- Handle tabbed widgets
+	if widget.isTabbed then
+		if widget.tabBar then
+			safeRaise(widget.tabBar, "tabBar")
+		end
+		for _, tabObj in ipairs(widget.tabObjects or {}) do
+			if tabObj.button then
+				safeRaise(tabObj.button, "tabButton")
+			end
+		end
+		-- Raise only the active tab's console
+		local activeTab = widget.tabObjects[widget.activeTabIndex]
+		if activeTab and activeTab.console then
+			safeRaise(activeTab.console, "activeConsole")
+		end
+	else
+		if widget.content then
+			safeRaise(widget.content, "content")
+		end
+		if widget.mapper then
+			safeRaise(widget.mapper, "mapper")
+		end
+	end
 end
 
 --- Reflow a widget's content to repaint text at the current wrap width.
 -- Replays buffered echo calls so text reflows correctly after resize.
 function mdw.refreshWidgetContent(widget)
-  if not widget then return end
-  if widget.reflow then
-    widget:reflow()
-  end
+	if not widget then return end
+	if widget.reflow then
+		widget:reflow()
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -523,132 +529,132 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.getDockZoneAtPoint(x, y)
-  local cfg = mdw.config
-  local dropBuffer = cfg.dockDropBuffer
+	local cfg = mdw.config
+	local dropBuffer = cfg.dockDropBuffer
 
-  if mdw.visibility.leftSidebar then
-    local leftX = mdw.leftDock:get_x()
-    local leftY = mdw.leftDock:get_y()
-    local leftW = mdw.leftDock:get_width()
-    local leftH = mdw.leftDock:get_height()
+	if mdw.visibility.leftSidebar then
+		local leftX = mdw.leftDock:get_x()
+		local leftY = mdw.leftDock:get_y()
+		local leftW = mdw.leftDock:get_width()
+		local leftH = mdw.leftDock:get_height()
 
-    if x >= leftX and x <= leftX + leftW + cfg.dockSplitterWidth and
-       y >= leftY - dropBuffer and y <= leftY + leftH + dropBuffer then
-      return "left"
-    end
-  end
+		if x >= leftX and x <= leftX + leftW + cfg.dockSplitterWidth and
+			y >= leftY - dropBuffer and y <= leftY + leftH + dropBuffer then
+			return "left"
+		end
+	end
 
-  if mdw.visibility.rightSidebar then
-    local rightX = mdw.rightDock:get_x()
-    local rightY = mdw.rightDock:get_y()
-    local rightW = mdw.rightDock:get_width()
-    local rightH = mdw.rightDock:get_height()
+	if mdw.visibility.rightSidebar then
+		local rightX = mdw.rightDock:get_x()
+		local rightY = mdw.rightDock:get_y()
+		local rightW = mdw.rightDock:get_width()
+		local rightH = mdw.rightDock:get_height()
 
-    if x >= rightX - cfg.dockSplitterWidth and x <= rightX + rightW and
-       y >= rightY - dropBuffer and y <= rightY + rightH + dropBuffer then
-      return "right"
-    end
-  end
+		if x >= rightX - cfg.dockSplitterWidth and x <= rightX + rightW and
+			y >= rightY - dropBuffer and y <= rightY + rightH + dropBuffer then
+			return "right"
+		end
+	end
 
-  return nil
+	return nil
 end
 
 --- Get all docked widgets on a side, optionally excluding one.
 function mdw.getDockedWidgets(side, excludeWidget)
-  local docked = {}
-  for _, w in pairs(mdw.widgets) do
-    if w.docked == side and w ~= excludeWidget and w.visible ~= false then
-      docked[#docked + 1] = w
-    end
-  end
+	local docked = {}
+	for _, w in pairs(mdw.widgets) do
+		if w.docked == side and w ~= excludeWidget and w.visible ~= false then
+			docked[#docked + 1] = w
+		end
+	end
 
-  table.sort(docked, function(a, b)
-    local rowA = a.row or 0
-    local rowB = b.row or 0
-    if rowA ~= rowB then
-      return rowA < rowB
-    end
-    local posA = a.rowPosition or 0
-    local posB = b.rowPosition or 0
-    if posA ~= posB then
-      return posA < posB
-    end
-    return (a.subRow or 0) < (b.subRow or 0)
-  end)
+	table.sort(docked, function(a, b)
+		local rowA = a.row or 0
+		local rowB = b.row or 0
+		if rowA ~= rowB then
+			return rowA < rowB
+		end
+		local posA = a.rowPosition or 0
+		local posB = b.rowPosition or 0
+		if posA ~= posB then
+			return posA < posB
+		end
+		return (a.subRow or 0) < (b.subRow or 0)
+	end)
 
-  return docked
+	return docked
 end
 
 --- Group docked widgets by row number.
 function mdw.groupWidgetsByRow(docked)
-  local rows = {}
-  for _, w in ipairs(docked) do
-    local rowNum = w.row or 0
-    if not rows[rowNum] then
-      rows[rowNum] = {}
-    end
-    rows[rowNum][#rows[rowNum] + 1] = w
-  end
+	local rows = {}
+	for _, w in ipairs(docked) do
+		local rowNum = w.row or 0
+		if not rows[rowNum] then
+			rows[rowNum] = {}
+		end
+		rows[rowNum][#rows[rowNum] + 1] = w
+	end
 
-  -- Convert to sorted array
-  local sortedRows = {}
-  local rowNums = {}
-  for rowNum in pairs(rows) do
-    rowNums[#rowNums + 1] = rowNum
-  end
-  table.sort(rowNums)
+	-- Convert to sorted array
+	local sortedRows = {}
+	local rowNums = {}
+	for rowNum in pairs(rows) do
+		rowNums[#rowNums + 1] = rowNum
+	end
+	table.sort(rowNums)
 
-  for _, rowNum in ipairs(rowNums) do
-    table.sort(rows[rowNum], function(a, b)
-      local posA = a.rowPosition or 0
-      local posB = b.rowPosition or 0
-      if posA ~= posB then return posA < posB end
-      return (a.subRow or 0) < (b.subRow or 0)
-    end)
-    sortedRows[#sortedRows + 1] = rows[rowNum]
-  end
+	for _, rowNum in ipairs(rowNums) do
+		table.sort(rows[rowNum], function(a, b)
+			local posA = a.rowPosition or 0
+			local posB = b.rowPosition or 0
+			if posA ~= posB then return posA < posB end
+			return (a.subRow or 0) < (b.subRow or 0)
+		end)
+		sortedRows[#sortedRows + 1] = rows[rowNum]
+	end
 
-  return sortedRows
+	return sortedRows
 end
 
 --- Group a row's widgets into columns by rowPosition.
 function mdw.groupWidgetsByColumn(row)
-  local columnMap = {}
-  for _, w in ipairs(row) do
-    local pos = w.rowPosition or 0
-    if not columnMap[pos] then
-      columnMap[pos] = {}
-    end
-    columnMap[pos][#columnMap[pos] + 1] = w
-  end
+	local columnMap = {}
+	for _, w in ipairs(row) do
+		local pos = w.rowPosition or 0
+		if not columnMap[pos] then
+			columnMap[pos] = {}
+		end
+		columnMap[pos][#columnMap[pos] + 1] = w
+	end
 
-  -- Sort column keys
-  local positions = {}
-  for pos in pairs(columnMap) do
-    positions[#positions + 1] = pos
-  end
-  table.sort(positions)
+	-- Sort column keys
+	local positions = {}
+	for pos in pairs(columnMap) do
+		positions[#positions + 1] = pos
+	end
+	table.sort(positions)
 
-  -- Build sorted columns array, sort each column by subRow
-  local columns = {}
-  for _, pos in ipairs(positions) do
-    local col = columnMap[pos]
-    table.sort(col, function(a, b)
-      return (a.subRow or 0) < (b.subRow or 0)
-    end)
-    columns[#columns + 1] = col
-  end
+	-- Build sorted columns array, sort each column by subRow
+	local columns = {}
+	for _, pos in ipairs(positions) do
+		local col = columnMap[pos]
+		table.sort(col, function(a, b)
+			return (a.subRow or 0) < (b.subRow or 0)
+		end)
+		columns[#columns + 1] = col
+	end
 
-  return columns
+	return columns
 end
 
 --- Get total height of a column of widgets.
 function mdw.getColumnHeight(column)
-  local total = 0
-  for _, w in ipairs(column) do
-    total = total + w.container:get_height()
-  end
-  return total
+	local total = 0
+	for _, w in ipairs(column) do
+		total = total + w.container:get_height()
+	end
+	return total
 end
 
 --- Detect where a widget would be dropped in a dock.
@@ -657,363 +663,365 @@ end
 -- - Middle zone with horizontal offset triggers side-by-side placement
 -- This dual-zone approach prevents accidental side-by-side when users intend vertical stacking.
 function mdw.detectDropPosition(side, headerX, headerY, excludeWidget, widgetLeftX, widgetRightX)
-  local cfg = mdw.config
-  local docked = mdw.getDockedWidgets(side, excludeWidget)
-  local rows = mdw.groupWidgetsByRow(docked)
+	local cfg = mdw.config
+	local docked = mdw.getDockedWidgets(side, excludeWidget)
+	local rows = mdw.groupWidgetsByRow(docked)
 
-  if #rows == 0 then
-    return "above", 1, 0, nil
-  end
+	if #rows == 0 then
+		return "above", 1, 0, nil
+	end
 
-  local vertZone = cfg.verticalInsertZone
-  local sideBySideZone = cfg.sideBySideZone
-  local sideBySideOffset = cfg.sideBySideOffset
+	local vertZone = cfg.verticalInsertZone
+	local sideBySideZone = cfg.sideBySideZone
+	local sideBySideOffset = cfg.sideBySideOffset
 
-  local yPos = cfg.headerHeight + cfg.widgetMargin
-  for rowIndex, row in ipairs(rows) do
-    local columns = mdw.groupWidgetsByColumn(row)
-    local rowHeight = 0
-    for _, col in ipairs(columns) do
-      rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
-    end
+	local yPos = cfg.headerHeight + cfg.widgetMargin
+	for rowIndex, row in ipairs(rows) do
+		local columns = mdw.groupWidgetsByColumn(row)
+		local rowHeight = 0
+		for _, col in ipairs(columns) do
+			rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
+		end
 
-    local rowTop = yPos
-    local rowBottom = yPos + rowHeight
-    local rowMidY = yPos + rowHeight / 2
+		local rowTop = yPos
+		local rowBottom = yPos + rowHeight
+		local rowMidY = yPos + rowHeight / 2
 
-    if headerY >= rowTop - sideBySideOffset and headerY <= rowBottom + sideBySideOffset then
-      local topZone = rowTop + rowHeight * vertZone
-      local bottomZone = rowTop + rowHeight * (1 - vertZone)
+		if headerY >= rowTop - sideBySideOffset and headerY <= rowBottom + sideBySideOffset then
+			local topZone = rowTop + rowHeight * vertZone
+			local bottomZone = rowTop + rowHeight * (1 - vertZone)
 
-      -- Top zone - insert above
-      if headerY < topZone then
-        return "above", rowIndex, 0, nil
-      -- Bottom zone - insert below
-      elseif headerY > bottomZone then
-        return "below", rowIndex, 0, nil
-      end
+			-- Top zone - insert above
+			if headerY < topZone then
+				return "above", rowIndex, 0, nil
+				-- Bottom zone - insert below
+			elseif headerY > bottomZone then
+				return "below", rowIndex, 0, nil
+			end
 
-      -- Sub-column gap detection (checked before side-by-side)
-      if #columns > 1 then
-        -- Calculate column positions and widths
-        local numColumns = #columns
-        local dockCfg = mdw.getDockConfig(side)
-        local fullWidgetWidth = dockCfg.fullWidgetWidth
-        local dockXPos = dockCfg.xPos
+			-- Sub-column gap detection (checked before side-by-side)
+			if #columns > 1 then
+				-- Calculate column positions and widths
+				local numColumns = #columns
+				local dockCfg = mdw.getDockConfig(side)
+				local fullWidgetWidth = dockCfg.fullWidgetWidth
+				local dockXPos = dockCfg.xPos
 
-        local colAvailableWidth = fullWidgetWidth - (numColumns - 1) * cfg.widgetSplitterWidth
-        local hasCustomRatios = false
-        local colTotalRatio = 0
-        for _, col in ipairs(columns) do
-          if col[1].widthRatio then
-            hasCustomRatios = true
-            colTotalRatio = colTotalRatio + col[1].widthRatio
-          else
-            colTotalRatio = colTotalRatio + 1
-          end
-        end
+				local colAvailableWidth = fullWidgetWidth - (numColumns - 1) * cfg.widgetSplitterWidth
+				local hasCustomRatios = false
+				local colTotalRatio = 0
+				for _, col in ipairs(columns) do
+					if col[1].widthRatio then
+						hasCustomRatios = true
+						colTotalRatio = colTotalRatio + col[1].widthRatio
+					else
+						colTotalRatio = colTotalRatio + 1
+					end
+				end
 
-        local colXPos = dockXPos
-        for ci, col in ipairs(columns) do
-          local colWidth
-          if hasCustomRatios then
-            colWidth = colAvailableWidth * ((col[1].widthRatio or 1) / colTotalRatio)
-          else
-            colWidth = colAvailableWidth / numColumns
-          end
+				local colXPos = dockXPos
+				for ci, col in ipairs(columns) do
+					local colWidth
+					if hasCustomRatios then
+						colWidth = colAvailableWidth * ((col[1].widthRatio or 1) / colTotalRatio)
+					else
+						colWidth = colAvailableWidth / numColumns
+					end
 
-          local columnHeight = mdw.getColumnHeight(col)
-          local gapHeight = rowHeight - columnHeight
+					local columnHeight = mdw.getColumnHeight(col)
+					local gapHeight = rowHeight - columnHeight
 
-          if gapHeight >= cfg.minWidgetHeight then
-            -- Check if cursor is within this column's horizontal bounds and gap area
-            local gapTop = rowTop + columnHeight
-            local gapBottom = rowTop + rowHeight
-            if headerX >= colXPos and headerX <= colXPos + colWidth
-               and headerY >= gapTop and headerY <= gapBottom then
-              return "subcolumn", rowIndex, col[1].rowPosition or 0, col[#col]
-            end
-          end
+					if gapHeight >= cfg.minWidgetHeight then
+						-- Check if cursor is within this column's horizontal bounds and gap area
+						local gapTop = rowTop + columnHeight
+						local gapBottom = rowTop + rowHeight
+						if headerX >= colXPos and headerX <= colXPos + colWidth
+							and headerY >= gapTop and headerY <= gapBottom then
+							return "subcolumn", rowIndex, col[1].rowPosition or 0, col[#col]
+						end
+					end
 
-          colXPos = colXPos + colWidth + cfg.widgetSplitterWidth
-        end
-      end
+					colXPos = colXPos + colWidth + cfg.widgetSplitterWidth
+				end
+			end
 
-      -- Middle zone - check for side-by-side
-      local sideBySideTopZone = rowTop + rowHeight * sideBySideZone
-      local sideBySideBottomZone = rowTop + rowHeight * (1 - sideBySideZone)
-      local inSideBySideZone = headerY >= sideBySideTopZone and headerY <= sideBySideBottomZone
-      local numInRow = #columns  -- Use columns count for side-by-side detection
+			-- Middle zone - check for side-by-side
+			local sideBySideTopZone = rowTop + rowHeight * sideBySideZone
+			local sideBySideBottomZone = rowTop + rowHeight * (1 - sideBySideZone)
+			local inSideBySideZone = headerY >= sideBySideTopZone and headerY <= sideBySideBottomZone
+			local numInRow = #columns -- Use columns count for side-by-side detection
 
-      -- Build flat list of first widgets per column for side-by-side detection
-      local colFirstWidgets = {}
-      for _, col in ipairs(columns) do
-        colFirstWidgets[#colFirstWidgets + 1] = col[1]
-      end
+			-- Build flat list of first widgets per column for side-by-side detection
+			local colFirstWidgets = {}
+			for _, col in ipairs(columns) do
+				colFirstWidgets[#colFirstWidgets + 1] = col[1]
+			end
 
-      for i, w in ipairs(colFirstWidgets) do
-        local wX = w.container:get_x()
-        local wW = w.container:get_width()
-        local wMidX = wX + wW / 2
-        local isFirst = (i == 1)
-        local isLast = (i == numInRow)
+			for i, w in ipairs(colFirstWidgets) do
+				local wX = w.container:get_x()
+				local wW = w.container:get_width()
+				local wMidX = wX + wW / 2
+				local isFirst = (i == 1)
+				local isLast = (i == numInRow)
 
-        -- Left of first widget
-        if isFirst and headerX < wMidX and inSideBySideZone then
-          local leftEdge = widgetLeftX or headerX
-          if leftEdge <= wX then
-            return "left", rowIndex, 0, w
-          end
-        end
+				-- Left of first widget
+				if isFirst and headerX < wMidX and inSideBySideZone then
+					local leftEdge = widgetLeftX or headerX
+					if leftEdge <= wX then
+						return "left", rowIndex, 0, w
+					end
+				end
 
-        -- Right of last widget
-        if isLast and headerX > wMidX and inSideBySideZone then
-          local rightEdge = widgetRightX or headerX
-          if (wX + wW) - rightEdge < -sideBySideOffset then
-            return "right", rowIndex, i, w
-          end
-        end
+				-- Right of last widget
+				if isLast and headerX > wMidX and inSideBySideZone then
+					local rightEdge = widgetRightX or headerX
+					if (wX + wW) - rightEdge < -sideBySideOffset then
+						return "right", rowIndex, i, w
+					end
+				end
 
-        -- Between columns
-        if not isLast and inSideBySideZone then
-          local nextW = colFirstWidgets[i + 1]
-          local nextX = nextW.container:get_x()
-          local gapMid = (wX + wW + nextX) / 2
+				-- Between columns
+				if not isLast and inSideBySideZone then
+					local nextW = colFirstWidgets[i + 1]
+					local nextX = nextW.container:get_x()
+					local gapMid = (wX + wW + nextX) / 2
 
-          if headerX >= wMidX and headerX <= nextX + nextW.container:get_width() / 2 then
-            if headerX < gapMid then
-              return "between", rowIndex, i, w
-            else
-              return "between", rowIndex, i, nextW
-            end
-          end
-        end
-      end
+					if headerX >= wMidX and headerX <= nextX + nextW.container:get_width() / 2 then
+						if headerX < gapMid then
+							return "between", rowIndex, i, w
+						else
+							return "between", rowIndex, i, nextW
+						end
+					end
+				end
+			end
 
-      -- Default to above/below based on position
-      if headerY < rowMidY then
-        return "above", rowIndex, 0, nil
-      else
-        return "below", rowIndex, 0, nil
-      end
-    end
+			-- Default to above/below based on position
+			if headerY < rowMidY then
+				return "above", rowIndex, 0, nil
+			else
+				return "below", rowIndex, 0, nil
+			end
+		end
 
-    if headerY < rowMidY then
-      return "above", rowIndex, 0, nil
-    end
+		-- Cursor is in the gap between rows: snap to the closer edge
+		if headerY < rowMidY then
+			return "above", rowIndex, 0, nil
+		end
 
-    yPos = rowBottom
-  end
+		yPos = rowBottom
+	end
 
-  return "below", #rows, 0, nil
+	return "below", #rows, 0, nil
 end
 
 --- Update the drop indicator position during drag.
 function mdw.updateDropIndicator(widget)
-  local cfg = mdw.config
+	local cfg = mdw.config
 
-  -- Destroy all row splitters during drag to avoid visual artifacts
-  mdw.destroyAllRowSplitters()
+	-- Destroy all row splitters during drag to avoid visual artifacts
+	mdw.destroyAllRowSplitters()
 
-  local widgetX = widget.container:get_x()
-  local widgetY = widget.container:get_y()
-  local widgetW = widget.container:get_width()
-  local centerX = widgetX + widgetW / 2
-  local headerY = widgetY + cfg.titleHeight / 2
+	local widgetX = widget.container:get_x()
+	local widgetY = widget.container:get_y()
+	local widgetW = widget.container:get_width()
+	local centerX = widgetX + widgetW / 2
+	local headerY = widgetY + cfg.titleHeight / 2
 
-  -- Detect dock zone
-  local side = mdw.getDockZoneAtPoint(centerX, headerY)
-  if not side then
-    side = mdw.getDockZoneAtPoint(widgetX, headerY)
-  end
-  if not side then
-    side = mdw.getDockZoneAtPoint(widgetX + widgetW, headerY)
-  end
+	-- Detect dock zone
+	local side = mdw.getDockZoneAtPoint(centerX, headerY)
+	if not side then
+		side = mdw.getDockZoneAtPoint(widgetX, headerY)
+	end
+	if not side then
+		side = mdw.getDockZoneAtPoint(widgetX + widgetW, headerY)
+	end
 
-  mdw.updateDockHighlight(side)
+	mdw.updateDockHighlight(side)
 
-  if not side then
-    mdw.hideDropIndicator()
-    mdw.drag.insertSide = nil
-    mdw.drag.dropType = nil
-    mdw.drag.rowIndex = nil
-    mdw.drag.positionInRow = nil
-    mdw.drag.targetWidget = nil
-    return
-  end
+	if not side then
+		mdw.hideDropIndicator()
+		mdw.drag.insertSide = nil
+		mdw.drag.dropType = nil
+		mdw.drag.rowIndex = nil
+		mdw.drag.positionInRow = nil
+		mdw.drag.targetWidget = nil
+		return
+	end
 
-  local dockCfg = mdw.getDockConfig(side)
-  local fullWidgetWidth = dockCfg.fullWidgetWidth
-  local dockXPos = dockCfg.xPos
+	local dockCfg = mdw.getDockConfig(side)
+	local fullWidgetWidth = dockCfg.fullWidgetWidth
+	local dockXPos = dockCfg.xPos
 
-  local dropType, rowIndex, positionInRow, targetWidget = mdw.detectDropPosition(
-    side, centerX, headerY, widget, widgetX, widgetX + widgetW)
+	local dropType, rowIndex, positionInRow, targetWidget = mdw.detectDropPosition(
+		side, centerX, headerY, widget, widgetX, widgetX + widgetW)
 
-  local docked = mdw.getDockedWidgets(side, widget)
-  local rows = mdw.groupWidgetsByRow(docked)
+	local docked = mdw.getDockedWidgets(side, widget)
+	local rows = mdw.groupWidgetsByRow(docked)
 
-  -- Hide all indicators
-  mdw.leftDropIndicator:hide()
-  mdw.rightDropIndicator:hide()
-  mdw.verticalDropIndicator:hide()
+	-- Hide all indicators
+	mdw.leftDropIndicator:hide()
+	mdw.rightDropIndicator:hide()
+	mdw.verticalDropIndicator:hide()
 
-  -- Calculate positions and show appropriate indicator
-  local yPos = cfg.headerHeight + cfg.widgetMargin
-  local indicatorSpace = cfg.dropIndicatorHeight + 4
+	-- Calculate positions and show appropriate indicator
+	local yPos = cfg.headerHeight + cfg.widgetMargin
+	local indicatorSpace = cfg.dropIndicatorHeight + 4
 
-  for ri, row in ipairs(rows) do
-    local columns = mdw.groupWidgetsByColumn(row)
-    local numColumns = #columns
+	for ri, row in ipairs(rows) do
+		local columns = mdw.groupWidgetsByColumn(row)
+		local numColumns = #columns
 
-    -- Calculate row height = max column height
-    local rowHeight = 0
-    for _, col in ipairs(columns) do
-      rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
-    end
+		-- Calculate row height = max column height
+		local rowHeight = 0
+		for _, col in ipairs(columns) do
+			rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
+		end
 
-    -- Show horizontal indicator above this row
-    if dropType == "above" and ri == rowIndex then
-      local indicator = dockCfg.dropIndicator
-      indicator:move(dockXPos, yPos)
-      indicator:resize(fullWidgetWidth, cfg.dropIndicatorHeight)
-      indicator:raise()
-      indicator:show()
-      yPos = yPos + indicatorSpace
-    end
+		-- Show horizontal indicator above this row
+		if dropType == "above" and ri == rowIndex then
+			local indicator = dockCfg.dropIndicator
+			indicator:move(dockXPos, yPos)
+			indicator:resize(fullWidgetWidth, cfg.dropIndicatorHeight)
+			indicator:raise()
+			indicator:show()
+			yPos = yPos + indicatorSpace
+		end
 
-    -- Calculate column widths
-    local availableWidth = fullWidgetWidth - (numColumns - 1) * cfg.widgetSplitterWidth
-    local totalRatio = 0
-    local hasCustomRatios = false
+		-- Calculate column widths
+		local availableWidth = fullWidgetWidth - (numColumns - 1) * cfg.widgetSplitterWidth
+		local totalRatio = 0
+		local hasCustomRatios = false
 
-    for _, col in ipairs(columns) do
-      if col[1].widthRatio then
-        hasCustomRatios = true
-        totalRatio = totalRatio + col[1].widthRatio
-      else
-        totalRatio = totalRatio + 1
-      end
-    end
+		for _, col in ipairs(columns) do
+			if col[1].widthRatio then
+				hasCustomRatios = true
+				totalRatio = totalRatio + col[1].widthRatio
+			else
+				totalRatio = totalRatio + 1
+			end
+		end
 
-    local xPos = dockXPos
-    for ci, col in ipairs(columns) do
-      local columnWidth
-      if hasCustomRatios then
-        columnWidth = availableWidth * ((col[1].widthRatio or 1) / totalRatio)
-      else
-        columnWidth = availableWidth / numColumns
-      end
+		local xPos = dockXPos
+		for ci, col in ipairs(columns) do
+			local columnWidth
+			if hasCustomRatios then
+				columnWidth = availableWidth * ((col[1].widthRatio or 1) / totalRatio)
+			else
+				columnWidth = availableWidth / numColumns
+			end
 
-      -- Show vertical indicator for side-by-side
-      if (dropType == "left" or dropType == "right" or dropType == "between") and ri == rowIndex then
-        if dropType == "left" and ci == 1 then
-          mdw.verticalDropIndicator:move(xPos - cfg.dropIndicatorHeight / 2, yPos)
-          mdw.verticalDropIndicator:resize(cfg.dropIndicatorHeight, rowHeight)
-          mdw.verticalDropIndicator:raise()
-          mdw.verticalDropIndicator:show()
-        elseif dropType == "right" and ci == positionInRow then
-          mdw.verticalDropIndicator:move(xPos + columnWidth - cfg.dropIndicatorHeight / 2, yPos)
-          mdw.verticalDropIndicator:resize(cfg.dropIndicatorHeight, rowHeight)
-          mdw.verticalDropIndicator:raise()
-          mdw.verticalDropIndicator:show()
-        elseif dropType == "between" and ci == positionInRow then
-          mdw.verticalDropIndicator:move(xPos + columnWidth + cfg.widgetSplitterWidth / 2 - cfg.dropIndicatorHeight / 2, yPos)
-          mdw.verticalDropIndicator:resize(cfg.dropIndicatorHeight, rowHeight)
-          mdw.verticalDropIndicator:raise()
-          mdw.verticalDropIndicator:show()
-        end
-      end
+			-- Show vertical indicator for side-by-side
+			if (dropType == "left" or dropType == "right" or dropType == "between") and ri == rowIndex then
+				if dropType == "left" and ci == 1 then
+					mdw.verticalDropIndicator:move(xPos - cfg.dropIndicatorHeight / 2, yPos)
+					mdw.verticalDropIndicator:resize(cfg.dropIndicatorHeight, rowHeight)
+					mdw.verticalDropIndicator:raise()
+					mdw.verticalDropIndicator:show()
+				elseif dropType == "right" and ci == positionInRow then
+					mdw.verticalDropIndicator:move(xPos + columnWidth - cfg.dropIndicatorHeight / 2, yPos)
+					mdw.verticalDropIndicator:resize(cfg.dropIndicatorHeight, rowHeight)
+					mdw.verticalDropIndicator:raise()
+					mdw.verticalDropIndicator:show()
+				elseif dropType == "between" and ci == positionInRow then
+					mdw.verticalDropIndicator:move(
+					xPos + columnWidth + cfg.widgetSplitterWidth / 2 - cfg.dropIndicatorHeight / 2, yPos)
+					mdw.verticalDropIndicator:resize(cfg.dropIndicatorHeight, rowHeight)
+					mdw.verticalDropIndicator:raise()
+					mdw.verticalDropIndicator:show()
+				end
+			end
 
-      -- Show sub-column drop indicator at the bottom of the target column
-      if dropType == "subcolumn" and ri == rowIndex and (col[1].rowPosition or 0) == positionInRow then
-        local columnHeight = mdw.getColumnHeight(col)
-        local indicator = dockCfg.dropIndicator
-        indicator:move(xPos, yPos + columnHeight - cfg.dropIndicatorHeight / 2)
-        indicator:resize(columnWidth, cfg.dropIndicatorHeight)
-        indicator:raise()
-        indicator:show()
-      end
+			-- Show sub-column drop indicator at the bottom of the target column
+			if dropType == "subcolumn" and ri == rowIndex and (col[1].rowPosition or 0) == positionInRow then
+				local columnHeight = mdw.getColumnHeight(col)
+				local indicator = dockCfg.dropIndicator
+				indicator:move(xPos, yPos + columnHeight - cfg.dropIndicatorHeight / 2)
+				indicator:resize(columnWidth, cfg.dropIndicatorHeight)
+				indicator:raise()
+				indicator:show()
+			end
 
-      -- Position each widget in the column at its own height (NOT forced to rowHeight)
-      local colYPos = yPos
-      for _, w in ipairs(col) do
-        local widgetHeight = w.container:get_height()
-        w.container:move(xPos, colYPos)
-        w.container:resize(columnWidth, widgetHeight)
-        mdw.resizeWidgetContent(w, columnWidth, widgetHeight)
-        colYPos = colYPos + widgetHeight
-      end
+			-- Position each widget in the column at its own height (NOT forced to rowHeight)
+			local colYPos = yPos
+			for _, w in ipairs(col) do
+				local widgetHeight = w.container:get_height()
+				w.container:move(xPos, colYPos)
+				w.container:resize(columnWidth, widgetHeight)
+				mdw.resizeWidgetContent(w, columnWidth, widgetHeight)
+				colYPos = colYPos + widgetHeight
+			end
 
-      xPos = xPos + columnWidth + cfg.widgetSplitterWidth
-    end
+			xPos = xPos + columnWidth + cfg.widgetSplitterWidth
+		end
 
-    -- Show horizontal indicator below this row
-    if dropType == "below" and ri == rowIndex then
-      yPos = yPos + rowHeight
-      dockCfg.dropIndicator:move(dockXPos, yPos - cfg.dropIndicatorHeight / 2)
-      dockCfg.dropIndicator:resize(fullWidgetWidth, cfg.dropIndicatorHeight)
-      dockCfg.dropIndicator:raise()
-      dockCfg.dropIndicator:show()
-    else
-      yPos = yPos + rowHeight
-    end
-  end
+		-- Show horizontal indicator below this row
+		if dropType == "below" and ri == rowIndex then
+			yPos = yPos + rowHeight
+			dockCfg.dropIndicator:move(dockXPos, yPos - cfg.dropIndicatorHeight / 2)
+			dockCfg.dropIndicator:resize(fullWidgetWidth, cfg.dropIndicatorHeight)
+			dockCfg.dropIndicator:raise()
+			dockCfg.dropIndicator:show()
+		else
+			yPos = yPos + rowHeight
+		end
+	end
 
-  -- Empty dock indicator
-  if dropType == "above" and #rows == 0 then
-    dockCfg.dropIndicator:move(dockXPos, cfg.headerHeight + cfg.widgetMargin)
-    dockCfg.dropIndicator:resize(fullWidgetWidth, cfg.dropIndicatorHeight)
-    dockCfg.dropIndicator:raise()
-    dockCfg.dropIndicator:show()
-  end
+	-- Empty dock indicator
+	if dropType == "above" and #rows == 0 then
+		dockCfg.dropIndicator:move(dockXPos, cfg.headerHeight + cfg.widgetMargin)
+		dockCfg.dropIndicator:resize(fullWidgetWidth, cfg.dropIndicatorHeight)
+		dockCfg.dropIndicator:raise()
+		dockCfg.dropIndicator:show()
+	end
 
-  -- Store drop position for endDrag
-  mdw.drag.insertSide = side
-  mdw.drag.dropType = dropType
-  mdw.drag.rowIndex = rowIndex
-  mdw.drag.positionInRow = positionInRow
-  mdw.drag.targetWidget = targetWidget
+	-- Store drop position for endDrag
+	mdw.drag.insertSide = side
+	mdw.drag.dropType = dropType
+	mdw.drag.rowIndex = rowIndex
+	mdw.drag.positionInRow = positionInRow
+	mdw.drag.targetWidget = targetWidget
 
-  if mdw.drag.widget then
-    mdw.drag.widget.container:raise()
-  end
+	if mdw.drag.widget then
+		mdw.drag.widget.container:raise()
+	end
 end
 
 function mdw.updateDockHighlight(side)
-  -- Use separate overlay elements instead of changing dock stylesheet
-  -- This avoids rendering artifacts that occur when dock style changes
-  if not mdw.leftDockHighlight or not mdw.rightDockHighlight then return end
+	-- Use separate overlay elements instead of changing dock stylesheet
+	-- This avoids rendering artifacts that occur when dock style changes
+	if not mdw.leftDockHighlight or not mdw.rightDockHighlight then return end
 
-  if side == "left" then
-    mdw.leftDockHighlight:show()
-    mdw.leftDockHighlight:raise()
-    mdw.rightDockHighlight:hide()
-  elseif side == "right" then
-    mdw.rightDockHighlight:show()
-    mdw.rightDockHighlight:raise()
-    mdw.leftDockHighlight:hide()
-  else
-    mdw.leftDockHighlight:hide()
-    mdw.rightDockHighlight:hide()
-  end
+	if side == "left" then
+		mdw.leftDockHighlight:show()
+		mdw.leftDockHighlight:raise()
+		mdw.rightDockHighlight:hide()
+	elseif side == "right" then
+		mdw.rightDockHighlight:show()
+		mdw.rightDockHighlight:raise()
+		mdw.leftDockHighlight:hide()
+	else
+		mdw.leftDockHighlight:hide()
+		mdw.rightDockHighlight:hide()
+	end
 end
 
 function mdw.hideDropIndicator()
-  mdw.leftDropIndicator:hide()
-  mdw.rightDropIndicator:hide()
-  mdw.verticalDropIndicator:hide()
+	mdw.leftDropIndicator:hide()
+	mdw.rightDropIndicator:hide()
+	mdw.verticalDropIndicator:hide()
 end
 
 function mdw.hideDropIndicators()
-  mdw.hideDropIndicator()
-  mdw.updateDockHighlight(nil)
-  mdw.drag.insertSide = nil
-  mdw.drag.dropType = nil
-  mdw.drag.rowIndex = nil
-  mdw.drag.positionInRow = nil
-  mdw.drag.targetWidget = nil
-  mdw.reorganizeDock("left")
-  mdw.reorganizeDock("right")
+	mdw.hideDropIndicator()
+	mdw.updateDockHighlight(nil)
+	mdw.drag.insertSide = nil
+	mdw.drag.dropType = nil
+	mdw.drag.rowIndex = nil
+	mdw.drag.positionInRow = nil
+	mdw.drag.targetWidget = nil
+	mdw.reorganizeDock("left")
+	mdw.reorganizeDock("right")
 end
 
 ---------------------------------------------------------------------------
@@ -1025,290 +1033,290 @@ end
 -- Why: Handles the complex logic of inserting a widget into the dock
 -- at the correct row and position, shifting other widgets as needed.
 function mdw.dockWidgetWithPosition(widget, side, dropType, rowIndex, positionInRow, targetWidget)
-  local cfg = mdw.config
-  local dockCfg = mdw.getDockConfig(side)
+	local cfg = mdw.config
+	local dockCfg = mdw.getDockConfig(side)
 
-  mdw.debugEcho("DOCK: widget=%s, side=%s, dropType=%s, rowIndex=%s",
-    widget.name, side, dropType, tostring(rowIndex))
+	mdw.debugEcho("DOCK: widget=%s, side=%s, dropType=%s, rowIndex=%s",
+		widget.name, side, dropType, tostring(rowIndex))
 
-  -- Don't dock if sidebar is hidden
-  if not mdw.visibility[dockCfg.visibilityKey] then
-    widget.docked = nil
-    widget.row = nil
-    widget.rowPosition = nil
-    widget.subRow = nil
-    mdw.showResizeHandles(widget)
-    return
-  end
+	-- Don't dock if sidebar is hidden
+	if not mdw.visibility[dockCfg.visibilityKey] then
+		widget.docked = nil
+		widget.row = nil
+		widget.rowPosition = nil
+		widget.subRow = nil
+		mdw.showResizeHandles(widget)
+		return
+	end
 
-  widget.docked = side
-  widget.widthRatio = nil
+	widget.docked = side
+	widget.widthRatio = nil
 
-  local docked = mdw.getDockedWidgets(side, widget)
-  local rows = mdw.groupWidgetsByRow(docked)
+	local docked = mdw.getDockedWidgets(side, widget)
+	local rows = mdw.groupWidgetsByRow(docked)
 
-  if dropType == "left" or dropType == "right" or dropType == "between" then
-    -- Side-by-side insertion
-    widget.subRow = 0
-    if targetWidget then
-      widget.row = targetWidget.row or 0
-      local targetHeight = targetWidget.container:get_height()
-      widget.container:resize(nil, targetHeight)
-      mdw.resizeWidgetContent(widget, widget.container:get_width(), targetHeight)
+	if dropType == "left" or dropType == "right" or dropType == "between" then
+		-- Side-by-side insertion
+		widget.subRow = 0
+		if targetWidget then
+			widget.row = targetWidget.row or 0
+			local targetHeight = targetWidget.container:get_height()
+			widget.container:resize(nil, targetHeight)
+			mdw.resizeWidgetContent(widget, widget.container:get_width(), targetHeight)
 
-      -- Clear width ratios for row (ratios invalid with new widget count)
-      for _, w in ipairs(docked) do
-        if w.row == widget.row then
-          w.widthRatio = nil
-        end
-      end
+			-- Clear width ratios for row (ratios invalid with new widget count)
+			for _, w in ipairs(docked) do
+				if w.row == widget.row then
+					w.widthRatio = nil
+				end
+			end
 
-      if dropType == "left" then
-        widget.rowPosition = targetWidget.rowPosition or 0
-      else -- "between" or "right"
-        widget.rowPosition = (targetWidget.rowPosition or 0) + 1
-      end
-      for _, w in ipairs(docked) do
-        if w.row == widget.row and (w.rowPosition or 0) >= widget.rowPosition then
-          w.rowPosition = (w.rowPosition or 0) + 1
-        end
-      end
-    else
-      widget.row = rowIndex - 1
-      widget.rowPosition = positionInRow
-    end
-  elseif dropType == "subcolumn" then
-    -- Sub-column insertion: dock into empty space below shorter column
-    widget.row = targetWidget.row
-    widget.rowPosition = targetWidget.rowPosition
-    widget.subRow = (targetWidget.subRow or 0) + 1
+			if dropType == "left" then
+				widget.rowPosition = targetWidget.rowPosition or 0
+			else -- "between" or "right"
+				widget.rowPosition = (targetWidget.rowPosition or 0) + 1
+			end
+			for _, w in ipairs(docked) do
+				if w.row == widget.row and (w.rowPosition or 0) >= widget.rowPosition then
+					w.rowPosition = (w.rowPosition or 0) + 1
+				end
+			end
+		else
+			widget.row = rowIndex - 1
+			widget.rowPosition = positionInRow
+		end
+	elseif dropType == "subcolumn" then
+		-- Sub-column insertion: dock into empty space below shorter column
+		widget.row = targetWidget.row
+		widget.rowPosition = targetWidget.rowPosition
+		widget.subRow = (targetWidget.subRow or 0) + 1
 
-    -- Shift existing widgets in this column at or after new subRow
-    for _, w in ipairs(docked) do
-      if w.row == widget.row
-         and w.rowPosition == widget.rowPosition
-         and (w.subRow or 0) >= widget.subRow then
-        w.subRow = (w.subRow or 0) + 1
-      end
-    end
+		-- Shift existing widgets in this column at or after new subRow
+		for _, w in ipairs(docked) do
+			if w.row == widget.row
+				and w.rowPosition == widget.rowPosition
+				and (w.subRow or 0) >= widget.subRow then
+				w.subRow = (w.subRow or 0) + 1
+			end
+		end
 
-    -- Auto-fill gap: compute remaining space in the column
-    -- Only use existing docked widgets (not the new one) to find max column height,
-    -- because the new widget's stale height would inflate the target column total
-    local allRowWidgets = {}
-    for _, w in ipairs(docked) do
-      if w.row == widget.row then
-        allRowWidgets[#allRowWidgets + 1] = w
-      end
-    end
+		-- Auto-fill gap: compute remaining space in the column
+		-- Only use existing docked widgets (not the new one) to find max column height,
+		-- because the new widget's stale height would inflate the target column total
+		local allRowWidgets = {}
+		for _, w in ipairs(docked) do
+			if w.row == widget.row then
+				allRowWidgets[#allRowWidgets + 1] = w
+			end
+		end
 
-    local allColumns = mdw.groupWidgetsByColumn(allRowWidgets)
-    local maxColHeight = 0
-    for _, col in ipairs(allColumns) do
-      maxColHeight = math.max(maxColHeight, mdw.getColumnHeight(col))
-    end
+		local allColumns = mdw.groupWidgetsByColumn(allRowWidgets)
+		local maxColHeight = 0
+		for _, col in ipairs(allColumns) do
+			maxColHeight = math.max(maxColHeight, mdw.getColumnHeight(col))
+		end
 
-    -- Find the target column's current total height
-    local targetColumnHeight = 0
-    for _, col in ipairs(allColumns) do
-      if col[1].rowPosition == widget.rowPosition then
-        for _, w in ipairs(col) do
-          targetColumnHeight = targetColumnHeight + w.container:get_height()
-        end
-        break
-      end
-    end
+		-- Find the target column's current total height
+		local targetColumnHeight = 0
+		for _, col in ipairs(allColumns) do
+			if col[1].rowPosition == widget.rowPosition then
+				for _, w in ipairs(col) do
+					targetColumnHeight = targetColumnHeight + w.container:get_height()
+				end
+				break
+			end
+		end
 
-    local gapHeight = maxColHeight - targetColumnHeight
-    gapHeight = math.max(gapHeight, cfg.minWidgetHeight)
+		local gapHeight = maxColHeight - targetColumnHeight
+		gapHeight = math.max(gapHeight, cfg.minWidgetHeight)
 
-    widget.container:resize(nil, gapHeight)
-    mdw.resizeWidgetContent(widget, widget.container:get_width(), gapHeight)
-    widget.widthRatio = targetWidget.widthRatio
-  else
-    -- Vertical insertion (above or below)
-    widget.subRow = 0
-    local targetVisualRow = rows[rowIndex]
-    local actualRowNum = 0
-    if targetVisualRow and #targetVisualRow > 0 then
-      actualRowNum = targetVisualRow[1].row or 0
-    end
+		widget.container:resize(nil, gapHeight)
+		mdw.resizeWidgetContent(widget, widget.container:get_width(), gapHeight)
+		widget.widthRatio = targetWidget.widthRatio
+	else
+		-- Vertical insertion (above or below)
+		widget.subRow = 0
+		local targetVisualRow = rows[rowIndex]
+		local actualRowNum = 0
+		if targetVisualRow and #targetVisualRow > 0 then
+			actualRowNum = targetVisualRow[1].row or 0
+		end
 
-    local newRow
-    if dropType == "above" then
-      newRow = actualRowNum
-    else -- below
-      newRow = actualRowNum + 1
-    end
-    for _, w in ipairs(docked) do
-      if (w.row or 0) >= newRow then
-        w.row = (w.row or 0) + 1
-      end
-    end
-    widget.row = newRow
-    widget.rowPosition = 0
-  end
+		local newRow
+		if dropType == "above" then
+			newRow = actualRowNum
+		else -- below
+			newRow = actualRowNum + 1
+		end
+		for _, w in ipairs(docked) do
+			if (w.row or 0) >= newRow then
+				w.row = (w.row or 0) + 1
+			end
+		end
+		widget.row = newRow
+		widget.rowPosition = 0
+	end
 
-  mdw.reorganizeDock(side)
+	mdw.reorganizeDock(side)
 end
 
 function mdw.dockWidget(widget, side, row)
-  widget.docked = side
+	widget.docked = side
 
-  if row then
-    -- Shift existing widgets down if inserting at specific row
-    local docked = mdw.getDockedWidgets(side, widget)
-    for _, w in ipairs(docked) do
-      if (w.row or 0) >= row then
-        w.row = (w.row or 0) + 1
-      end
-    end
-    widget.row = row
-    widget.rowPosition = 0
-    widget.subRow = 0
-  else
-    -- Auto-assign to next row
-    local docked = mdw.getDockedWidgets(side, widget)
-    local maxRow = -1
-    for _, w in ipairs(docked) do
-      maxRow = math.max(maxRow, w.row or 0)
-    end
-    widget.row = maxRow + 1
-    widget.rowPosition = 0
-    widget.subRow = 0
-  end
+	if row then
+		-- Shift existing widgets down if inserting at specific row
+		local docked = mdw.getDockedWidgets(side, widget)
+		for _, w in ipairs(docked) do
+			if (w.row or 0) >= row then
+				w.row = (w.row or 0) + 1
+			end
+		end
+		widget.row = row
+		widget.rowPosition = 0
+		widget.subRow = 0
+	else
+		-- Auto-assign to next row
+		local docked = mdw.getDockedWidgets(side, widget)
+		local maxRow = -1
+		for _, w in ipairs(docked) do
+			maxRow = math.max(maxRow, w.row or 0)
+		end
+		widget.row = maxRow + 1
+		widget.rowPosition = 0
+		widget.subRow = 0
+	end
 
-  mdw.hideResizeHandles(widget)
-  mdw.reorganizeDock(side)
+	mdw.hideResizeHandles(widget)
+	mdw.reorganizeDock(side)
 end
 
 --- Reorganize all widgets in a dock side.
 -- Why: Called after any change to dock contents to ensure proper
 -- positioning and sizing of all widgets.
 function mdw.reorganizeDock(side)
-  local cfg = mdw.config
-  local dockCfg = mdw.getDockConfig(side)
-  local docked = mdw.getDockedWidgets(side, nil)
+	local cfg = mdw.config
+	local dockCfg = mdw.getDockConfig(side)
+	local docked = mdw.getDockedWidgets(side, nil)
 
-  -- FIRST: Destroy all existing splitters for this side (prevents orphans)
-  mdw.destroyRowSplittersForSide(side)
+	-- FIRST: Destroy all existing splitters for this side (prevents orphans)
+	mdw.destroyRowSplittersForSide(side)
 
-  -- Assign default rows to widgets without row info
-  local maxRow = -1
-  for _, w in ipairs(docked) do
-    if w.row then
-      maxRow = math.max(maxRow, w.row)
-    end
-  end
-  for _, w in ipairs(docked) do
-    if not w.row then
-      maxRow = maxRow + 1
-      w.row = maxRow
-      w.rowPosition = 0
-    end
-  end
+	-- Assign default rows to widgets without row info
+	local maxRow = -1
+	for _, w in ipairs(docked) do
+		if w.row then
+			maxRow = math.max(maxRow, w.row)
+		end
+	end
+	for _, w in ipairs(docked) do
+		if not w.row then
+			maxRow = maxRow + 1
+			w.row = maxRow
+			w.rowPosition = 0
+		end
+	end
 
-  local rows = mdw.groupWidgetsByRow(docked)
-  local fullWidgetWidth = dockCfg.fullWidgetWidth
-  local dockXPos = dockCfg.xPos
+	local rows = mdw.groupWidgetsByRow(docked)
+	local fullWidgetWidth = dockCfg.fullWidgetWidth
+	local dockXPos = dockCfg.xPos
 
-  local yPos = cfg.headerHeight + cfg.widgetMargin
-  local dockIndex = 1
+	local yPos = cfg.headerHeight + cfg.widgetMargin
+	local dockIndex = 1
 
-  for rowIdx, row in ipairs(rows) do
-    local columns = mdw.groupWidgetsByColumn(row)
-    local numColumns = #columns
+	for rowIdx, row in ipairs(rows) do
+		local columns = mdw.groupWidgetsByColumn(row)
+		local numColumns = #columns
 
-    -- Normalize subRow values to be contiguous (0, 1, 2...)
-    for _, col in ipairs(columns) do
-      for i, w in ipairs(col) do
-        w.subRow = i - 1
-      end
-    end
+		-- Normalize subRow values to be contiguous (0, 1, 2...)
+		for _, col in ipairs(columns) do
+			for i, w in ipairs(col) do
+				w.subRow = i - 1
+			end
+		end
 
-    -- Normalize rowPosition after column grouping to prevent gaps
-    for ci, col in ipairs(columns) do
-      for _, w in ipairs(col) do
-        w.rowPosition = ci - 1
-      end
-    end
+		-- Normalize rowPosition after column grouping to prevent gaps
+		for ci, col in ipairs(columns) do
+			for _, w in ipairs(col) do
+				w.rowPosition = ci - 1
+			end
+		end
 
-    -- Calculate column widths using widthRatio from first widget in each column
-    local availableWidth = fullWidgetWidth - (numColumns - 1) * cfg.widgetSplitterWidth
-    local hasCustomRatios = false
-    local totalRatio = 0
-    for _, col in ipairs(columns) do
-      local firstWidget = col[1]
-      if firstWidget.widthRatio then
-        hasCustomRatios = true
-        totalRatio = totalRatio + firstWidget.widthRatio
-      else
-        totalRatio = totalRatio + 1
-      end
-    end
+		-- Calculate column widths using widthRatio from first widget in each column
+		local availableWidth = fullWidgetWidth - (numColumns - 1) * cfg.widgetSplitterWidth
+		local hasCustomRatios = false
+		local totalRatio = 0
+		for _, col in ipairs(columns) do
+			local firstWidget = col[1]
+			if firstWidget.widthRatio then
+				hasCustomRatios = true
+				totalRatio = totalRatio + firstWidget.widthRatio
+			else
+				totalRatio = totalRatio + 1
+			end
+		end
 
-    -- Calculate row height = max column height across all columns
-    local rowHeight = 0
-    for _, col in ipairs(columns) do
-      rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
-    end
+		-- Calculate row height = max column height across all columns
+		local rowHeight = 0
+		for _, col in ipairs(columns) do
+			rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
+		end
 
-    local xPos = dockXPos
-    for ci, col in ipairs(columns) do
-      local columnWidth
-      if hasCustomRatios then
-        columnWidth = availableWidth * ((col[1].widthRatio or 1) / totalRatio)
-      else
-        columnWidth = availableWidth / numColumns
-      end
+		local xPos = dockXPos
+		for ci, col in ipairs(columns) do
+			local columnWidth
+			if hasCustomRatios then
+				columnWidth = availableWidth * ((col[1].widthRatio or 1) / totalRatio)
+			else
+				columnWidth = availableWidth / numColumns
+			end
 
-      -- Lay out widgets vertically within the column at their own heights
-      local colYPos = yPos
-      for _, w in ipairs(col) do
-        local widgetHeight = w.container:get_height()
-        w.container:move(xPos, colYPos)
-        if numColumns > 1 then
-          w.container:resize(columnWidth, nil)
-        else
-          w.widthRatio = nil
-          w.container:resize(columnWidth, widgetHeight)
-        end
-        w.dockIndex = dockIndex
+			-- Lay out widgets vertically within the column at their own heights
+			local colYPos = yPos
+			for _, w in ipairs(col) do
+				local widgetHeight = w.container:get_height()
+				w.container:move(xPos, colYPos)
+				if numColumns > 1 then
+					w.container:resize(columnWidth, nil)
+				else
+					w.widthRatio = nil
+					w.container:resize(columnWidth, widgetHeight)
+				end
+				w.dockIndex = dockIndex
 
-        mdw.resizeWidgetContent(w, columnWidth, widgetHeight)
-        dockIndex = dockIndex + 1
-        colYPos = colYPos + widgetHeight
-      end
+				mdw.resizeWidgetContent(w, columnWidth, widgetHeight)
+				dockIndex = dockIndex + 1
+				colYPos = colYPos + widgetHeight
+			end
 
-      -- CREATE SPLITTER between this column and next (if exists)
-      -- Splitter height = rowHeight (max column height)
-      if ci < numColumns then
-        local nextCol = columns[ci + 1]
-        mdw.createRowSplitter(side, rowIdx, ci, col[1], nextCol[1], xPos + columnWidth, yPos, rowHeight)
-      end
+			-- CREATE SPLITTER between this column and next (if exists)
+			-- Splitter height = rowHeight (max column height)
+			if ci < numColumns then
+				local nextCol = columns[ci + 1]
+				mdw.createRowSplitter(side, rowIdx, ci, col[1], nextCol[1], xPos + columnWidth, yPos, rowHeight)
+			end
 
-      xPos = xPos + columnWidth + cfg.widgetSplitterWidth
-    end
+			xPos = xPos + columnWidth + cfg.widgetSplitterWidth
+		end
 
-    yPos = yPos + rowHeight
-  end
+		yPos = yPos + rowHeight
+	end
 
-  -- Raise splitters above widgets
-  for key, splitter in pairs(mdw.rowSplitters) do
-    if key:sub(1, #side) == side then
-      splitter:raise()
-    end
-  end
+	-- Raise splitters above widgets
+	for key, splitter in pairs(mdw.rowSplitters) do
+		if key:sub(1, #side) == side then
+			splitter:raise()
+		end
+	end
 
-  -- Raise all widgets above dock background and highlight overlays
-  for _, w in ipairs(docked) do
-    mdw.raiseWidget(w)
-  end
+	-- Raise all widgets above dock background and highlight overlays
+	for _, w in ipairs(docked) do
+		mdw.raiseWidget(w)
+	end
 
-  -- Ensure open menus stay above widgets
-  if mdw.raiseOpenMenus then
-    mdw.raiseOpenMenus()
-  end
+	-- Ensure open menus stay above widgets
+	if mdw.raiseOpenMenus then
+		mdw.raiseOpenMenus()
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -1317,227 +1325,227 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.getSplitterKey(side, rowIndex, leftPosition)
-  return string.format("%s_%d_%d", side, rowIndex, leftPosition)
+	return string.format("%s_%d_%d", side, rowIndex, leftPosition)
 end
 
 --- Create row splitters between side-by-side widgets.
 function mdw.createRowSplitter(side, rowIndex, leftPosition, leftWidget, rightWidget, x, y, height)
-  local cfg = mdw.config
-  local key = mdw.getSplitterKey(side, rowIndex, leftPosition)
+	local cfg = mdw.config
+	local key = mdw.getSplitterKey(side, rowIndex, leftPosition)
 
-  -- Destroy existing splitter with this key if it exists
-  if mdw.rowSplitters[key] then
-    mdw.destroyRowSplitter(key)
-  end
+	-- Destroy existing splitter with this key if it exists
+	if mdw.rowSplitters[key] then
+		mdw.destroyRowSplitter(key)
+	end
 
-  -- Create the splitter label
-  local splitterName = "MDW_RowSplitter_" .. key
-  local splitter = Geyser.Label:new({
-    name = splitterName,
-    x = x,
-    y = y,
-    width = cfg.widgetSplitterWidth,
-    height = height,
-  })
-  splitter:setStyleSheet(string.format([[
+	-- Create the splitter label
+	local splitterName = "MDW_RowSplitter_" .. key
+	local splitter = Geyser.Label:new({
+		name = splitterName,
+		x = x,
+		y = y,
+		width = cfg.widgetSplitterWidth,
+		height = height,
+	})
+	splitter:setStyleSheet(string.format([[
     QLabel { background-color: %s; }
     QLabel:hover { background-color: %s; }
   ]], cfg.resizeBorderColor, cfg.splitterHoverColor))
-  splitter:setCursor(mudlet.cursor.ResizeHorizontal)
+	splitter:setCursor(mudlet.cursor.ResizeHorizontal)
 
-  -- Store splitter with metadata
-  mdw.rowSplitters[key] = splitter
-  splitter._mdwKey = key
-  splitter._mdwSide = side
-  splitter._mdwLeftWidget = leftWidget
-  splitter._mdwRightWidget = rightWidget
+	-- Store splitter with metadata
+	mdw.rowSplitters[key] = splitter
+	splitter._mdwKey = key
+	splitter._mdwSide = side
+	splitter._mdwLeftWidget = leftWidget
+	splitter._mdwRightWidget = rightWidget
 
-  -- Set up drag callbacks
-  mdw.setupRowSplitterCallbacks(splitter, key)
+	-- Set up drag callbacks
+	mdw.setupRowSplitterCallbacks(splitter, key)
 end
 
 function mdw.setupRowSplitterCallbacks(splitter, key)
-  local splitterName = splitter.name
+	local splitterName = splitter.name
 
-  setLabelClickCallback(splitterName, function(event)
-    local s = mdw.rowSplitters[key]
-    if not s then return end
+	setLabelClickCallback(splitterName, function(event)
+		local s = mdw.rowSplitters[key]
+		if not s then return end
 
-    local leftWidget = s._mdwLeftWidget
-    local rightWidget = s._mdwRightWidget
-    local side = s._mdwSide
+		local leftWidget = s._mdwLeftWidget
+		local rightWidget = s._mdwRightWidget
+		local side = s._mdwSide
 
-    if not leftWidget or not rightWidget then return end
+		if not leftWidget or not rightWidget then return end
 
-    mdw.verticalWidgetSplitterDrag.active = true
-    mdw.verticalWidgetSplitterDrag.splitter = s
-    mdw.verticalWidgetSplitterDrag.leftWidget = leftWidget
-    mdw.verticalWidgetSplitterDrag.rightWidget = rightWidget
-    mdw.verticalWidgetSplitterDrag.side = side
-    mdw.verticalWidgetSplitterDrag.offsetX = event.globalX - s:get_x()
-    mdw.verticalWidgetSplitterDrag.leftStartWidth = leftWidget.container:get_width()
-    mdw.verticalWidgetSplitterDrag.rightStartWidth = rightWidget.container:get_width()
-    mdw.verticalWidgetSplitterDrag.startMouseX = event.globalX
-  end)
+		mdw.verticalWidgetSplitterDrag.active = true
+		mdw.verticalWidgetSplitterDrag.splitter = s
+		mdw.verticalWidgetSplitterDrag.leftWidget = leftWidget
+		mdw.verticalWidgetSplitterDrag.rightWidget = rightWidget
+		mdw.verticalWidgetSplitterDrag.side = side
+		mdw.verticalWidgetSplitterDrag.offsetX = event.globalX - s:get_x()
+		mdw.verticalWidgetSplitterDrag.leftStartWidth = leftWidget.container:get_width()
+		mdw.verticalWidgetSplitterDrag.rightStartWidth = rightWidget.container:get_width()
+		mdw.verticalWidgetSplitterDrag.startMouseX = event.globalX
+	end)
 
-  setLabelMoveCallback(splitterName, function(event)
-    local s = mdw.rowSplitters[key]
-    if not s then return end
-    if mdw.verticalWidgetSplitterDrag.active and mdw.verticalWidgetSplitterDrag.splitter == s then
-      mdw.resizeWidgetsHorizontallyWithSplitter(event.globalX, s)
-    end
-  end)
+	setLabelMoveCallback(splitterName, function(event)
+		local s = mdw.rowSplitters[key]
+		if not s then return end
+		if mdw.verticalWidgetSplitterDrag.active and mdw.verticalWidgetSplitterDrag.splitter == s then
+			mdw.resizeWidgetsHorizontallyWithSplitter(event.globalX, s)
+		end
+	end)
 
-  setLabelReleaseCallback(splitterName, function()
-    local s = mdw.rowSplitters[key]
-    if not s then return end
-    if mdw.verticalWidgetSplitterDrag.active and mdw.verticalWidgetSplitterDrag.splitter == s then
-      mdw.verticalWidgetSplitterDrag.active = false
-      mdw.verticalWidgetSplitterDrag.splitter = nil
-      mdw.verticalWidgetSplitterDrag.leftWidget = nil
-      mdw.verticalWidgetSplitterDrag.rightWidget = nil
-      mdw.verticalWidgetSplitterDrag.side = nil
-      mdw.saveLayout()
-    end
-  end)
+	setLabelReleaseCallback(splitterName, function()
+		local s = mdw.rowSplitters[key]
+		if not s then return end
+		if mdw.verticalWidgetSplitterDrag.active and mdw.verticalWidgetSplitterDrag.splitter == s then
+			mdw.verticalWidgetSplitterDrag.active = false
+			mdw.verticalWidgetSplitterDrag.splitter = nil
+			mdw.verticalWidgetSplitterDrag.leftWidget = nil
+			mdw.verticalWidgetSplitterDrag.rightWidget = nil
+			mdw.verticalWidgetSplitterDrag.side = nil
+			mdw.saveLayout()
+		end
+	end)
 end
 
 function mdw.destroyRowSplitter(key)
-  local splitter = mdw.rowSplitters[key]
-  if splitter then
-    splitter:hide()
-    if splitter.name then
-      pcall(deleteLabel, splitter.name)
-    end
-    mdw.rowSplitters[key] = nil
-  end
+	local splitter = mdw.rowSplitters[key]
+	if splitter then
+		splitter:hide()
+		if splitter.name then
+			pcall(deleteLabel, splitter.name)
+		end
+		mdw.rowSplitters[key] = nil
+	end
 end
 
 function mdw.destroyRowSplittersForSide(side)
-  local keysToDelete = {}
-  for key in pairs(mdw.rowSplitters) do
-    if key:sub(1, #side) == side then
-      keysToDelete[#keysToDelete + 1] = key
-    end
-  end
-  for _, key in ipairs(keysToDelete) do
-    mdw.destroyRowSplitter(key)
-  end
+	local keysToDelete = {}
+	for key in pairs(mdw.rowSplitters) do
+		if key:sub(1, #side) == side then
+			keysToDelete[#keysToDelete + 1] = key
+		end
+	end
+	for _, key in ipairs(keysToDelete) do
+		mdw.destroyRowSplitter(key)
+	end
 end
 
 function mdw.destroyAllRowSplitters()
-  local keysToDelete = {}
-  for key in pairs(mdw.rowSplitters) do
-    keysToDelete[#keysToDelete + 1] = key
-  end
-  for _, key in ipairs(keysToDelete) do
-    mdw.destroyRowSplitter(key)
-  end
+	local keysToDelete = {}
+	for key in pairs(mdw.rowSplitters) do
+		keysToDelete[#keysToDelete + 1] = key
+	end
+	for _, key in ipairs(keysToDelete) do
+		mdw.destroyRowSplitter(key)
+	end
 end
 
 --- Update row splitter positions and heights for a dock side.
 -- Called during vertical resize to keep splitters in sync with widgets.
 function mdw.updateRowSplitterPositions(side, rows)
-  local cfg = mdw.config
+	local cfg = mdw.config
 
-  for rowIdx, row in ipairs(rows) do
-    local rowY = row[1].container:get_y()
+	for rowIdx, row in ipairs(rows) do
+		local rowY = row[1].container:get_y()
 
-    -- Group into columns and update splitters between columns
-    local columns = mdw.groupWidgetsByColumn(row)
-    local rowHeight = 0
-    for _, col in ipairs(columns) do
-      rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
-    end
+		-- Group into columns and update splitters between columns
+		local columns = mdw.groupWidgetsByColumn(row)
+		local rowHeight = 0
+		for _, col in ipairs(columns) do
+			rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
+		end
 
-    for ci = 1, #columns - 1 do
-      local key = mdw.getSplitterKey(side, rowIdx, ci)
-      local splitter = mdw.rowSplitters[key]
-      if splitter then
-        local leftCol = columns[ci]
-        local leftWidget = leftCol[1]
-        local xPos = leftWidget.container:get_x() + leftWidget.container:get_width()
-        splitter:move(xPos, rowY)
-        splitter:resize(cfg.widgetSplitterWidth, rowHeight)
-      end
-    end
-  end
+		for ci = 1, #columns - 1 do
+			local key = mdw.getSplitterKey(side, rowIdx, ci)
+			local splitter = mdw.rowSplitters[key]
+			if splitter then
+				local leftCol = columns[ci]
+				local leftWidget = leftCol[1]
+				local xPos = leftWidget.container:get_x() + leftWidget.container:get_width()
+				splitter:move(xPos, rowY)
+				splitter:resize(cfg.widgetSplitterWidth, rowHeight)
+			end
+		end
+	end
 end
 
 --- Resize two side-by-side widgets horizontally using a row splitter.
 function mdw.resizeWidgetsHorizontallyWithSplitter(mouseX, splitter)
-  local drag = mdw.verticalWidgetSplitterDrag
-  if not drag.active then return end
+	local drag = mdw.verticalWidgetSplitterDrag
+	if not drag.active then return end
 
-  local cfg = mdw.config
-  local leftWidget = drag.leftWidget
-  local rightWidget = drag.rightWidget
-  local side = drag.side
+	local cfg = mdw.config
+	local leftWidget = drag.leftWidget
+	local rightWidget = drag.rightWidget
+	local side = drag.side
 
-  local deltaX = mouseX - drag.startMouseX
-  local minWidth = cfg.minWidgetWidth
-  local newLeftWidth = drag.leftStartWidth + deltaX
-  local newRightWidth = drag.rightStartWidth - deltaX
-  local totalWidth = drag.leftStartWidth + drag.rightStartWidth
+	local deltaX = mouseX - drag.startMouseX
+	local minWidth = cfg.minWidgetWidth
+	local newLeftWidth = drag.leftStartWidth + deltaX
+	local newRightWidth = drag.rightStartWidth - deltaX
+	local totalWidth = drag.leftStartWidth + drag.rightStartWidth
 
-  if newLeftWidth < minWidth then
-    newLeftWidth = minWidth
-    newRightWidth = totalWidth - minWidth
-  end
-  if newRightWidth < minWidth then
-    newRightWidth = minWidth
-    newLeftWidth = totalWidth - minWidth
-  end
+	if newLeftWidth < minWidth then
+		newLeftWidth = minWidth
+		newRightWidth = totalWidth - minWidth
+	end
+	if newRightWidth < minWidth then
+		newRightWidth = minWidth
+		newLeftWidth = totalWidth - minWidth
+	end
 
-  -- Collect all row widgets and group into columns once
-  local docked = mdw.getDockedWidgets(side, nil)
-  local rowWidgets = {}
-  for _, w in ipairs(docked) do
-    if w.row == leftWidget.row then
-      rowWidgets[#rowWidgets + 1] = w
-    end
-  end
-  local columns = mdw.groupWidgetsByColumn(rowWidgets)
+	-- Collect all row widgets and group into columns once
+	local docked = mdw.getDockedWidgets(side, nil)
+	local rowWidgets = {}
+	for _, w in ipairs(docked) do
+		if w.row == leftWidget.row then
+			rowWidgets[#rowWidgets + 1] = w
+		end
+	end
+	local columns = mdw.groupWidgetsByColumn(rowWidgets)
 
-  -- Resize all widgets in both columns, update ratios and positions
-  local leftRowPos = leftWidget.rowPosition
-  local rightRowPos = rightWidget.rowPosition
-  local newRightX = leftWidget.container:get_x() + newLeftWidth + cfg.widgetSplitterWidth
-  local rowTotalWidth = 0
+	-- Resize all widgets in both columns, update ratios and positions
+	local leftRowPos = leftWidget.rowPosition
+	local rightRowPos = rightWidget.rowPosition
+	local newRightX = leftWidget.container:get_x() + newLeftWidth + cfg.widgetSplitterWidth
+	local rowTotalWidth = 0
 
-  for _, col in ipairs(columns) do
-    local pos = col[1].rowPosition
-    local newWidth
-    if pos == leftRowPos then
-      newWidth = newLeftWidth
-    elseif pos == rightRowPos then
-      newWidth = newRightWidth
-    end
+	for _, col in ipairs(columns) do
+		local pos = col[1].rowPosition
+		local newWidth
+		if pos == leftRowPos then
+			newWidth = newLeftWidth
+		elseif pos == rightRowPos then
+			newWidth = newRightWidth
+		end
 
-    if newWidth then
-      for _, w in ipairs(col) do
-        w.container:resize(newWidth, nil)
-        mdw.resizeWidgetContent(w, newWidth, w.container:get_height())
-        if pos == rightRowPos then
-          w.container:move(newRightX, nil)
-        end
-      end
-    end
+		if newWidth then
+			for _, w in ipairs(col) do
+				w.container:resize(newWidth, nil)
+				mdw.resizeWidgetContent(w, newWidth, w.container:get_height())
+				if pos == rightRowPos then
+					w.container:move(newRightX, nil)
+				end
+			end
+		end
 
-    -- All columns contribute to total width (not just the two being resized)
-    rowTotalWidth = rowTotalWidth + col[1].container:get_width()
-  end
+		-- All columns contribute to total width (not just the two being resized)
+		rowTotalWidth = rowTotalWidth + col[1].container:get_width()
+	end
 
-  -- Set width ratios on all widgets per column
-  for _, col in ipairs(columns) do
-    local ratio = col[1].container:get_width() / rowTotalWidth
-    for _, w in ipairs(col) do
-      w.widthRatio = ratio
-    end
-  end
+	-- Set width ratios on all widgets per column
+	for _, col in ipairs(columns) do
+		local ratio = col[1].container:get_width() / rowTotalWidth
+		for _, w in ipairs(col) do
+			w.widthRatio = ratio
+		end
+	end
 
-  -- Move the splitter
-  splitter:move(leftWidget.container:get_x() + newLeftWidth, nil)
+	-- Move the splitter
+	splitter:move(leftWidget.container:get_x() + newLeftWidth, nil)
 end
 
 ---------------------------------------------------------------------------
@@ -1549,187 +1557,187 @@ end
 -- Why: When a widget in a sub-column is resized, widgets below it in the
 -- same column must move to stay contiguous.
 function mdw.repositionColumnSiblings(widget, rows, rowIndex, newHeight)
-  local currentRow = rows[rowIndex]
-  local columns = mdw.groupWidgetsByColumn(currentRow)
+	local currentRow = rows[rowIndex]
+	local columns = mdw.groupWidgetsByColumn(currentRow)
 
-  for _, col in ipairs(columns) do
-    local found = false
-    local colYPos = 0
-    for _, w in ipairs(col) do
-      if w == widget then
-        found = true
-        colYPos = w.container:get_y() + newHeight
-      elseif found then
-        w.container:move(nil, colYPos)
-        mdw.resizeWidgetContent(w, w.container:get_width(), w.container:get_height())
-        colYPos = colYPos + w.container:get_height()
-      end
-    end
-  end
+	for _, col in ipairs(columns) do
+		local found = false
+		local colYPos = 0
+		for _, w in ipairs(col) do
+			if w == widget then
+				found = true
+				colYPos = w.container:get_y() + newHeight
+			elseif found then
+				w.container:move(nil, colYPos)
+				mdw.resizeWidgetContent(w, w.container:get_width(), w.container:get_height())
+				colYPos = colYPos + w.container:get_height()
+			end
+		end
+	end
 end
 
 --- Reposition all rows below the given row index.
 -- Why: After a widget resize changes a row's total height, all subsequent
 -- rows must shift to maintain contiguous vertical layout.
 function mdw.repositionSubsequentRows(widget, rows, rowIndex, newHeight)
-  local currentRow = rows[rowIndex]
-  local columns = mdw.groupWidgetsByColumn(currentRow)
+	local currentRow = rows[rowIndex]
+	local columns = mdw.groupWidgetsByColumn(currentRow)
 
-  -- Find row top from the first widget in the first column
-  local rowTop = currentRow[1].container:get_y()
+	-- Find row top from the first widget in the first column
+	local rowTop = currentRow[1].container:get_y()
 
-  -- Calculate current row height using the new height for the resized widget
-  local currentRowMaxHeight = 0
-  for _, col in ipairs(columns) do
-    local colHeight = 0
-    for _, w in ipairs(col) do
-      if w == widget then
-        colHeight = colHeight + newHeight
-      else
-        colHeight = colHeight + w.container:get_height()
-      end
-    end
-    currentRowMaxHeight = math.max(currentRowMaxHeight, colHeight)
-  end
+	-- Calculate current row height using the new height for the resized widget
+	local currentRowMaxHeight = 0
+	for _, col in ipairs(columns) do
+		local colHeight = 0
+		for _, w in ipairs(col) do
+			if w == widget then
+				colHeight = colHeight + newHeight
+			else
+				colHeight = colHeight + w.container:get_height()
+			end
+		end
+		currentRowMaxHeight = math.max(currentRowMaxHeight, colHeight)
+	end
 
-  local nextRowY = rowTop + currentRowMaxHeight
+	local nextRowY = rowTop + currentRowMaxHeight
 
-  for rowIdx = rowIndex + 1, #rows do
-    local row = rows[rowIdx]
-    local rowColumns = mdw.groupWidgetsByColumn(row)
-    local rowMaxHeight = 0
-    for _, col in ipairs(rowColumns) do
-      rowMaxHeight = math.max(rowMaxHeight, mdw.getColumnHeight(col))
-    end
+	for rowIdx = rowIndex + 1, #rows do
+		local row = rows[rowIdx]
+		local rowColumns = mdw.groupWidgetsByColumn(row)
+		local rowMaxHeight = 0
+		for _, col in ipairs(rowColumns) do
+			rowMaxHeight = math.max(rowMaxHeight, mdw.getColumnHeight(col))
+		end
 
-    -- Position each column's widgets vertically
-    for _, col in ipairs(rowColumns) do
-      local colYPos = nextRowY
-      for _, w in ipairs(col) do
-        w.container:move(nil, colYPos)
-        mdw.resizeWidgetContent(w, w.container:get_width(), w.container:get_height())
-        colYPos = colYPos + w.container:get_height()
-      end
-    end
+		-- Position each column's widgets vertically
+		for _, col in ipairs(rowColumns) do
+			local colYPos = nextRowY
+			for _, w in ipairs(col) do
+				w.container:move(nil, colYPos)
+				mdw.resizeWidgetContent(w, w.container:get_width(), w.container:get_height())
+				colYPos = colYPos + w.container:get_height()
+			end
+		end
 
-    nextRowY = nextRowY + rowMaxHeight
-  end
+		nextRowY = nextRowY + rowMaxHeight
+	end
 end
 
 --- Resize a widget vertically with snap to adjacent widgets.
 function mdw.resizeWidgetWithSnap(widget, side, targetBottomY)
-  local cfg = mdw.config
-  local widgetTop = widget.container:get_y()
-  local newHeight = targetBottomY - widgetTop
+	local cfg = mdw.config
+	local widgetTop = widget.container:get_y()
+	local newHeight = targetBottomY - widgetTop
 
-  newHeight = math.max(cfg.minWidgetHeight, newHeight)
+	newHeight = math.max(cfg.minWidgetHeight, newHeight)
 
-  local _, winH = getMainWindowSize()
-  local maxHeight = winH - widgetTop - cfg.sideBySideOffset
-  newHeight = math.min(newHeight, maxHeight)
+	local _, winH = getMainWindowSize()
+	local maxHeight = winH - widgetTop - cfg.sideBySideOffset
+	newHeight = math.min(newHeight, maxHeight)
 
-  -- Check for snap to other columns' total heights in same row
-  local docked = mdw.getDockedWidgets(side, nil)
-  local rows = mdw.groupWidgetsByRow(docked)
+	-- Check for snap to other columns' total heights in same row
+	local docked = mdw.getDockedWidgets(side, nil)
+	local rows = mdw.groupWidgetsByRow(docked)
 
-  local widgetRowIndex = nil
-  for rowIdx, row in ipairs(rows) do
-    for _, w in ipairs(row) do
-      if w == widget then
-        widgetRowIndex = rowIdx
+	local widgetRowIndex = nil
+	for rowIdx, row in ipairs(rows) do
+		for _, w in ipairs(row) do
+			if w == widget then
+				widgetRowIndex = rowIdx
 
-        -- Group into columns and snap to other columns' total heights
-        local columns = mdw.groupWidgetsByColumn(row)
-        local widgetColIdx = nil
-        for ci, col in ipairs(columns) do
-          for _, cw in ipairs(col) do
-            if cw == widget then
-              widgetColIdx = ci
-              break
-            end
-          end
-          if widgetColIdx then break end
-        end
+				-- Group into columns and snap to other columns' total heights
+				local columns = mdw.groupWidgetsByColumn(row)
+				local widgetColIdx = nil
+				for ci, col in ipairs(columns) do
+					for _, cw in ipairs(col) do
+						if cw == widget then
+							widgetColIdx = ci
+							break
+						end
+					end
+					if widgetColIdx then break end
+				end
 
-        if widgetColIdx and #columns > 1 then
-          local snapped = false
+				if widgetColIdx and #columns > 1 then
+					local snapped = false
 
-          -- Calculate this column's total height with the new height
-          local myCol = columns[widgetColIdx]
-          local myColHeight = 0
-          for _, cw in ipairs(myCol) do
-            if cw == widget then
-              myColHeight = myColHeight + newHeight
-            else
-              myColHeight = myColHeight + cw.container:get_height()
-            end
-          end
+					-- Calculate this column's total height with the new height
+					local myCol = columns[widgetColIdx]
+					local myColHeight = 0
+					for _, cw in ipairs(myCol) do
+						if cw == widget then
+							myColHeight = myColHeight + newHeight
+						else
+							myColHeight = myColHeight + cw.container:get_height()
+						end
+					end
 
-          -- Snap to other columns' total heights
-          for ci, col in ipairs(columns) do
-            if ci ~= widgetColIdx then
-              local otherColHeight = mdw.getColumnHeight(col)
-              if math.abs(myColHeight - otherColHeight) < cfg.snapThreshold then
-                -- Adjust newHeight so the column total matches
-                local otherWidgetsHeight = myColHeight - newHeight
-                newHeight = otherColHeight - otherWidgetsHeight
-                newHeight = math.max(cfg.minWidgetHeight, newHeight)
-                snapped = true
-                break
-              end
-            end
-          end
+					-- Snap to other columns' total heights
+					for ci, col in ipairs(columns) do
+						if ci ~= widgetColIdx then
+							local otherColHeight = mdw.getColumnHeight(col)
+							if math.abs(myColHeight - otherColHeight) < cfg.snapThreshold then
+								-- Adjust newHeight so the column total matches
+								local otherWidgetsHeight = myColHeight - newHeight
+								newHeight = otherColHeight - otherWidgetsHeight
+								newHeight = math.max(cfg.minWidgetHeight, newHeight)
+								snapped = true
+								break
+							end
+						end
+					end
 
-          -- Snap this widget's bottom edge to other widgets' bottom edges
-          if not snapped then
-            local myBottom = widgetTop + newHeight
-            for ci, col in ipairs(columns) do
-              if ci ~= widgetColIdx then
-                local bottomY = col[1].container:get_y()
-                for _, cw in ipairs(col) do
-                  bottomY = bottomY + cw.container:get_height()
-                  if math.abs(myBottom - bottomY) < cfg.snapThreshold then
-                    newHeight = bottomY - widgetTop
-                    newHeight = math.max(cfg.minWidgetHeight, newHeight)
-                    snapped = true
-                    break
-                  end
-                end
-                if snapped then break end
-              end
-            end
-          end
-        else
-          -- Single-column row: snap to other widgets' heights in the row
-          for _, w2 in ipairs(row) do
-            if w2 ~= widget then
-              local otherHeight = w2.container:get_height()
-              if math.abs(newHeight - otherHeight) < cfg.snapThreshold then
-                newHeight = otherHeight
-                break
-              end
-            end
-          end
-        end
-        break
-      end
-    end
-    if widgetRowIndex then break end
-  end
+					-- Snap this widget's bottom edge to other widgets' bottom edges
+					if not snapped then
+						local myBottom = widgetTop + newHeight
+						for ci, col in ipairs(columns) do
+							if ci ~= widgetColIdx then
+								local bottomY = col[1].container:get_y()
+								for _, cw in ipairs(col) do
+									bottomY = bottomY + cw.container:get_height()
+									if math.abs(myBottom - bottomY) < cfg.snapThreshold then
+										newHeight = bottomY - widgetTop
+										newHeight = math.max(cfg.minWidgetHeight, newHeight)
+										snapped = true
+										break
+									end
+								end
+								if snapped then break end
+							end
+						end
+					end
+				else
+					-- Single-column row: snap to other widgets' heights in the row
+					for _, w2 in ipairs(row) do
+						if w2 ~= widget then
+							local otherHeight = w2.container:get_height()
+							if math.abs(newHeight - otherHeight) < cfg.snapThreshold then
+								newHeight = otherHeight
+								break
+							end
+						end
+					end
+				end
+				break
+			end
+		end
+		if widgetRowIndex then break end
+	end
 
-  local currentWidth = widget.container:get_width()
-  widget.container:resize(nil, newHeight)
-  -- Pass explicit dimensions to avoid Geyser timing issues
-  mdw.resizeWidgetContent(widget, currentWidth, newHeight)
+	local currentWidth = widget.container:get_width()
+	widget.container:resize(nil, newHeight)
+	-- Pass explicit dimensions to avoid Geyser timing issues
+	mdw.resizeWidgetContent(widget, currentWidth, newHeight)
 
-  -- Reposition sub-column siblings and subsequent rows
-  if widgetRowIndex then
-    mdw.repositionColumnSiblings(widget, rows, widgetRowIndex, newHeight)
-    mdw.repositionSubsequentRows(widget, rows, widgetRowIndex, newHeight)
-  end
+	-- Reposition sub-column siblings and subsequent rows
+	if widgetRowIndex then
+		mdw.repositionColumnSiblings(widget, rows, widgetRowIndex, newHeight)
+		mdw.repositionSubsequentRows(widget, rows, widgetRowIndex, newHeight)
+	end
 
-  -- Update row splitter positions and heights during resize
-  mdw.updateRowSplitterPositions(side, rows)
+	-- Update row splitter positions and heights during resize
+	mdw.updateRowSplitterPositions(side, rows)
 end
 
 ---------------------------------------------------------------------------
@@ -1739,142 +1747,142 @@ end
 
 --- Set up resize borders for a floating widget.
 function mdw.setupResizeBorders(widget)
-  mdw.setupResizeBorder(widget, widget.resizeLeft, "left")
-  mdw.setupResizeBorder(widget, widget.resizeRight, "right")
-  mdw.setupResizeBorder(widget, widget.resizeBottom, "bottom")
-  mdw.setupResizeBorder(widget, widget.resizeTop, "top")
+	mdw.setupResizeBorder(widget, widget.resizeLeft, "left")
+	mdw.setupResizeBorder(widget, widget.resizeRight, "right")
+	mdw.setupResizeBorder(widget, widget.resizeBottom, "bottom")
+	mdw.setupResizeBorder(widget, widget.resizeTop, "top")
 end
 
 --- Set up a single resize border.
 function mdw.setupResizeBorder(internalWidget, border, edge)
-  local cfg = mdw.config
-  local borderName = border.name
-  local widgetName = internalWidget.name
+	local cfg = mdw.config
+	local borderName = border.name
+	local widgetName = internalWidget.name
 
-  setLabelClickCallback(borderName, function(event)
-    local widget = mdw.widgets[widgetName]
-    if not widget then return end
-    mdw.resizeDrag.active = true
-    mdw.resizeDrag.widget = widget
-    mdw.resizeDrag.edge = edge
-    mdw.resizeDrag.startX = widget.container:get_x()
-    mdw.resizeDrag.startY = widget.container:get_y()
-    mdw.resizeDrag.startWidth = widget.container:get_width()
-    mdw.resizeDrag.startHeight = widget.container:get_height()
-    mdw.resizeDrag.startMouseX = event.globalX
-    mdw.resizeDrag.startMouseY = event.globalY
-  end)
+	setLabelClickCallback(borderName, function(event)
+		local widget = mdw.widgets[widgetName]
+		if not widget then return end
+		mdw.resizeDrag.active = true
+		mdw.resizeDrag.widget = widget
+		mdw.resizeDrag.edge = edge
+		mdw.resizeDrag.startX = widget.container:get_x()
+		mdw.resizeDrag.startY = widget.container:get_y()
+		mdw.resizeDrag.startWidth = widget.container:get_width()
+		mdw.resizeDrag.startHeight = widget.container:get_height()
+		mdw.resizeDrag.startMouseX = event.globalX
+		mdw.resizeDrag.startMouseY = event.globalY
+	end)
 
-  setLabelMoveCallback(borderName, function(event)
-    local widget = mdw.widgets[widgetName]
-    if not widget then return end
-    if mdw.resizeDrag.active and mdw.resizeDrag.widget == widget and mdw.resizeDrag.edge == edge then
-      local deltaX = event.globalX - mdw.resizeDrag.startMouseX
-      local deltaY = event.globalY - mdw.resizeDrag.startMouseY
+	setLabelMoveCallback(borderName, function(event)
+		local widget = mdw.widgets[widgetName]
+		if not widget then return end
+		if mdw.resizeDrag.active and mdw.resizeDrag.widget == widget and mdw.resizeDrag.edge == edge then
+			local deltaX = event.globalX - mdw.resizeDrag.startMouseX
+			local deltaY = event.globalY - mdw.resizeDrag.startMouseY
 
-      if edge == "left" then
-        local newWidth = math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth - deltaX)
-        local newX = math.max(0, mdw.resizeDrag.startX + (mdw.resizeDrag.startWidth - newWidth))
-        widget.container:move(newX, nil)
-        widget.container:resize(newWidth, nil)
-        mdw.resizeWidgetContent(widget, newWidth, widget.container:get_height())
-      elseif edge == "right" then
-        local newWidth = math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth + deltaX)
-        widget.container:resize(newWidth, nil)
-        mdw.resizeWidgetContent(widget, newWidth, widget.container:get_height())
-      elseif edge == "bottom" then
-        local newHeight = math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight + deltaY)
-        widget.container:resize(nil, newHeight)
-        mdw.resizeWidgetContent(widget, widget.container:get_width(), newHeight)
-      elseif edge == "top" then
-        local newHeight = math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight - deltaY)
-        local newY = math.max(0, mdw.resizeDrag.startY + (mdw.resizeDrag.startHeight - newHeight))
-        widget.container:move(nil, newY)
-        widget.container:resize(nil, newHeight)
-        mdw.resizeWidgetContent(widget, widget.container:get_width(), newHeight)
-      end
+			if edge == "left" then
+				local newWidth = math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth - deltaX)
+				local newX = math.max(0, mdw.resizeDrag.startX + (mdw.resizeDrag.startWidth - newWidth))
+				widget.container:move(newX, nil)
+				widget.container:resize(newWidth, nil)
+				mdw.resizeWidgetContent(widget, newWidth, widget.container:get_height())
+			elseif edge == "right" then
+				local newWidth = math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth + deltaX)
+				widget.container:resize(newWidth, nil)
+				mdw.resizeWidgetContent(widget, newWidth, widget.container:get_height())
+			elseif edge == "bottom" then
+				local newHeight = math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight + deltaY)
+				widget.container:resize(nil, newHeight)
+				mdw.resizeWidgetContent(widget, widget.container:get_width(), newHeight)
+			elseif edge == "top" then
+				local newHeight = math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight - deltaY)
+				local newY = math.max(0, mdw.resizeDrag.startY + (mdw.resizeDrag.startHeight - newHeight))
+				widget.container:move(nil, newY)
+				widget.container:resize(nil, newHeight)
+				mdw.resizeWidgetContent(widget, widget.container:get_width(), newHeight)
+			end
 
-      mdw.updateResizeBorders(widget)
-    end
-  end)
+			mdw.updateResizeBorders(widget)
+		end
+	end)
 
-  setLabelReleaseCallback(borderName, function()
-    local widget = mdw.widgets[widgetName]
-    if not widget then return end
-    if mdw.resizeDrag.active and mdw.resizeDrag.widget == widget and mdw.resizeDrag.edge == edge then
-      mdw.resizeDrag.active = false
-      mdw.resizeDrag.widget = nil
-      mdw.resizeDrag.edge = nil
-      mdw.saveLayout()
-      mdw.refreshWidgetContent(widget)
-    end
-  end)
+	setLabelReleaseCallback(borderName, function()
+		local widget = mdw.widgets[widgetName]
+		if not widget then return end
+		if mdw.resizeDrag.active and mdw.resizeDrag.widget == widget and mdw.resizeDrag.edge == edge then
+			mdw.resizeDrag.active = false
+			mdw.resizeDrag.widget = nil
+			mdw.resizeDrag.edge = nil
+			mdw.saveLayout()
+			mdw.refreshWidgetContent(widget)
+		end
+	end)
 end
 
 function mdw.updateResizeBorders(widget)
-  if not widget or not widget.container then return end
-  if not widget.resizeLeft then return end  -- Borders may not exist yet
+	if not widget or not widget.container then return end
+	if not widget.resizeLeft then return end -- Borders may not exist yet
 
-  local cfg = mdw.config
-  local x = widget.container:get_x()
-  local y = widget.container:get_y()
-  local w = widget.container:get_width()
-  local h = widget.container:get_height()
-  local bw = cfg.resizeBorderWidth
+	local cfg = mdw.config
+	local x = widget.container:get_x()
+	local y = widget.container:get_y()
+	local w = widget.container:get_width()
+	local h = widget.container:get_height()
+	local bw = cfg.resizeBorderWidth
 
-  widget.resizeLeft:move(x - bw, y - bw)
-  widget.resizeLeft:resize(bw, h + bw * 2)
+	widget.resizeLeft:move(x - bw, y - bw)
+	widget.resizeLeft:resize(bw, h + bw * 2)
 
-  widget.resizeRight:move(x + w, y - bw)
-  widget.resizeRight:resize(bw, h + bw * 2)
+	widget.resizeRight:move(x + w, y - bw)
+	widget.resizeRight:resize(bw, h + bw * 2)
 
-  widget.resizeBottom:move(x - bw, y + h)
-  widget.resizeBottom:resize(w + bw * 2, bw)
+	widget.resizeBottom:move(x - bw, y + h)
+	widget.resizeBottom:resize(w + bw * 2, bw)
 
-  widget.resizeTop:move(x - bw, y - bw)
-  widget.resizeTop:resize(w + bw * 2, bw)
+	widget.resizeTop:move(x - bw, y - bw)
+	widget.resizeTop:resize(w + bw * 2, bw)
 end
 
 function mdw.showResizeHandles(widget)
-  if not widget then return end
+	if not widget then return end
 
-  if widget.resizeLeft then
-    widget.resizeLeft:show()
-    widget.resizeLeft:raise()
-  end
-  if widget.resizeRight then
-    widget.resizeRight:show()
-    widget.resizeRight:raise()
-  end
-  if widget.resizeBottom then
-    widget.resizeBottom:show()
-    widget.resizeBottom:raise()
-  end
-  if widget.resizeTop then
-    widget.resizeTop:show()
-    widget.resizeTop:raise()
-  end
-  mdw.updateResizeBorders(widget)
+	if widget.resizeLeft then
+		widget.resizeLeft:show()
+		widget.resizeLeft:raise()
+	end
+	if widget.resizeRight then
+		widget.resizeRight:show()
+		widget.resizeRight:raise()
+	end
+	if widget.resizeBottom then
+		widget.resizeBottom:show()
+		widget.resizeBottom:raise()
+	end
+	if widget.resizeTop then
+		widget.resizeTop:show()
+		widget.resizeTop:raise()
+	end
+	mdw.updateResizeBorders(widget)
 
-  -- Hide docked bottom resize handle when floating (use the border resize handles instead)
-  if widget.bottomResizeHandle then
-    widget.bottomResizeHandle:hide()
-  end
+	-- Hide docked bottom resize handle when floating (use the border resize handles instead)
+	if widget.bottomResizeHandle then
+		widget.bottomResizeHandle:hide()
+	end
 end
 
 function mdw.hideResizeHandles(widget)
-  if not widget then return end
+	if not widget then return end
 
-  if widget.resizeLeft then widget.resizeLeft:hide() end
-  if widget.resizeRight then widget.resizeRight:hide() end
-  if widget.resizeBottom then widget.resizeBottom:hide() end
-  if widget.resizeTop then widget.resizeTop:hide() end
+	if widget.resizeLeft then widget.resizeLeft:hide() end
+	if widget.resizeRight then widget.resizeRight:hide() end
+	if widget.resizeBottom then widget.resizeBottom:hide() end
+	if widget.resizeTop then widget.resizeTop:hide() end
 
-  -- Show docked bottom resize handle when docked
-  if widget.bottomResizeHandle and widget.docked then
-    widget.bottomResizeHandle:show()
-    widget.bottomResizeHandle:raise()
-  end
+	-- Show docked bottom resize handle when docked
+	if widget.bottomResizeHandle and widget.docked then
+		widget.bottomResizeHandle:show()
+		widget.bottomResizeHandle:raise()
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -1886,14 +1894,14 @@ end
 -- Called by mdw.setup() to create header menus and organize docks.
 -- Widgets are created separately via mdw.registerWidgets() or mdwReady event.
 function mdw.createWidgets()
-  -- Create header menus
-  mdw.createHeaderMenus()
+	-- Create header menus
+	mdw.createHeaderMenus()
 
-  -- Position any widgets that were created
-  mdw.reorganizeDock("left")
-  mdw.reorganizeDock("right")
+	-- Position any widgets that were created
+	mdw.reorganizeDock("left")
+	mdw.reorganizeDock("right")
 
-  mdw.echo("Created " .. #mdw.elements .. " UI elements")
+	mdw.echo("Created " .. #mdw.elements .. " UI elements")
 end
 
 ---------------------------------------------------------------------------
@@ -1903,236 +1911,247 @@ end
 
 --- Create header menu buttons.
 function mdw.createHeaderMenus()
-  local cfg = mdw.config
+	local cfg = mdw.config
 
-  -- Layout menu button
-  mdw.layoutButton = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_LayoutButton",
-    x = cfg.menuPaddingLeft, y = 0,
-    width = cfg.headerButtonWidth,
-    height = cfg.headerHeight - cfg.separatorHeight,
-  }, mdw.headerPane))
-  mdw.layoutButton:setStyleSheet(mdw.styles.headerButton)
-  mdw.layoutButton:decho("<" .. cfg.headerTextColor .. ">Layout")
-  mdw.layoutButton:setCursor(mudlet.cursor.PointingHand)
-  setLabelClickCallback("MDW_LayoutButton", function()
-    mdw.toggleLayoutMenu()
-  end)
+	-- Layout menu button
+	mdw.layoutButton = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_LayoutButton",
+		x = cfg.menuPaddingLeft,
+		y = 0,
+		width = cfg.headerButtonWidth,
+		height = cfg.headerHeight - cfg.separatorHeight,
+	}, mdw.headerPane))
+	mdw.layoutButton:setStyleSheet(mdw.styles.headerButton)
+	mdw.layoutButton:setFontSize(cfg.headerMenuFontSize)
+	mdw.layoutButton:decho("<" .. cfg.headerTextColor .. ">Layout")
+	mdw.layoutButton:setCursor(mudlet.cursor.PointingHand)
+	setLabelClickCallback("MDW_LayoutButton", function()
+		mdw.toggleLayoutMenu()
+	end)
 
-  -- Widgets menu button
-  mdw.widgetsButton = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_WidgetsButton",
-    x = cfg.menuPaddingLeft + cfg.headerButtonWidth, y = 0,
-    width = cfg.headerButtonWidth,
-    height = cfg.headerHeight - cfg.separatorHeight,
-  }, mdw.headerPane))
-  mdw.widgetsButton:setStyleSheet(mdw.styles.headerButton)
-  mdw.widgetsButton:decho("<" .. cfg.headerTextColor .. ">Widgets")
-  mdw.widgetsButton:setCursor(mudlet.cursor.PointingHand)
-  setLabelClickCallback("MDW_WidgetsButton", function()
-    mdw.toggleWidgetsMenu()
-  end)
+	-- Widgets menu button
+	mdw.widgetsButton = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_WidgetsButton",
+		x = cfg.menuPaddingLeft + cfg.headerButtonWidth,
+		y = 0,
+		width = cfg.headerButtonWidth,
+		height = cfg.headerHeight - cfg.separatorHeight,
+	}, mdw.headerPane))
+	mdw.widgetsButton:setStyleSheet(mdw.styles.headerButton)
+	mdw.widgetsButton:setFontSize(cfg.headerMenuFontSize)
+	mdw.widgetsButton:decho("<" .. cfg.headerTextColor .. ">Widgets")
+	mdw.widgetsButton:setCursor(mudlet.cursor.PointingHand)
+	setLabelClickCallback("MDW_WidgetsButton", function()
+		mdw.toggleWidgetsMenu()
+	end)
 
-  mdw.createLayoutDropdown()
-  mdw.createWidgetsDropdown()
+	mdw.createLayoutDropdown()
+	mdw.createWidgetsDropdown()
 end
 
 --- Create the Layout dropdown menu.
 function mdw.createLayoutDropdown()
-  local cfg = mdw.config
-  local menuWidth = cfg.menuWidth
-  local menuX = cfg.menuPaddingLeft
-  local menuY = cfg.headerHeight - cfg.menuOverlap  -- Overlap top border with header button's bottom border
+	local cfg = mdw.config
+	local menuWidth = cfg.menuWidth
+	local menuX = cfg.menuPaddingLeft
+	local menuY = cfg.headerHeight - cfg.menuOverlap -- Overlap top border with header button's bottom border
 
-  -- Build items from configuration with current visibility state
-  local items = {}
-  for _, itemDef in ipairs(cfg.layoutMenuItems) do
-    items[#items + 1] = {
-      name = itemDef.name,
-      label = itemDef.label,
-      visible = mdw.visibility[itemDef.name],
-    }
-  end
-  local menuHeight = #items * cfg.menuItemHeight + cfg.menuPadding * 2
+	-- Build items from configuration with current visibility state
+	local items = {}
+	for _, itemDef in ipairs(cfg.layoutMenuItems) do
+		items[#items + 1] = {
+			name = itemDef.name,
+			label = itemDef.label,
+			visible = mdw.visibility[itemDef.name],
+		}
+	end
+	local menuHeight = #items * cfg.menuItemHeight + cfg.menuPadding * 2
 
-  mdw.layoutMenuBg = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_LayoutMenuBg",
-    x = menuX, y = menuY,
-    width = menuWidth,
-    height = menuHeight,
-  }))
-  mdw.layoutMenuBg:setStyleSheet(mdw.styles.menuBackground)
-  mdw.layoutMenuBg:hide()
+	mdw.layoutMenuBg = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_LayoutMenuBg",
+		x = menuX,
+		y = menuY,
+		width = menuWidth,
+		height = menuHeight,
+	}))
+	mdw.layoutMenuBg:setStyleSheet(mdw.styles.menuBackground)
+	mdw.layoutMenuBg:hide()
 
-  mdw.layoutMenuItems = {}
-  mdw.layoutMenuLabels = {}
+	mdw.layoutMenuItems = {}
+	mdw.layoutMenuLabels = {}
 
-  for i, item in ipairs(items) do
-    local yPos = menuY + cfg.menuPadding + (i - 1) * cfg.menuItemHeight
-    local menuItem = mdw.trackElement(Geyser.Label:new({
-      name = "MDW_LayoutMenu_" .. item.name,
-      x = menuX, y = yPos,
-      width = menuWidth,
-      height = cfg.menuItemHeight,
-    }))
-    menuItem:setStyleSheet(mdw.styles.menuItem)
-    mdw.updateMenuItemText(menuItem, item.label, item.visible)
-    menuItem:setCursor(mudlet.cursor.PointingHand)
-    menuItem:hide()
+	for i, item in ipairs(items) do
+		local yPos = menuY + cfg.menuPadding + (i - 1) * cfg.menuItemHeight
+		local menuItem = mdw.trackElement(Geyser.Label:new({
+			name = "MDW_LayoutMenu_" .. item.name,
+			x = menuX,
+			y = yPos,
+			width = menuWidth,
+			height = cfg.menuItemHeight,
+		}))
+		menuItem:setStyleSheet(mdw.styles.menuItem)
+		menuItem:setFontSize(cfg.headerMenuFontSize)
+		mdw.updateMenuItemText(menuItem, item.label, item.visible)
+		menuItem:setCursor(mudlet.cursor.PointingHand)
+		menuItem:hide()
 
-    local itemName = item.name
-    setLabelClickCallback("MDW_LayoutMenu_" .. itemName, function()
-      mdw.toggleLayoutItem(itemName)
-    end)
-    setLabelOnEnter("MDW_LayoutMenu_" .. itemName, function()
-      mdw.updateMenuItemText(menuItem, item.label, mdw.visibility[itemName], true)
-    end)
-    setLabelOnLeave("MDW_LayoutMenu_" .. itemName, function()
-      mdw.updateMenuItemText(menuItem, item.label, mdw.visibility[itemName], false)
-    end)
+		local itemName = item.name
+		setLabelClickCallback("MDW_LayoutMenu_" .. itemName, function()
+			mdw.toggleLayoutItem(itemName)
+		end)
+		setLabelOnEnter("MDW_LayoutMenu_" .. itemName, function()
+			mdw.updateMenuItemText(menuItem, item.label, mdw.visibility[itemName], true)
+		end)
+		setLabelOnLeave("MDW_LayoutMenu_" .. itemName, function()
+			mdw.updateMenuItemText(menuItem, item.label, mdw.visibility[itemName], false)
+		end)
 
-    mdw.layoutMenuItems[item.name] = {label = menuItem, text = item.label}
-    mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = menuItem
-  end
+		mdw.layoutMenuItems[item.name] = { label = menuItem, text = item.label }
+		mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = menuItem
+	end
 end
 
 function mdw.getWidgetNames()
-  local names = {}
-  for name in pairs(mdw.widgets) do
-    names[#names + 1] = name
-  end
-  table.sort(names)
-  return names
+	local names = {}
+	for name in pairs(mdw.widgets) do
+		names[#names + 1] = name
+	end
+	table.sort(names)
+	return names
 end
 
 --- Create the Widgets dropdown menu.
 function mdw.createWidgetsDropdown()
-  local cfg = mdw.config
-  local menuWidth = cfg.menuWidth
-  local menuX = cfg.menuPaddingLeft + cfg.headerButtonWidth  -- After Layout button
-  local menuY = cfg.headerHeight - cfg.menuOverlap  -- Overlap top border with header button's bottom border
-  local items = mdw.getWidgetNames()
-  local menuHeight = math.max(#items, 1) * cfg.menuItemHeight + cfg.menuPadding * 2
+	local cfg = mdw.config
+	local menuWidth = cfg.menuWidth
+	local menuX = cfg.menuPaddingLeft + cfg.headerButtonWidth -- After Layout button
+	local menuY = cfg.headerHeight - cfg.menuOverlap        -- Overlap top border with header button's bottom border
+	local items = mdw.getWidgetNames()
+	local menuHeight = math.max(#items, 1) * cfg.menuItemHeight + cfg.menuPadding * 2
 
-  mdw.widgetsMenuBg = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_WidgetsMenuBg",
-    x = menuX, y = menuY,
-    width = menuWidth,
-    height = menuHeight,
-  }))
-  mdw.widgetsMenuBg:setStyleSheet(mdw.styles.menuBackground)
-  mdw.widgetsMenuBg:hide()
+	mdw.widgetsMenuBg = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_WidgetsMenuBg",
+		x = menuX,
+		y = menuY,
+		width = menuWidth,
+		height = menuHeight,
+	}))
+	mdw.widgetsMenuBg:setStyleSheet(mdw.styles.menuBackground)
+	mdw.widgetsMenuBg:hide()
 
-  mdw.widgetsMenuItems = {}
-  mdw.widgetsMenuLabels = {}
+	mdw.widgetsMenuItems = {}
+	mdw.widgetsMenuLabels = {}
 
-  for i, widgetName in ipairs(items) do
-    mdw.addWidgetMenuItem(widgetName, i)
-  end
+	for i, widgetName in ipairs(items) do
+		mdw.addWidgetMenuItem(widgetName, i)
+	end
 end
 
 --- Add a single widget menu item.
 function mdw.addWidgetMenuItem(widgetName, index)
-  local cfg = mdw.config
-  local menuWidth = cfg.menuWidth
-  local menuX = cfg.menuPaddingLeft + cfg.headerButtonWidth  -- After Layout button
-  local menuY = cfg.headerHeight - cfg.menuOverlap
+	local cfg = mdw.config
+	local menuWidth = cfg.menuWidth
+	local menuX = cfg.menuPaddingLeft + cfg.headerButtonWidth -- After Layout button
+	local menuY = cfg.headerHeight - cfg.menuOverlap
 
-  -- Calculate position
-  local i = index or (#mdw.widgetsMenuLabels + 1)
-  local yPos = menuY + cfg.menuPadding + (i - 1) * cfg.menuItemHeight
+	-- Calculate position
+	local i = index or (#mdw.widgetsMenuLabels + 1)
+	local yPos = menuY + cfg.menuPadding + (i - 1) * cfg.menuItemHeight
 
-  local menuItem = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_WidgetsMenu_" .. widgetName,
-    x = menuX, y = yPos,
-    width = menuWidth,
-    height = cfg.menuItemHeight,
-  }))
-  menuItem:setStyleSheet(mdw.styles.menuItem)
+	local menuItem = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_WidgetsMenu_" .. widgetName,
+		x = menuX,
+		y = yPos,
+		width = menuWidth,
+		height = cfg.menuItemHeight,
+	}))
+	menuItem:setStyleSheet(mdw.styles.menuItem)
+	menuItem:setFontSize(cfg.headerMenuFontSize)
 
-  local widget = mdw.widgets[widgetName]
-  local isShown = widget and mdw.isWidgetShown(widget)
-  mdw.updateMenuItemText(menuItem, widgetName, isShown)
-  menuItem:setCursor(mudlet.cursor.PointingHand)
-  menuItem:hide()
+	local widget = mdw.widgets[widgetName]
+	local isShown = widget and mdw.isWidgetShown(widget)
+	mdw.updateMenuItemText(menuItem, widgetName, isShown)
+	menuItem:setCursor(mudlet.cursor.PointingHand)
+	menuItem:hide()
 
-  local wName = widgetName
-  setLabelClickCallback("MDW_WidgetsMenu_" .. widgetName, function()
-    mdw.toggleWidget(wName)
-  end)
-  setLabelOnEnter("MDW_WidgetsMenu_" .. widgetName, function()
-    local w = mdw.widgets[wName]
-    local shown = w and mdw.isWidgetShown(w)
-    mdw.updateMenuItemText(menuItem, wName, shown, true)
-  end)
-  setLabelOnLeave("MDW_WidgetsMenu_" .. widgetName, function()
-    local w = mdw.widgets[wName]
-    local shown = w and mdw.isWidgetShown(w)
-    mdw.updateMenuItemText(menuItem, wName, shown, false)
-  end)
+	local wName = widgetName
+	setLabelClickCallback("MDW_WidgetsMenu_" .. widgetName, function()
+		mdw.toggleWidget(wName)
+	end)
+	setLabelOnEnter("MDW_WidgetsMenu_" .. widgetName, function()
+		local w = mdw.widgets[wName]
+		local shown = w and mdw.isWidgetShown(w)
+		mdw.updateMenuItemText(menuItem, wName, shown, true)
+	end)
+	setLabelOnLeave("MDW_WidgetsMenu_" .. widgetName, function()
+		local w = mdw.widgets[wName]
+		local shown = w and mdw.isWidgetShown(w)
+		mdw.updateMenuItemText(menuItem, wName, shown, false)
+	end)
 
-  mdw.widgetsMenuItems[widgetName] = {label = menuItem, text = widgetName}
-  mdw.widgetsMenuLabels[#mdw.widgetsMenuLabels + 1] = menuItem
+	mdw.widgetsMenuItems[widgetName] = { label = menuItem, text = widgetName }
+	mdw.widgetsMenuLabels[#mdw.widgetsMenuLabels + 1] = menuItem
 end
 
 --- Rebuild the widgets menu to reflect current widgets.
 -- Call this after adding or removing widgets.
 function mdw.rebuildWidgetsMenu()
-  if not mdw.widgetsMenuBg then return end
+	if not mdw.widgetsMenuBg then return end
 
-  -- Close menu if open
-  if mdw.menus.widgetsOpen then
-    mdw.hideWidgetsMenu()
-  end
+	-- Close menu if open
+	if mdw.menus.widgetsOpen then
+		mdw.hideWidgetsMenu()
+	end
 
-  -- Remove old menu items
-  for _, item in pairs(mdw.widgetsMenuItems) do
-    if item.label then
-      item.label:hide()
-      if item.label.name then
-        deleteLabel(item.label.name)
-      end
-    end
-  end
+	-- Remove old menu items
+	for _, item in pairs(mdw.widgetsMenuItems) do
+		if item.label then
+			item.label:hide()
+			if item.label.name then
+				deleteLabel(item.label.name)
+			end
+		end
+	end
 
-  -- Remove old background
-  if mdw.widgetsMenuBg then
-    mdw.widgetsMenuBg:hide()
-    deleteLabel("MDW_WidgetsMenuBg")
-  end
+	-- Remove old background
+	if mdw.widgetsMenuBg then
+		mdw.widgetsMenuBg:hide()
+		deleteLabel("MDW_WidgetsMenuBg")
+	end
 
-  -- Recreate the menu
-  local cfg = mdw.config
-  local menuWidth = cfg.menuWidth
-  local menuX = cfg.menuPaddingLeft + cfg.headerButtonWidth  -- After Layout button
-  local menuY = cfg.headerHeight - cfg.menuOverlap
-  local items = mdw.getWidgetNames()
-  local menuHeight = math.max(#items, 1) * cfg.menuItemHeight + cfg.menuPadding * 2
+	-- Recreate the menu
+	local cfg = mdw.config
+	local menuWidth = cfg.menuWidth
+	local menuX = cfg.menuPaddingLeft + cfg.headerButtonWidth -- After Layout button
+	local menuY = cfg.headerHeight - cfg.menuOverlap
+	local items = mdw.getWidgetNames()
+	local menuHeight = math.max(#items, 1) * cfg.menuItemHeight + cfg.menuPadding * 2
 
-  mdw.widgetsMenuBg = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_WidgetsMenuBg",
-    x = menuX, y = menuY,
-    width = menuWidth,
-    height = menuHeight,
-  }))
-  mdw.widgetsMenuBg:setStyleSheet(mdw.styles.menuBackground)
-  mdw.widgetsMenuBg:hide()
+	mdw.widgetsMenuBg = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_WidgetsMenuBg",
+		x = menuX,
+		y = menuY,
+		width = menuWidth,
+		height = menuHeight,
+	}))
+	mdw.widgetsMenuBg:setStyleSheet(mdw.styles.menuBackground)
+	mdw.widgetsMenuBg:hide()
 
-  mdw.widgetsMenuItems = {}
-  mdw.widgetsMenuLabels = {}
+	mdw.widgetsMenuItems = {}
+	mdw.widgetsMenuLabels = {}
 
-  for i, widgetName in ipairs(items) do
-    mdw.addWidgetMenuItem(widgetName, i)
-  end
+	for i, widgetName in ipairs(items) do
+		mdw.addWidgetMenuItem(widgetName, i)
+	end
 end
 
 --- Update menu item text with checkbox.
 function mdw.updateMenuItemText(menuItem, text, checked, highlighted)
-  local cfg = mdw.config
-  local checkmark = checked and "[x] " or "[ ] "
-  local textColor = highlighted and cfg.menuHighlightColor or cfg.menuTextColor
-  local checkColor = highlighted and cfg.menuHighlightColor or cfg.headerTextColor
-  menuItem:decho("<" .. checkColor .. ">" .. checkmark .. "<" .. textColor .. ">" .. text)
+	local cfg = mdw.config
+	local checkmark = checked and "[x] " or "[ ] "
+	local textColor = highlighted and cfg.menuHighlightColor or cfg.menuTextColor
+	local checkColor = highlighted and cfg.menuHighlightColor or cfg.headerTextColor
+	menuItem:decho("<" .. checkColor .. ">" .. checkmark .. "<" .. textColor .. ">" .. text)
 end
 
 ---------------------------------------------------------------------------
@@ -2144,25 +2163,25 @@ end
 -- Why: Consolidates the repetitive pattern of showing overlay, styling button,
 -- showing background, and raising all menu items.
 local function showMenu(menuBg, menuLabels, button)
-  mdw.createMenuOverlay()
-  button:setStyleSheet(mdw.styles.headerButtonActive)
-  menuBg:show()
-  menuBg:raise()
-  for _, label in ipairs(menuLabels) do
-    label:show()
-    label:raise()
-  end
+	mdw.createMenuOverlay()
+	button:setStyleSheet(mdw.styles.headerButtonActive)
+	menuBg:show()
+	menuBg:raise()
+	for _, label in ipairs(menuLabels) do
+		label:show()
+		label:raise()
+	end
 end
 
 --- Hide a dropdown menu.
 -- Why: Consolidates the repetitive pattern of hiding background, items,
 -- and restoring button styling.
 local function hideMenu(menuBg, menuLabels, button)
-  button:setStyleSheet(mdw.styles.headerButton)
-  menuBg:hide()
-  for _, label in ipairs(menuLabels) do
-    label:hide()
-  end
+	button:setStyleSheet(mdw.styles.headerButton)
+	menuBg:hide()
+	for _, label in ipairs(menuLabels) do
+		label:hide()
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -2171,128 +2190,129 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.createMenuOverlay()
-  if mdw.menuOverlay then return end
+	if mdw.menuOverlay then return end
 
-  mdw.menuOverlay = Geyser.Label:new({
-    name = "MDW_MenuOverlay",
-    x = 0, y = mdw.config.headerHeight,
-    width = "100%",
-    height = "100%",
-  })
-  mdw.menuOverlay:setStyleSheet([[background-color: transparent;]])
+	mdw.menuOverlay = Geyser.Label:new({
+		name = "MDW_MenuOverlay",
+		x = 0,
+		y = mdw.config.headerHeight,
+		width = "100%",
+		height = "100%",
+	})
+	mdw.menuOverlay:setStyleSheet([[background-color: transparent;]])
 
-  setLabelClickCallback("MDW_MenuOverlay", function(event)
-    local clickX, clickY = event.globalX, event.globalY
+	setLabelClickCallback("MDW_MenuOverlay", function(event)
+		local clickX, clickY = event.globalX, event.globalY
 
-    -- Check if click is within layout menu
-    if mdw.menus.layoutOpen and mdw.layoutMenuBg then
-      local mx, my = mdw.layoutMenuBg:get_x(), mdw.layoutMenuBg:get_y()
-      local mw, mh = mdw.layoutMenuBg:get_width(), mdw.layoutMenuBg:get_height()
-      if clickX >= mx and clickX <= mx + mw and clickY >= my and clickY <= my + mh then
-        return
-      end
-    end
+		-- Check if click is within layout menu
+		if mdw.menus.layoutOpen and mdw.layoutMenuBg then
+			local mx, my = mdw.layoutMenuBg:get_x(), mdw.layoutMenuBg:get_y()
+			local mw, mh = mdw.layoutMenuBg:get_width(), mdw.layoutMenuBg:get_height()
+			if clickX >= mx and clickX <= mx + mw and clickY >= my and clickY <= my + mh then
+				return
+			end
+		end
 
-    -- Check if click is within widgets menu
-    if mdw.menus.widgetsOpen and mdw.widgetsMenuBg then
-      local mx, my = mdw.widgetsMenuBg:get_x(), mdw.widgetsMenuBg:get_y()
-      local mw, mh = mdw.widgetsMenuBg:get_width(), mdw.widgetsMenuBg:get_height()
-      if clickX >= mx and clickX <= mx + mw and clickY >= my and clickY <= my + mh then
-        return
-      end
-    end
+		-- Check if click is within widgets menu
+		if mdw.menus.widgetsOpen and mdw.widgetsMenuBg then
+			local mx, my = mdw.widgetsMenuBg:get_x(), mdw.widgetsMenuBg:get_y()
+			local mw, mh = mdw.widgetsMenuBg:get_width(), mdw.widgetsMenuBg:get_height()
+			if clickX >= mx and clickX <= mx + mw and clickY >= my and clickY <= my + mh then
+				return
+			end
+		end
 
-    mdw.closeAllMenus()
-  end)
+		mdw.closeAllMenus()
+	end)
 end
 
 function mdw.destroyMenuOverlay()
-  if mdw.menuOverlay then
-    mdw.menuOverlay:hide()
-    mdw.menuOverlay = nil
-    deleteLabel("MDW_MenuOverlay")
-  end
+	if mdw.menuOverlay then
+		mdw.menuOverlay:hide()
+		mdw.menuOverlay = nil
+		deleteLabel("MDW_MenuOverlay")
+	end
 end
 
 function mdw.showLayoutMenu()
-  showMenu(mdw.layoutMenuBg, mdw.layoutMenuLabels, mdw.layoutButton)
-  mdw.menus.layoutOpen = true
+	showMenu(mdw.layoutMenuBg, mdw.layoutMenuLabels, mdw.layoutButton)
+	mdw.menus.layoutOpen = true
 end
 
 function mdw.hideLayoutMenu()
-  hideMenu(mdw.layoutMenuBg, mdw.layoutMenuLabels, mdw.layoutButton)
-  mdw.menus.layoutOpen = false
-  if not mdw.menus.widgetsOpen then
-    mdw.destroyMenuOverlay()
-  end
+	hideMenu(mdw.layoutMenuBg, mdw.layoutMenuLabels, mdw.layoutButton)
+	mdw.menus.layoutOpen = false
+	if not mdw.menus.widgetsOpen then
+		mdw.destroyMenuOverlay()
+	end
 end
 
 function mdw.showWidgetsMenu()
-  showMenu(mdw.widgetsMenuBg, mdw.widgetsMenuLabels, mdw.widgetsButton)
-  mdw.menus.widgetsOpen = true
+	showMenu(mdw.widgetsMenuBg, mdw.widgetsMenuLabels, mdw.widgetsButton)
+	mdw.menus.widgetsOpen = true
 end
 
 function mdw.hideWidgetsMenu()
-  hideMenu(mdw.widgetsMenuBg, mdw.widgetsMenuLabels, mdw.widgetsButton)
-  mdw.menus.widgetsOpen = false
-  if not mdw.menus.layoutOpen then
-    mdw.destroyMenuOverlay()
-  end
+	hideMenu(mdw.widgetsMenuBg, mdw.widgetsMenuLabels, mdw.widgetsButton)
+	mdw.menus.widgetsOpen = false
+	if not mdw.menus.layoutOpen then
+		mdw.destroyMenuOverlay()
+	end
 end
 
 function mdw.toggleLayoutMenu()
-  if mdw.menus.layoutOpen then
-    mdw.hideLayoutMenu()
-  else
-    mdw.showLayoutMenu()
-    if mdw.menus.widgetsOpen then
-      mdw.hideWidgetsMenu()
-    end
-  end
+	if mdw.menus.layoutOpen then
+		mdw.hideLayoutMenu()
+	else
+		mdw.showLayoutMenu()
+		if mdw.menus.widgetsOpen then
+			mdw.hideWidgetsMenu()
+		end
+	end
 end
 
 function mdw.toggleWidgetsMenu()
-  if mdw.menus.widgetsOpen then
-    mdw.hideWidgetsMenu()
-  else
-    mdw.showWidgetsMenu()
-    if mdw.menus.layoutOpen then
-      mdw.hideLayoutMenu()
-    end
-  end
+	if mdw.menus.widgetsOpen then
+		mdw.hideWidgetsMenu()
+	else
+		mdw.showWidgetsMenu()
+		if mdw.menus.layoutOpen then
+			mdw.hideLayoutMenu()
+		end
+	end
 end
 
 function mdw.closeAllMenus()
-  if mdw.layoutMenuLabels and mdw.menus.layoutOpen then
-    mdw.hideLayoutMenu()
-  end
-  if mdw.widgetsMenuLabels and mdw.menus.widgetsOpen then
-    mdw.hideWidgetsMenu()
-  end
-  mdw.destroyMenuOverlay()
+	if mdw.layoutMenuLabels and mdw.menus.layoutOpen then
+		mdw.hideLayoutMenu()
+	end
+	if mdw.widgetsMenuLabels and mdw.menus.widgetsOpen then
+		mdw.hideWidgetsMenu()
+	end
+	mdw.destroyMenuOverlay()
 end
 
 --- Re-raise open menus above other elements.
 -- Call this after operations that may change z-order (e.g., sidebar toggles).
 function mdw.raiseOpenMenus()
-  if mdw.menus.layoutOpen then
-    if mdw.menuOverlay then mdw.menuOverlay:raise() end
-    if mdw.layoutMenuBg then mdw.layoutMenuBg:raise() end
-    if mdw.layoutMenuLabels then
-      for _, label in ipairs(mdw.layoutMenuLabels) do
-        label:raise()
-      end
-    end
-  end
-  if mdw.menus.widgetsOpen then
-    if mdw.menuOverlay then mdw.menuOverlay:raise() end
-    if mdw.widgetsMenuBg then mdw.widgetsMenuBg:raise() end
-    if mdw.widgetsMenuLabels then
-      for _, label in ipairs(mdw.widgetsMenuLabels) do
-        label:raise()
-      end
-    end
-  end
+	if mdw.menus.layoutOpen then
+		if mdw.menuOverlay then mdw.menuOverlay:raise() end
+		if mdw.layoutMenuBg then mdw.layoutMenuBg:raise() end
+		if mdw.layoutMenuLabels then
+			for _, label in ipairs(mdw.layoutMenuLabels) do
+				label:raise()
+			end
+		end
+	end
+	if mdw.menus.widgetsOpen then
+		if mdw.menuOverlay then mdw.menuOverlay:raise() end
+		if mdw.widgetsMenuBg then mdw.widgetsMenuBg:raise() end
+		if mdw.widgetsMenuLabels then
+			for _, label in ipairs(mdw.widgetsMenuLabels) do
+				label:raise()
+			end
+		end
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -2300,116 +2320,114 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.toggleLayoutItem(itemName)
-  mdw.visibility[itemName] = not mdw.visibility[itemName]
-  local item = mdw.layoutMenuItems[itemName]
-  if item then
-    mdw.updateMenuItemText(item.label, item.text, mdw.visibility[itemName])
-  end
+	mdw.visibility[itemName] = not mdw.visibility[itemName]
+	local item = mdw.layoutMenuItems[itemName]
+	if item then
+		mdw.updateMenuItemText(item.label, item.text, mdw.visibility[itemName])
+	end
 
-  if itemName == "leftSidebar" then
-    mdw.toggleLeftSidebar()
-  elseif itemName == "rightSidebar" then
-    mdw.toggleRightSidebar()
-  elseif itemName == "promptBar" then
-    mdw.togglePromptBar()
-  end
+	if itemName == "leftSidebar" then
+		mdw.toggleLeftSidebar()
+	elseif itemName == "rightSidebar" then
+		mdw.toggleRightSidebar()
+	elseif itemName == "promptBar" then
+		mdw.togglePromptBar()
+	end
 end
 
 --- Toggle sidebar visibility (internal helper).
 -- Why: Consolidated logic that was duplicated between left and right toggles.
 local function toggleSidebar(side)
-  local dockCfg = mdw.getDockConfig(side)
-  local isVisible = mdw.visibility[dockCfg.visibilityKey]
+	local dockCfg = mdw.getDockConfig(side)
+	local isVisible = mdw.visibility[dockCfg.visibilityKey]
 
-  if isVisible then
-    dockCfg.setBorder(dockCfg.width)
-    dockCfg.dock:show()
-    dockCfg.splitter:show()
+	mdw.applyBorders()
 
-    for _, w in pairs(mdw.widgets) do
-      if w.originalDock == side then
-        w.docked = side
-        w.originalDock = nil
-        if w.visible ~= false then
-          w.container:show()
-          mdw.showWidgetContent(w)
-        end
-        mdw.hideResizeHandles(w)
-      end
-    end
-    mdw.reorganizeDock(side)
-  else
-    dockCfg.setBorder(0)
-    dockCfg.dock:hide()
-    dockCfg.splitter:hide()
-    if dockCfg.dockHighlight then dockCfg.dockHighlight:hide() end
-    if dockCfg.dropIndicator then dockCfg.dropIndicator:hide() end
-    if mdw.verticalDropIndicator then mdw.verticalDropIndicator:hide() end
+	if isVisible then
+		dockCfg.dock:show()
+		dockCfg.splitter:show()
 
-    -- Destroy row splitters for this side
-    mdw.destroyRowSplittersForSide(side)
+		for _, w in pairs(mdw.widgets) do
+			if w.originalDock == side then
+				w.docked = side
+				w.originalDock = nil
+				if w.visible ~= false then
+					w.container:show()
+					mdw.showWidgetContent(w)
+				end
+				mdw.hideResizeHandles(w)
+			end
+		end
+		mdw.reorganizeDock(side)
+	else
+		dockCfg.dock:hide()
+		dockCfg.splitter:hide()
+		if dockCfg.dockHighlight then dockCfg.dockHighlight:hide() end
+		if dockCfg.dropIndicator then dockCfg.dropIndicator:hide() end
+		if mdw.verticalDropIndicator then mdw.verticalDropIndicator:hide() end
 
-    for _, w in pairs(mdw.widgets) do
-      if w.docked == side then
-        w.originalDock = side
-        w.docked = nil
-        w.container:hide()
-        mdw.hideResizeHandles(w)
-      end
-    end
-  end
+		-- Destroy row splitters for this side
+		mdw.destroyRowSplittersForSide(side)
 
-  mdw.updateWidgetsMenuState()
-  mdw.updatePromptBar()
-  mdw.saveLayout()
+		for _, w in pairs(mdw.widgets) do
+			if w.docked == side then
+				w.originalDock = side
+				w.docked = nil
+				w.container:hide()
+				mdw.hideResizeHandles(w)
+			end
+		end
+	end
+
+	mdw.updateWidgetsMenuState()
+	mdw.updatePromptBar()
+	mdw.saveLayout()
 end
 
 function mdw.toggleLeftSidebar()
-  toggleSidebar("left")
+	toggleSidebar("left")
 end
 
 function mdw.toggleRightSidebar()
-  toggleSidebar("right")
+	toggleSidebar("right")
 end
 
 function mdw.togglePromptBar()
-  local cfg = mdw.config
+	mdw.applyBorders()
 
-  if mdw.visibility.promptBar then
-    setBorderBottom(cfg.promptBarHeight)
-    if mdw.promptBarContainer then mdw.promptBarContainer:show() end
-    mdw.promptSeparator:show()
-  else
-    setBorderBottom(0)
-    if mdw.promptBarContainer then mdw.promptBarContainer:hide() end
-    mdw.promptSeparator:hide()
-  end
-  mdw.raiseOpenMenus()
-  mdw.saveLayout()
+	if mdw.visibility.promptBar then
+		if mdw.promptBarContainer then mdw.promptBarContainer:show() end
+		mdw.promptSeparator:show()
+	else
+		if mdw.promptBarContainer then mdw.promptBarContainer:hide() end
+		mdw.promptSeparator:hide()
+	end
+	mdw.raiseOpenMenus()
+	mdw.saveLayout()
 end
 
 function mdw.updatePromptBar()
-  local cfg = mdw.config
-  local winW = getMainWindowSize()
-  local leftOffset = mdw.visibility.leftSidebar and cfg.leftDockWidth or 0
-  local rightOffset = mdw.visibility.rightSidebar and cfg.rightDockWidth or 0
-  local promptBarWidth = winW - leftOffset - rightOffset
-  local consoleWidth = promptBarWidth - cfg.contentPaddingLeft
+	local cfg = mdw.config
+	local winW = getMainWindowSize()
+	local leftOffset = mdw.visibility.leftSidebar and cfg.leftDockWidth or 0
+	local rightOffset = mdw.visibility.rightSidebar and cfg.rightDockWidth or 0
+	local promptBarWidth = winW - leftOffset - rightOffset
+	local consoleWidth = promptBarWidth - cfg.contentPaddingLeft
 
-  if mdw.promptBarContainer then
-    mdw.promptBarContainer:move(leftOffset, nil)
-    mdw.promptBarContainer:resize(promptBarWidth, nil)
-  end
-  if mdw.promptBar then
-    mdw.promptBar:resize(consoleWidth, nil)
-    if mdw.promptBar.setWrap then
-      mdw.promptBar:setWrap(mdw.calculateWrap(consoleWidth))
-    end
-  end
-  if mdw.promptSeparator then
-    mdw.promptSeparator:move(leftOffset, nil)
-    mdw.promptSeparator:resize(promptBarWidth, nil)
-  end
+	if mdw.promptBarContainer then
+		mdw.promptBarContainer:move(leftOffset, nil)
+		mdw.promptBarContainer:resize(promptBarWidth, nil)
+	end
+	if mdw.promptBar then
+		mdw.promptBar:resize(consoleWidth, nil)
+		if mdw.promptBar.setWrap then
+			mdw.promptBar:setWrap(mdw.calculateWrap(consoleWidth))
+		end
+	end
+	if mdw.promptSeparator then
+		mdw.promptSeparator:move(leftOffset, nil)
+		mdw.promptSeparator:resize(promptBarWidth, nil)
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -2418,98 +2436,98 @@ end
 
 --- Check if a widget is currently shown on screen.
 function mdw.isWidgetShown(widget)
-  if widget.visible == false then return false end
+	if widget.visible == false then return false end
 
-  local dockSide = widget.docked or widget.originalDock
-  if not dockSide then
-    return true
-  end
+	local dockSide = widget.docked or widget.originalDock
+	if not dockSide then
+		return true
+	end
 
-  if dockSide == "left" then
-    return mdw.visibility.leftSidebar
-  elseif dockSide == "right" then
-    return mdw.visibility.rightSidebar
-  end
+	if dockSide == "left" then
+		return mdw.visibility.leftSidebar
+	elseif dockSide == "right" then
+		return mdw.visibility.rightSidebar
+	end
 
-  return true
+	return true
 end
 
 function mdw.toggleWidget(widgetName)
-  local widget = mdw.widgets[widgetName]
-  if not widget then return end
+	local widget = mdw.widgets[widgetName]
+	if not widget then return end
 
-  local isCurrentlyShown = mdw.isWidgetShown(widget)
+	local isCurrentlyShown = mdw.isWidgetShown(widget)
 
-  if isCurrentlyShown then
-    widget.container:hide()
-    mdw.hideResizeHandles(widget)
-    widget.visible = false
-  else
-    widget.visible = true
-    local dockSide = widget.docked or widget.originalDock
+	if isCurrentlyShown then
+		widget.container:hide()
+		mdw.hideResizeHandles(widget)
+		widget.visible = false
+	else
+		widget.visible = true
+		local dockSide = widget.docked or widget.originalDock
 
-    if dockSide then
-      if mdw.isSidebarVisible(dockSide) then
-        widget.docked = dockSide
-        widget.originalDock = nil
-        widget.container:show()
-        mdw.hideResizeHandles(widget)
-        mdw.reorganizeDock(dockSide)
-      else
-        widget.container:show()
-        mdw.floatWidgetCentered(widget)
-      end
-    else
-      widget.container:show()
-      mdw.showResizeHandles(widget)
-    end
+		if dockSide then
+			if mdw.isSidebarVisible(dockSide) then
+				widget.docked = dockSide
+				widget.originalDock = nil
+				widget.container:show()
+				mdw.hideResizeHandles(widget)
+				mdw.reorganizeDock(dockSide)
+			else
+				widget.container:show()
+				mdw.floatWidgetCentered(widget)
+			end
+		else
+			widget.container:show()
+			mdw.showResizeHandles(widget)
+		end
 
-    mdw.showWidgetContent(widget)
-  end
+		mdw.showWidgetContent(widget)
+	end
 
-  local item = mdw.widgetsMenuItems[widgetName]
-  if item then
-    mdw.updateMenuItemText(item.label, item.text, not isCurrentlyShown)
-  end
+	local item = mdw.widgetsMenuItems[widgetName]
+	if item then
+		mdw.updateMenuItemText(item.label, item.text, not isCurrentlyShown)
+	end
 
-  if mdw.visibility.leftSidebar then mdw.reorganizeDock("left") end
-  if mdw.visibility.rightSidebar then mdw.reorganizeDock("right") end
+	if mdw.visibility.leftSidebar then mdw.reorganizeDock("left") end
+	if mdw.visibility.rightSidebar then mdw.reorganizeDock("right") end
 
-  mdw.saveLayout()
+	mdw.saveLayout()
 end
 
 function mdw.floatWidgetCentered(widget)
-  local cfg = mdw.config
-  local winW, winH = getMainWindowSize()
-  local leftOffset = mdw.visibility.leftSidebar and cfg.leftDockWidth or 0
-  local rightOffset = mdw.visibility.rightSidebar and cfg.rightDockWidth or 0
+	local cfg = mdw.config
+	local winW, winH = getMainWindowSize()
+	local leftOffset = mdw.visibility.leftSidebar and cfg.leftDockWidth or 0
+	local rightOffset = mdw.visibility.rightSidebar and cfg.rightDockWidth or 0
 
-  local mainWidth = winW - leftOffset - rightOffset
-  local mainHeight = winH - cfg.headerHeight - (mdw.visibility.promptBar and cfg.promptBarHeight or 0)
+	local mainWidth = winW - leftOffset - rightOffset
+	local mainHeight = winH - cfg.headerHeight - (mdw.visibility.promptBar and cfg.promptBarHeight or 0)
 
-  local widgetW = widget.container:get_width()
-  local widgetH = widget.container:get_height()
+	local widgetW = widget.container:get_width()
+	local widgetH = widget.container:get_height()
 
-  local centerX = leftOffset + (mainWidth - widgetW) / 2
-  local centerY = cfg.headerHeight + (mainHeight - widgetH) / 2
+	local centerX = leftOffset + (mainWidth - widgetW) / 2
+	local centerY = cfg.headerHeight + (mainHeight - widgetH) / 2
 
-  widget.originalDock = widget.docked
-  widget.docked = nil
-  widget.container:move(centerX, centerY)
-  widget.container:show()
-  widget.container:raise()
-  mdw.showWidgetContent(widget)
-  mdw.showResizeHandles(widget)
+	widget.originalDock = widget.docked
+	widget.docked = nil
+	widget.container:move(centerX, centerY)
+	widget.container:show()
+	widget.container:raise()
+	mdw.showWidgetContent(widget)
+	mdw.showResizeHandles(widget)
 end
 
 function mdw.updateWidgetsMenuState()
-  if not mdw.widgetsMenuItems then return end
+	if not mdw.widgetsMenuItems then return end
 
-  for widgetName, item in pairs(mdw.widgetsMenuItems) do
-    local widget = mdw.widgets[widgetName]
-    if widget then
-      local isShown = mdw.isWidgetShown(widget)
-      mdw.updateMenuItemText(item.label, item.text, isShown)
-    end
-  end
+	for widgetName, item in pairs(mdw.widgetsMenuItems) do
+		local widget = mdw.widgets[widgetName]
+		if widget then
+			local isShown = mdw.isWidgetShown(widget)
+			mdw.updateMenuItemText(item.label, item.text, isShown)
+		end
+	end
 end
