@@ -500,9 +500,13 @@ function mdw.saveLayout()
 			height = widget.container:get_height(),
 			visible = widget.visible ~= false,
 		}
-		-- Save active tab for tabbed widgets
+		-- Save active tab and tab order for tabbed widgets
 		if widget.isTabbed then
 			layout.widgets[name].activeTab = widget:getActiveTab()
+			layout.widgets[name].tabOrder = {}
+			for i, tabObj in ipairs(widget.tabObjects) do
+				layout.widgets[name].tabOrder[i] = tabObj.name
+			end
 		end
 	end
 

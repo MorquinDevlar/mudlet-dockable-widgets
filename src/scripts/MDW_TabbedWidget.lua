@@ -176,6 +176,11 @@ function mdw.TabbedWidget:new(cons)
 	-- Apply saved layout if available (uses shared helper to avoid duplication)
 	local applied, saved = mdw.applyPendingLayout(self)
 
+	-- Restore saved tab order before selecting the active tab
+	if applied and saved and saved.tabOrder then
+		mdw.applyTabOrder(self, saved.tabOrder)
+	end
+
 	-- Restore active tab from saved layout or use provided/default
 	if applied and saved and saved.activeTab then
 		self:selectTab(saved.activeTab)
@@ -278,9 +283,6 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 			width = tabWidth,
 			height = cfg.tabBarHeight,
 		}, widget.container))
-		tabButton:setStyleSheet(mdw.styles.tabInactive)
-		tabButton:setFontSize(cfg.tabFontSize)
-		tabButton:decho("<" .. cfg.tabInactiveTextColor .. ">" .. tabName)
 		tabButton:setCursor(mudlet.cursor.PointingHand)
 
 		-- Tab console (MiniConsole for scrollable text)
@@ -314,10 +316,10 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 		tabbedWidget.tabObjects[i] = tabObj
 		tabbedWidget.tabsByName[tabName] = tabObj
 
-		-- Set up tab click callback
-		setLabelClickCallback("MDW_" .. name .. "_Tab_" .. safeTabName, function()
-			tabbedWidget:selectTab(tabName)
-		end)
+		mdw.applyTabInactiveStyle(tabObj)
+
+		-- Set up tab drag (handles both click-to-select and drag-to-reorder)
+		mdw.setupTabDrag(tabbedWidget, tabObj)
 	end
 
 	-- Bottom resize handle - part of widget so it moves with dragging
@@ -414,6 +416,291 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
 end
 
 ---------------------------------------------------------------------------
+-- TAB STYLE HELPERS
+-- Centralized tab button styling to avoid duplication across
+-- selectTab, refreshTabBar, commitTabDragStart, and creation.
+---------------------------------------------------------------------------
+
+function mdw.applyTabActiveStyle(tabObj)
+	local cfg = mdw.config
+	tabObj.button:setStyleSheet(mdw.styles.tabActive)
+	tabObj.button:setFontSize(cfg.tabFontSize)
+	tabObj.button:decho("<" .. cfg.tabActiveTextColor .. ">" .. tabObj.name)
+end
+
+function mdw.applyTabInactiveStyle(tabObj)
+	local cfg = mdw.config
+	tabObj.button:setStyleSheet(mdw.styles.tabInactive)
+	tabObj.button:setFontSize(cfg.tabFontSize)
+	tabObj.button:decho("<" .. cfg.tabInactiveTextColor .. ">" .. tabObj.name)
+end
+
+---------------------------------------------------------------------------
+-- TAB DRAG HANDLING
+-- Enables dragging tabs horizontally to reorder them.
+-- Follows the same threshold-based click/drag pattern as widget dragging.
+---------------------------------------------------------------------------
+
+--- Register click/move/release callbacks on a tab button for drag-to-reorder.
+function mdw.setupTabDrag(tabbedWidget, tabObj)
+	local labelName = tabObj.button.name
+	local widgetName = tabbedWidget.name
+	local tabName = tabObj.name
+
+	setLabelClickCallback(labelName, function(event)
+		local tw = mdw.widgets[widgetName]
+		if not tw then return end
+		local tab = tw.tabsByName[tabName]
+		if not tab then return end
+		mdw.startTabDrag(tw, tab, event)
+	end)
+
+	setLabelMoveCallback(labelName, function(event)
+		local tw = mdw.widgets[widgetName]
+		if not tw then return end
+		if mdw.tabDrag.active and mdw.tabDrag.tabbedWidget == tw then
+			mdw.handleTabDragMove(tw, event)
+		end
+	end)
+
+	setLabelReleaseCallback(labelName, function()
+		local tw = mdw.widgets[widgetName]
+		if not tw then return end
+		if mdw.tabDrag.active and mdw.tabDrag.tabbedWidget == tw then
+			mdw.endTabDrag(tw)
+		end
+	end)
+end
+
+--- Record initial state on mouse down (does not commit to drag yet).
+function mdw.startTabDrag(tw, tabObj, event)
+	-- Calculate startTabX from known layout (parent-relative, matching move() coords)
+	local numTabs = #tw.tabObjects
+	local tabWidth = tw.tabBar:get_width() / numTabs
+	local startTabX = (tabObj.index - 1) * tabWidth
+
+	mdw.tabDrag.active = true
+	mdw.tabDrag.tabbedWidget = tw
+	mdw.tabDrag.tabObj = tabObj
+	mdw.tabDrag.originalIndex = tabObj.index
+	mdw.tabDrag.startMouseX = event.globalX
+	mdw.tabDrag.startTabX = startTabX
+	mdw.tabDrag.hasMoved = false
+	mdw.tabDrag.dropIndex = tabObj.index
+end
+
+--- Commit to drag once horizontal movement exceeds threshold.
+function mdw.commitTabDragStart()
+	if mdw.tabDrag.hasMoved then return end
+	mdw.tabDrag.hasMoved = true
+
+	local tabObj = mdw.tabDrag.tabObj
+	tabObj.button:setStyleSheet(mdw.styles.tabDragging)
+	tabObj.button:setFontSize(mdw.config.tabFontSize)
+	tabObj.button:decho("<" .. mdw.config.tabActiveTextColor .. ">" .. tabObj.name)
+	tabObj.button:setCursor(mudlet.cursor.ClosedHand)
+	tabObj.button:raise()
+end
+
+--- Handle mouse movement during tab drag.
+function mdw.handleTabDragMove(tw, event)
+	local cfg = mdw.config
+	local movedX = math.abs(event.globalX - mdw.tabDrag.startMouseX)
+
+	-- Only one tab - nothing to reorder
+	if #tw.tabObjects < 2 then return end
+
+	-- Check threshold before committing
+	if not mdw.tabDrag.hasMoved then
+		if movedX > cfg.dragThreshold then
+			mdw.commitTabDragStart()
+		else
+			return
+		end
+	end
+
+	local tabObj = mdw.tabDrag.tabObj
+	local numTabs = #tw.tabObjects
+	local tabBarWidth = tw.tabBar:get_width()
+	local tabWidth = tabBarWidth / numTabs
+
+	-- Use delta-based movement to avoid screen vs window coordinate mismatch
+	local deltaX = event.globalX - mdw.tabDrag.startMouseX
+	local newTabX = mdw.clamp(mdw.tabDrag.startTabX + deltaX, 0, tabBarWidth - tabWidth)
+	tabObj.button:move(newTabX, cfg.titleHeight)
+	tabObj.button:raise()
+
+	-- Calculate drop index from tab center position (container-relative)
+	local tabCenter = newTabX + tabWidth / 2
+	local dropIndex = mdw.clamp(math.floor(tabCenter / tabWidth) + 1, 1, numTabs)
+	mdw.tabDrag.dropIndex = dropIndex
+
+	-- Slide other tabs to make room
+	mdw.updateTabDropPositions(tw, mdw.tabDrag.originalIndex, dropIndex, tabWidth)
+end
+
+--- Slide non-dragged tabs to show gap at drop position.
+function mdw.updateTabDropPositions(tw, fromIndex, toIndex, tabWidth)
+	local cfg = mdw.config
+
+	for i, tab in ipairs(tw.tabObjects) do
+		if tab ~= mdw.tabDrag.tabObj then
+			local visualPos = i
+			if fromIndex < toIndex then
+				-- Dragging right: tabs between from+1..to shift left by one slot
+				if i > fromIndex and i <= toIndex then
+					visualPos = i - 1
+				end
+			elseif fromIndex > toIndex then
+				-- Dragging left: tabs between to..from-1 shift right by one slot
+				if i >= toIndex and i < fromIndex then
+					visualPos = i + 1
+				end
+			end
+			tab.button:move((visualPos - 1) * tabWidth, cfg.titleHeight)
+		end
+	end
+end
+
+--- End tab drag: either select tab (click) or commit reorder (drag).
+function mdw.endTabDrag(tw)
+	local tabObj = mdw.tabDrag.tabObj
+	local hasMoved = mdw.tabDrag.hasMoved
+	local fromIndex = mdw.tabDrag.originalIndex
+	local toIndex = mdw.tabDrag.dropIndex
+
+	-- Clear drag state
+	mdw.tabDrag.active = false
+	mdw.tabDrag.tabbedWidget = nil
+	mdw.tabDrag.tabObj = nil
+	mdw.tabDrag.originalIndex = nil
+	mdw.tabDrag.startMouseX = 0
+	mdw.tabDrag.startTabX = 0
+	mdw.tabDrag.hasMoved = false
+	mdw.tabDrag.dropIndex = nil
+
+	if not hasMoved then
+		-- Click without movement: select the tab
+		tw:selectTab(tabObj.name)
+		return
+	end
+
+	-- Restore cursor
+	tabObj.button:setCursor(mudlet.cursor.PointingHand)
+
+	-- Commit reorder if position changed
+	if fromIndex ~= toIndex then
+		mdw.reorderTab(tw, fromIndex, toIndex)
+	end
+
+	-- Refresh all tab positions and styles
+	mdw.refreshTabBar(tw)
+	mdw.saveLayout()
+end
+
+--- Reorder a tab within a TabbedWidget's arrays.
+function mdw.reorderTab(tw, fromIndex, toIndex)
+	local activeTabName = tw.tabObjects[tw.activeTabIndex].name
+
+	local tabObj = table.remove(tw.tabObjects, fromIndex)
+	table.insert(tw.tabObjects, toIndex, tabObj)
+
+	local tabName = table.remove(tw.tabs, fromIndex)
+	table.insert(tw.tabs, toIndex, tabName)
+
+	-- Update indices and find where the active tab landed
+	for i, tab in ipairs(tw.tabObjects) do
+		tab.index = i
+		if tab.name == activeTabName then
+			tw.activeTabIndex = i
+		end
+	end
+end
+
+--- Reposition all tab buttons to canonical positions and restore styles.
+function mdw.refreshTabBar(tw)
+	local cfg = mdw.config
+	local numTabs = #tw.tabObjects
+	local tabBarWidth = tw.tabBar:get_width()
+	local tabWidth = tabBarWidth / numTabs
+
+	for i, tabObj in ipairs(tw.tabObjects) do
+		tabObj.button:move((i - 1) * tabWidth, cfg.titleHeight)
+		tabObj.button:resize(tabWidth, cfg.tabBarHeight)
+
+		if i == tw.activeTabIndex then
+			mdw.applyTabActiveStyle(tabObj)
+		else
+			mdw.applyTabInactiveStyle(tabObj)
+		end
+
+		tabObj.button:setCursor(mudlet.cursor.PointingHand)
+	end
+end
+
+--- Apply a saved tab order to a TabbedWidget.
+-- Handles missing/new tabs gracefully: saved tabs that still exist come first
+-- in saved order, new tabs append at the end.
+function mdw.applyTabOrder(tw, savedOrder)
+	if not savedOrder or #savedOrder == 0 then return end
+
+	-- Build set of existing tab names for quick lookup
+	local existing = {}
+	for _, tabObj in ipairs(tw.tabObjects) do
+		existing[tabObj.name] = true
+	end
+
+	-- Build new order: saved tabs first (if they still exist), then any new tabs
+	local ordered = {}
+	local seen = {}
+	for _, name in ipairs(savedOrder) do
+		if existing[name] and not seen[name] then
+			ordered[#ordered + 1] = name
+			seen[name] = true
+		end
+	end
+	for _, tabObj in ipairs(tw.tabObjects) do
+		if not seen[tabObj.name] then
+			ordered[#ordered + 1] = tabObj.name
+		end
+	end
+
+	-- Skip if order hasn't changed
+	local changed = false
+	for i, name in ipairs(ordered) do
+		if tw.tabObjects[i].name ~= name then
+			changed = true
+			break
+		end
+	end
+	if not changed then return end
+
+	local activeTabName = tw.tabObjects[tw.activeTabIndex].name
+
+	-- Rebuild tabObjects and tabs arrays in new order
+	local newTabObjects = {}
+	local newTabs = {}
+	for i, name in ipairs(ordered) do
+		local tabObj = tw.tabsByName[name]
+		tabObj.index = i
+		newTabObjects[i] = tabObj
+		newTabs[i] = name
+	end
+	tw.tabObjects = newTabObjects
+	tw.tabs = newTabs
+
+	-- Recalculate activeTabIndex
+	for i, tab in ipairs(tw.tabObjects) do
+		if tab.name == activeTabName then
+			tw.activeTabIndex = i
+			break
+		end
+	end
+
+	mdw.refreshTabBar(tw)
+end
+
+---------------------------------------------------------------------------
 -- TAB MANAGEMENT
 ---------------------------------------------------------------------------
 
@@ -424,24 +711,18 @@ function mdw.TabbedWidget:selectTab(tabName)
 		return
 	end
 
-	local cfg = mdw.config
-
 	-- Hide current tab's console and update button style
 	local currentTab = self.tabObjects[self.activeTabIndex]
 	if currentTab then
 		currentTab.console:hide()
-		currentTab.button:setStyleSheet(mdw.styles.tabInactive)
-		currentTab.button:setFontSize(cfg.tabFontSize)
-		currentTab.button:decho("<" .. cfg.tabInactiveTextColor .. ">" .. currentTab.name)
+		mdw.applyTabInactiveStyle(currentTab)
 	end
 
 	-- Show new tab's console and update button style
 	self.activeTabIndex = tabObj.index
 	tabObj.console:show()
 	tabObj.console:raise()
-	tabObj.button:setStyleSheet(mdw.styles.tabActive)
-	tabObj.button:setFontSize(cfg.tabFontSize)
-	tabObj.button:decho("<" .. cfg.tabActiveTextColor .. ">" .. tabObj.name)
+	mdw.applyTabActiveStyle(tabObj)
 
 	-- Call onTabChange callback if set
 	if self.onTabChange then
@@ -462,6 +743,29 @@ end
 function mdw.TabbedWidget:getTab(tabName)
 	local tabObj = self.tabsByName[tabName]
 	return tabObj and tabObj.console or nil
+end
+
+--- Programmatically reorder a tab from one position to another.
+function mdw.TabbedWidget:reorderTab(fromIndex, toIndex)
+	assert(type(fromIndex) == "number", "fromIndex must be a number")
+	assert(type(toIndex) == "number", "toIndex must be a number")
+	local numTabs = #self.tabObjects
+	if fromIndex < 1 or fromIndex > numTabs then return end
+	if toIndex < 1 or toIndex > numTabs then return end
+	if fromIndex == toIndex then return end
+
+	mdw.reorderTab(self, fromIndex, toIndex)
+	mdw.refreshTabBar(self)
+	mdw.saveLayout()
+end
+
+--- Return an array of tab names in their current display order.
+function mdw.TabbedWidget:getTabOrder()
+	local order = {}
+	for i, tabObj in ipairs(self.tabObjects) do
+		order[i] = tabObj.name
+	end
+	return order
 end
 
 ---------------------------------------------------------------------------

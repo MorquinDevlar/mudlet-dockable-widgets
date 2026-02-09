@@ -222,6 +222,18 @@ mdw.resizeDrag = {
 	startMouseY = 0,
 }
 
+-- Tab drag state for reordering tabs within a TabbedWidget
+mdw.tabDrag = {
+	active = false,
+	tabbedWidget = nil,
+	tabObj = nil,
+	originalIndex = nil,
+	startMouseX = 0,
+	startTabX = 0,
+	hasMoved = false,
+	dropIndex = nil,
+}
+
 -- Visibility toggles for layout components
 mdw.visibility = {
 	leftSidebar = true,

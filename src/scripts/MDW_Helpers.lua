@@ -149,6 +149,16 @@ function mdw.buildStyles()
     padding-left: %dpx;
     padding-right: %dpx;
   ]], cfg.tabInactiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+
+	mdw.styles.tabDragging = string.format([[
+    background-color: %s;
+    qproperty-alignment: 'AlignCenter';
+    font-family: '%s';
+    font-size: %dpx;
+    padding-left: %dpx;
+    padding-right: %dpx;
+    opacity: 0.6;
+  ]], cfg.tabActiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
 end
 
 ---------------------------------------------------------------------------
