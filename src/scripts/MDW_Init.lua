@@ -141,7 +141,6 @@ function mdw.createPromptBar(winW)
 	mdw.promptBar:setWrap(mdw.calculateWrap(consoleWidth))
 	setBgColor("MDW_PromptBar", bgRGB[1], bgRGB[2], bgRGB[3])
 	setFgColor("MDW_PromptBar", fgRGB[1], fgRGB[2], fgRGB[3])
-	mdw.promptBar:raise()
 end
 
 ---------------------------------------------------------------------------
@@ -494,10 +493,13 @@ function mdw.saveLayout()
 			rowPosition = widget.rowPosition,
 			subRow = widget.subRow or 0,
 			widthRatio = widget.widthRatio,
+			fill = widget.fill or false,
+			widthLocked = widget.widthLocked or false,
+			lockedWidth = widget.lockedWidth,
 			x = widget.container:get_x(),
 			y = widget.container:get_y(),
 			width = widget.container:get_width(),
-			height = widget.container:get_height(),
+			height = (widget.fill and widget._preFillHeight) or widget.container:get_height(),
 			visible = widget.visible ~= false,
 		}
 		-- Save active tab and tab order for tabbed widgets
@@ -650,11 +652,17 @@ function mdw.setup()
 		mdw.echo("<red>Warning: mdw.createWidgets not defined")
 	end
 
-	-- Raise any mapper widgets to ensure visibility
-	mdw.raiseMapperWidgets()
+	-- Apply z-order to ensure all elements are properly layered
+	mdw.applyZOrder()
 
 	-- Fire event so user scripts can create additional widgets
 	raiseEvent("mdwReady")
+
+	-- Deferred dock reorganize to ensure fill button visibility after Qt layout settles
+	tempTimer(0, function()
+		mdw.reorganizeDock("left")
+		mdw.reorganizeDock("right")
+	end)
 
 	mdw.echo("UI ready!")
 end
@@ -665,19 +673,6 @@ end
 function mdw.registerWidgets(func)
 	mdw.userWidgets = mdw.userWidgets or {}
 	mdw.userWidgets[#mdw.userWidgets + 1] = func
-end
-
---- Raise all widgets containing embedded mappers.
--- Why: Mappers can be obscured by other UI elements created after them.
--- This ensures mapper widgets are visible after all UI initialization completes.
-function mdw.raiseMapperWidgets()
-	for _, widget in pairs(mdw.widgets) do
-		if widget.mapper then
-			widget.container:raise()
-			widget.mapper:raise()
-			mdw.debugEcho("Raised mapper widget: " .. (widget.name or "unknown"))
-		end
-	end
 end
 
 function mdw.teardown()

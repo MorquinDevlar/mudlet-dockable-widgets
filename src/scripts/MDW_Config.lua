@@ -42,7 +42,10 @@ mdw.config = {
 	dropIndicatorHeight = 2, -- Height of drop target indicators
 	widgetSplitterHeight = 2, -- Height of between-widget splitters (vertical resize)
 	widgetSplitterWidth = 2, -- Width of between-widget splitters (horizontal resize)
-	resizeBorderWidth = 2, -- Width of floating widget resize handles
+	resizeBorderWidth = 2, -- Visual width of floating widget resize borders
+	resizeHitWidth = 8,    -- Click target width for resize borders (extends outward)
+	resizeCornerSize = 10, -- How far corner grab zones extend along each adjacent edge
+	resizeHandleHitPad = 4, -- Extra hit area above bottom resize handle (px)
 
 	-- Layout: Header and prompt bar
 	headerHeight = 30,    -- Height of top header bar
@@ -111,6 +114,14 @@ mdw.config = {
 	headerMenuFontSize = 12, -- Font size for header bar buttons and dropdown menus
 	tabFontSize = 11,       -- Font size for tab buttons in tabbed widgets
 	widgetHeaderFontSize = 12, -- Font size for widget title bars
+
+	-- Title bar buttons (fill, lock, close)
+	titleButtonSize = 12, -- Width/height of square icon buttons (fill, lock)
+	titleButtonPadding = 5, -- Padding from left edge for fill/lock buttons
+	titleButtonGap = 4,  -- Gap between fill and lock buttons
+	closeButtonPadding = 4, -- Padding from right edge for close button
+	closeButtonColor = "140,120,80",
+	titleButtonTint = "#8C7850", -- SVG tint color for fill/lock/close icons (requires setSvgTint)
 
 	-- Buffering
 	maxEchoBuffer = 50, -- Maximum echo buffer lines for widget reflow

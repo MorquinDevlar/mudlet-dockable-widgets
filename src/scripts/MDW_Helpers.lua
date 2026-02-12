@@ -30,32 +30,43 @@ function mdw.buildStyles()
     QLabel:hover { background-color: %s; }
   ]], cfg.splitterColor, cfg.splitterHoverColor)
 
+	-- Directional resize border styles: transparent with visible border on widget-facing side
+	local bw = cfg.resizeBorderWidth
+	local bc = cfg.splitterColor
+	local bch = cfg.splitterHoverColor
+	mdw.styles.resizeLeft = string.format([[
+    QLabel { background-color: transparent; border-right: %dpx solid %s; }
+    QLabel:hover { background-color: transparent; border-right: %dpx solid %s; }
+  ]], bw, bc, bw, bch)
+	mdw.styles.resizeRight = string.format([[
+    QLabel { background-color: transparent; border-left: %dpx solid %s; }
+    QLabel:hover { background-color: transparent; border-left: %dpx solid %s; }
+  ]], bw, bc, bw, bch)
+	mdw.styles.resizeTop = string.format([[
+    QLabel { background-color: transparent; border-bottom: %dpx solid %s; }
+    QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; }
+  ]], bw, bc, bw, bch)
+	mdw.styles.resizeBottom = string.format([[
+    QLabel { background-color: transparent; border-top: %dpx solid %s; }
+    QLabel:hover { background-color: transparent; border-top: %dpx solid %s; }
+  ]], bw, bc, bw, bch)
+
+	local titlePadLeft = cfg.titleButtonPadding + 2 * cfg.titleButtonSize + (cfg.titleButtonGap or 4)
+	local titlePadRight = cfg.closeButtonPadding + cfg.titleButtonSize
 	mdw.styles.titleBar = string.format([[
     background-color: %s;
     qproperty-alignment: 'AlignCenter';
     font-family: '%s';
     font-size: %dpx;
-  ]], cfg.headerBackground, cfg.fontFamily, cfg.widgetHeaderFontSize)
-
-	mdw.styles.titleBarDragging = string.format([[
-    background-color: %s;
-    qproperty-alignment: 'AlignCenter';
-    font-family: '%s';
-    font-size: %dpx;
-    opacity: 0.6;
-  ]], cfg.headerBackground, cfg.fontFamily, cfg.widgetHeaderFontSize)
+    padding-left: %dpx;
+    padding-right: %dpx;
+  ]], cfg.headerBackground, cfg.fontFamily, cfg.widgetHeaderFontSize,
+		titlePadLeft, titlePadRight)
 
 	mdw.styles.widgetContent = string.format([[
     background-color: %s;
     font-family: '%s';
     font-size: %dpx;
-  ]], cfg.widgetBackground, cfg.fontFamily, cfg.fontSize)
-
-	mdw.styles.widgetContentDragging = string.format([[
-    background-color: %s;
-    font-family: '%s';
-    font-size: %dpx;
-    opacity: 0.6;
   ]], cfg.widgetBackground, cfg.fontFamily, cfg.fontSize)
 
 	mdw.styles.headerPane = string.format([[
@@ -159,6 +170,17 @@ function mdw.buildStyles()
     padding-right: %dpx;
     opacity: 0.6;
   ]], cfg.tabActiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+
+	mdw.styles.titleButtonClose = string.format([[
+    QLabel {
+      background-color: transparent;
+      qproperty-alignment: 'AlignCenter';
+      font-family: '%s';
+      font-size: %dpx;
+    }
+    QLabel:hover { background-color: rgba(180,60,60,0.4); }
+  ]], cfg.fontFamily, cfg.widgetHeaderFontSize)
+
 end
 
 ---------------------------------------------------------------------------
@@ -228,17 +250,159 @@ function mdw.applyBorders()
 	setBorderBottom(bottomHeight > 0 and bottomHeight + cfg.dockGap or 0)
 end
 
+--- Render a widget's title with ellipsis truncation.
+-- Measures available width between buttons and truncates with "..." if needed.
+-- Call on creation, resize, and setTitle.
+function mdw.renderWidgetTitle(widget)
+	if not widget.titleBar or not widget.title then return end
+	local cfg = mdw.config
+	local cw = widget.container:get_width()
+	local leftPad = cfg.titleButtonPadding + 2 * cfg.titleButtonSize + (cfg.titleButtonGap or 4)
+	local rightPad = cfg.closeButtonPadding + cfg.titleButtonSize
+	local availWidth = cw - leftPad - rightPad
+	-- Estimate character width for monospace font (~60% of font size)
+	local charWidth = cfg.widgetHeaderFontSize * 0.6
+	local maxChars = math.floor(availWidth / charWidth)
+	local title = widget.title
+	if #title > maxChars and maxChars > 3 then
+		title = title:sub(1, maxChars - 3) .. "..."
+	end
+	widget.titleBar:decho("<" .. cfg.headerTextColor .. ">" .. title)
+end
+
 --- Show appropriate content for a widget (mapper or default content).
 -- Why: When a widget has an embedded mapper, the default content is hidden.
 -- This helper ensures the correct element is shown/hidden when the widget becomes visible.
 function mdw.showWidgetContent(widget)
 	if widget.mapper then
 		widget.mapper:show()
-		widget.mapper:raise()
 		if widget.content then widget.content:hide() end
 	elseif widget.content then
 		widget.content:show()
 	end
+end
+
+---------------------------------------------------------------------------
+-- Z-ORDER MANAGEMENT
+-- Centralized z-order control. All raise() calls are consolidated here
+-- to prevent whack-a-mole z-order bugs across scattered call sites.
+---------------------------------------------------------------------------
+
+--- Safely raise a UI element, silently ignoring errors.
+local function safeRaise(element)
+	pcall(function() element:raise() end)
+end
+
+--- Raise all elements of a single widget in the correct order.
+-- Why: Geyser doesn't raise children with their container. Each child
+-- element must be raised individually, and the order matters for
+-- clickability (resize handles above content, corners above edges, etc.).
+function mdw.raiseWidgetElements(widget)
+	if not widget or not widget.container then return end
+
+	safeRaise(widget.container)
+	if widget.contentBg then safeRaise(widget.contentBg) end
+	if widget.titleBar then safeRaise(widget.titleBar) end
+	if widget.fillButton then safeRaise(widget.fillButton) end
+	if widget.lockButton then safeRaise(widget.lockButton) end
+	if widget.closeButton then safeRaise(widget.closeButton) end
+
+	if widget.isTabbed then
+		if widget.tabBar then safeRaise(widget.tabBar) end
+		for _, tabObj in ipairs(widget.tabObjects or {}) do
+			if tabObj.button then safeRaise(tabObj.button) end
+		end
+		local activeTab = widget.tabObjects[widget.activeTabIndex]
+		if activeTab and activeTab.console then
+			safeRaise(activeTab.console)
+		end
+	else
+		if widget.content then safeRaise(widget.content) end
+		if widget.mapper then safeRaise(widget.mapper) end
+	end
+
+	-- Floating: raise external resize handles above container
+	if not widget.docked then
+		if widget.resizeLeft then safeRaise(widget.resizeLeft) end
+		if widget.resizeRight then safeRaise(widget.resizeRight) end
+		if widget.resizeTop then safeRaise(widget.resizeTop) end
+		if widget.resizeBottom then safeRaise(widget.resizeBottom) end
+		-- Corners above edges
+		if widget.resizeTopLeft then safeRaise(widget.resizeTopLeft) end
+		if widget.resizeTopRight then safeRaise(widget.resizeTopRight) end
+		if widget.resizeBottomLeft then safeRaise(widget.resizeBottomLeft) end
+		if widget.resizeBottomRight then safeRaise(widget.resizeBottomRight) end
+	end
+
+	-- Docked: bottom resize handle above content
+	if widget.docked and widget.bottomResizeHandle then
+		safeRaise(widget.bottomResizeHandle)
+	end
+end
+
+--- Reset the entire UI z-order by raising all elements in layer order.
+-- Why: Replaces ~37 scattered raise() calls with a single source of truth.
+-- Called after state changes (dock/undock, drag end, reorganize, menu open/close,
+-- sidebar toggle). NOT called on every mouse move during drag — use
+-- raiseWidgetElements() for that.
+-- Note: Iterates all widgets twice (docked + floating). Avoid calling in
+-- tight loops or per-frame handlers.
+function mdw.applyZOrder()
+	-- Layer 1: Background elements (dock bgs, header, separators, dock edge splitters)
+	-- These are at bottom from creation order — skip explicit raising
+
+	-- Layer 2: Dock highlights
+	if mdw.leftDockHighlight then safeRaise(mdw.leftDockHighlight) end
+	if mdw.rightDockHighlight then safeRaise(mdw.rightDockHighlight) end
+
+	-- Layer 3: Drop indicators
+	if mdw.leftDropIndicator then safeRaise(mdw.leftDropIndicator) end
+	if mdw.rightDropIndicator then safeRaise(mdw.rightDropIndicator) end
+	if mdw.verticalDropIndicator then safeRaise(mdw.verticalDropIndicator) end
+
+	-- Layer 4: Row splitters
+	for _, splitter in pairs(mdw.rowSplitters) do
+		safeRaise(splitter)
+	end
+
+	-- Layer 5: Docked widgets
+	for _, widget in pairs(mdw.widgets) do
+		if widget.docked and not (mdw.drag.active and mdw.drag.widget == widget) then
+			mdw.raiseWidgetElements(widget)
+		end
+	end
+
+	-- Layer 6: Floating widgets (skip drag widget)
+	for _, widget in pairs(mdw.widgets) do
+		if not widget.docked and not (mdw.drag.active and mdw.drag.widget == widget) then
+			mdw.raiseWidgetElements(widget)
+		end
+	end
+
+	-- Layer 7: Dragged widget
+	if mdw.drag.active and mdw.drag.widget then
+		mdw.raiseWidgetElements(mdw.drag.widget)
+	end
+
+	-- Layer 8: Menus
+	if mdw.menuOverlay then safeRaise(mdw.menuOverlay) end
+	if mdw.menus.layoutOpen then
+		if mdw.layoutMenuBg then safeRaise(mdw.layoutMenuBg) end
+		for _, label in ipairs(mdw.layoutMenuLabels or {}) do
+			safeRaise(label)
+		end
+	end
+	if mdw.menus.widgetsOpen then
+		if mdw.widgetsMenuBg then safeRaise(mdw.widgetsMenuBg) end
+		for _, label in ipairs(mdw.widgetsMenuLabels or {}) do
+			safeRaise(label)
+		end
+	end
+
+	-- Layer 9: Prompt bar
+	if mdw.promptBarContainer then safeRaise(mdw.promptBarContainer) end
+	if mdw.promptBarBg then safeRaise(mdw.promptBarBg) end
+	if mdw.promptBar then safeRaise(mdw.promptBar) end
 end
 
 ---------------------------------------------------------------------------
@@ -453,6 +617,7 @@ function mdw.dockWidgetClass(widget, side, row)
 	end
 
 	mdw.hideResizeHandles(widget)
+	mdw.updateDockButtonVisibility(widget)
 	mdw.reorganizeDock(side)
 end
 
@@ -464,6 +629,17 @@ function mdw.undockWidgetClass(widget, x, y)
 	widget.row = nil
 	widget.rowPosition = nil
 	widget.subRow = nil
+
+	-- Reset dock-only state and restore pre-fill height
+	if widget.fill and widget._preFillHeight then
+		widget.container:resize(nil, widget._preFillHeight)
+		mdw.resizeWidgetContent(widget, widget.container:get_width(), widget._preFillHeight)
+	end
+	widget.fill = false
+	widget._preFillHeight = nil
+	widget.widthLocked = false
+	widget.lockedWidth = nil
+	mdw.updateDockButtonVisibility(widget)
 
 	if x and y then
 		widget.container:move(x, y)
@@ -496,6 +672,8 @@ function mdw.showWidgetClass(widget, showContentFunc)
 	else
 		mdw.showResizeHandles(widget)
 	end
+
+	mdw.updateDockButtonVisibility(widget)
 
 	if mdw.updateWidgetsMenuState then
 		mdw.updateWidgetsMenuState()
@@ -552,10 +730,17 @@ function mdw.destroyWidgetClass(widget)
 
 	mdw.widgets[widget.name] = nil
 
+	if widget.fillButton then widget.fillButton:hide() end
+	if widget.lockButton then widget.lockButton:hide() end
+	if widget.closeButton then widget.closeButton:hide() end
 	if widget.resizeLeft then widget.resizeLeft:hide() end
 	if widget.resizeRight then widget.resizeRight:hide() end
 	if widget.resizeTop then widget.resizeTop:hide() end
 	if widget.resizeBottom then widget.resizeBottom:hide() end
+	if widget.resizeTopLeft then widget.resizeTopLeft:hide() end
+	if widget.resizeTopRight then widget.resizeTopRight:hide() end
+	if widget.resizeBottomLeft then widget.resizeBottomLeft:hide() end
+	if widget.resizeBottomRight then widget.resizeBottomRight:hide() end
 	if widget.mapper then widget.mapper:hide() end
 
 	widget.container:hide()
@@ -563,6 +748,52 @@ function mdw.destroyWidgetClass(widget)
 	if mdw.rebuildWidgetsMenu then
 		mdw.rebuildWidgetsMenu()
 	end
+end
+
+--- Show/hide dock-only buttons (FILL, LOCK) based on dock state.
+function mdw.updateDockButtonVisibility(widget)
+	if widget.docked then
+		if widget.fillButton then
+			widget.fillButton:show()
+			mdw.updateFillButtonText(widget)
+		end
+		if widget.lockButton then
+			widget.lockButton:show()
+			mdw.updateLockButtonText(widget)
+		end
+	else
+		if widget.fillButton then widget.fillButton:hide() end
+		if widget.lockButton then widget.lockButton:hide() end
+	end
+end
+
+--- Set fill state for a widget (shared by Widget and TabbedWidget).
+function mdw.setFillClass(widget, enabled)
+	if enabled and not widget.fill then
+		widget._preFillHeight = widget.container:get_height()
+	elseif not enabled and widget.fill and widget._preFillHeight then
+		widget.container:resize(nil, widget._preFillHeight)
+		mdw.resizeWidgetContent(widget, widget.container:get_width(), widget._preFillHeight)
+		widget._preFillHeight = nil
+	end
+	widget.fill = enabled
+	mdw.updateFillButtonText(widget)
+	if widget.docked then
+		mdw.reorganizeDock(widget.docked)
+		mdw.saveLayout()
+	end
+end
+
+--- Set width lock state for a widget (shared by Widget and TabbedWidget).
+function mdw.setWidthLockedClass(widget, enabled)
+	widget.widthLocked = enabled
+	if enabled then
+		widget.lockedWidth = widget.container:get_width()
+	else
+		widget.lockedWidth = nil
+	end
+	mdw.updateLockButtonText(widget)
+	mdw.saveLayout()
 end
 
 --- Apply pending layout to a widget during creation.
@@ -590,8 +821,15 @@ function mdw.applyPendingLayout(widget)
 			widget.rowPosition = saved.rowPosition
 			widget.subRow = saved.subRow or 0
 			widget.widthRatio = saved.widthRatio
+			widget.fill = saved.fill or false
+			if widget.fill then
+				widget._preFillHeight = saved.height
+			end
+			widget.widthLocked = saved.widthLocked or false
+			widget.lockedWidth = saved.lockedWidth
 			widget.docked = saved.dock
 			mdw.hideResizeHandles(widget)
+			mdw.updateDockButtonVisibility(widget)
 			mdw.reorganizeDock(saved.dock)
 		else
 			-- Sidebar is hidden, remember the dock and hide the widget
@@ -600,6 +838,12 @@ function mdw.applyPendingLayout(widget)
 			widget.rowPosition = saved.rowPosition
 			widget.subRow = saved.subRow or 0
 			widget.widthRatio = saved.widthRatio
+			widget.fill = saved.fill or false
+			if widget.fill then
+				widget._preFillHeight = saved.height
+			end
+			widget.widthLocked = saved.widthLocked or false
+			widget.lockedWidth = saved.lockedWidth
 			widget.docked = nil
 			widget:hide()
 		end

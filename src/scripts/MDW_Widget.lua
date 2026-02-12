@@ -48,6 +48,8 @@ mdw.Widget.defaults = {
 	rowPosition = 0, -- Position within row for side-by-side
 	subRow = 0,      -- Sub-row within column for sub-column stacking
 	overflow = "wrap", -- "wrap", "ellipsis", or "hidden"
+	fill = false,    -- Whether widget fills remaining dock column height
+	widthLocked = false, -- Whether widget's column width is locked
 }
 
 function mdw.Widget:new(cons)
@@ -74,6 +76,9 @@ function mdw.Widget:new(cons)
 	self.height = cons.height or mdw.config.widgetHeight
 	self.onClose = cons.onClose
 	self.onClick = cons.onClick
+	self.fill = cons.fill or false
+	self.widthLocked = cons.widthLocked or false
+	self.lockedWidth = nil
 
 	-- Determine initial position (use config defaults if not specified)
 	local cfg = mdw.config
@@ -107,7 +112,14 @@ function mdw.Widget:new(cons)
 	self.resizeRight = widget.resizeRight
 	self.resizeTop = widget.resizeTop
 	self.resizeBottom = widget.resizeBottom
+	self.resizeTopLeft = widget.resizeTopLeft
+	self.resizeTopRight = widget.resizeTopRight
+	self.resizeBottomLeft = widget.resizeBottomLeft
+	self.resizeBottomRight = widget.resizeBottomRight
 	self.bottomResizeHandle = widget.bottomResizeHandle
+	self.fillButton = widget.fillButton
+	self.lockButton = widget.lockButton
+	self.closeButton = widget.closeButton
 
 	-- State properties (accessed by internal functions via mdw.widgets iteration)
 	self.docked = nil     -- "left", "right", or nil for floating
@@ -252,6 +264,22 @@ function mdw.Widget:isDocked()
 	return self.docked
 end
 
+function mdw.Widget:setFill(enabled)
+	mdw.setFillClass(self, enabled)
+end
+
+function mdw.Widget:isFill()
+	return self.fill == true
+end
+
+function mdw.Widget:setWidthLocked(enabled)
+	mdw.setWidthLockedClass(self, enabled)
+end
+
+function mdw.Widget:isWidthLocked()
+	return self.widthLocked == true
+end
+
 ---------------------------------------------------------------------------
 -- VISIBILITY METHODS
 -- Methods for showing and hiding widgets.
@@ -284,7 +312,7 @@ end
 
 function mdw.Widget:setTitle(title)
 	self.title = title
-	self.titleBar:decho("<" .. mdw.config.headerTextColor .. ">" .. title)
+	mdw.renderWidgetTitle(self)
 end
 
 function mdw.Widget:setTitleStyleSheet(css)
@@ -334,7 +362,8 @@ function mdw.Widget:getSize()
 end
 
 function mdw.Widget:raise()
-	mdw.raiseWidget(self)
+	mdw.raiseWidgetElements(self)
+	mdw.applyZOrder()
 end
 
 ---------------------------------------------------------------------------

@@ -64,6 +64,8 @@ mdw.TabbedWidget.defaults = {
 	allTab = nil,    -- Name of "all" tab (receives copies of messages)
 	activeTab = nil, -- Initially active tab name (defaults to first)
 	overflow = "wrap", -- "wrap", "ellipsis", or "hidden"
+	fill = false,    -- Whether widget fills remaining dock column height
+	widthLocked = false, -- Whether widget's column width is locked
 }
 
 --- Create a new TabbedWidget instance.
@@ -94,6 +96,9 @@ function mdw.TabbedWidget:new(cons)
 	self.allTab = cons.allTab
 	self.onClose = cons.onClose
 	self.onTabChange = cons.onTabChange
+	self.fill = cons.fill or false
+	self.widthLocked = cons.widthLocked or false
+	self.lockedWidth = nil
 
 	-- Tab state
 	self.tabObjects = {}  -- Array of tab objects: {name, button, console}
@@ -130,7 +135,14 @@ function mdw.TabbedWidget:new(cons)
 	self.resizeRight = internalWidget.resizeRight
 	self.resizeTop = internalWidget.resizeTop
 	self.resizeBottom = internalWidget.resizeBottom
+	self.resizeTopLeft = internalWidget.resizeTopLeft
+	self.resizeTopRight = internalWidget.resizeTopRight
+	self.resizeBottomLeft = internalWidget.resizeBottomLeft
+	self.resizeBottomRight = internalWidget.resizeBottomRight
 	self.bottomResizeHandle = internalWidget.bottomResizeHandle
+	self.fillButton = internalWidget.fillButton
+	self.lockButton = internalWidget.lockButton
+	self.closeButton = internalWidget.closeButton
 
 	-- State properties (accessed by internal functions via mdw.widgets iteration)
 	self.docked = nil     -- "left", "right", or nil for floating
@@ -254,7 +266,6 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 	}, widget.container))
 	widget.titleBar:setStyleSheet(mdw.styles.titleBar)
 	widget.titleBar:setFontSize(cfg.widgetHeaderFontSize)
-	widget.titleBar:decho("<" .. cfg.headerTextColor .. ">" .. title)
 	widget.titleBar:setCursor(mudlet.cursor.OpenHand)
 
 	-- Tab bar container
@@ -284,6 +295,7 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 			height = cfg.tabBarHeight,
 		}, widget.container))
 		tabButton:setCursor(mudlet.cursor.PointingHand)
+		tabButton:setToolTip("Drag to reorder")
 
 		-- Tab console (MiniConsole for scrollable text)
 		-- Offset by padding to create left and top padding
@@ -337,6 +349,12 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 	widget.bottomResizeHandle:setCursor(mudlet.cursor.ResizeVertical)
 	widget.bottomResizeHandle:hide() -- Hidden by default, shown when docked
 
+	-- Create title bar buttons (FILL, LOCK, Close)
+	mdw.createTitleBarButtons(widget)
+
+	-- Render title (after buttons so truncation accounts for button space)
+	mdw.renderWidgetTitle(widget)
+
 	-- Create resize borders
 	mdw.createResizeBorders(widget)
 
@@ -367,6 +385,9 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
 	-- Resize title bar
 	tabbedWidget.titleBar:move(0, 0)
 	tabbedWidget.titleBar:resize(cw, cfg.titleHeight)
+
+	mdw.repositionTitleBarButtons(tabbedWidget, cw)
+	mdw.renderWidgetTitle(tabbedWidget)
 
 	-- Resize tab bar
 	tabbedWidget.tabBar:move(0, cfg.titleHeight)
@@ -721,7 +742,6 @@ function mdw.TabbedWidget:selectTab(tabName)
 	-- Show new tab's console and update button style
 	self.activeTabIndex = tabObj.index
 	tabObj.console:show()
-	tabObj.console:raise()
 	mdw.applyTabActiveStyle(tabObj)
 
 	-- Call onTabChange callback if set
@@ -925,6 +945,22 @@ function mdw.TabbedWidget:isDocked()
 	return self.docked
 end
 
+function mdw.TabbedWidget:setFill(enabled)
+	mdw.setFillClass(self, enabled)
+end
+
+function mdw.TabbedWidget:isFill()
+	return self.fill == true
+end
+
+function mdw.TabbedWidget:setWidthLocked(enabled)
+	mdw.setWidthLockedClass(self, enabled)
+end
+
+function mdw.TabbedWidget:isWidthLocked()
+	return self.widthLocked == true
+end
+
 ---------------------------------------------------------------------------
 -- VISIBILITY METHODS
 -- Methods for showing and hiding widgets.
@@ -937,7 +973,6 @@ function mdw.TabbedWidget:show()
 		local activeTab = selfRef.tabObjects[selfRef.activeTabIndex]
 		if activeTab then
 			activeTab.console:show()
-			activeTab.console:raise()
 		end
 	end)
 end
@@ -965,7 +1000,7 @@ end
 
 function mdw.TabbedWidget:setTitle(title)
 	self.title = title
-	self.titleBar:decho("<" .. mdw.config.headerTextColor .. ">" .. title)
+	mdw.renderWidgetTitle(self)
 end
 
 function mdw.TabbedWidget:setTitleStyleSheet(css)
@@ -1013,7 +1048,8 @@ function mdw.TabbedWidget:getSize()
 end
 
 function mdw.TabbedWidget:raise()
-	mdw.raiseWidget(self)
+	mdw.raiseWidgetElements(self)
+	mdw.applyZOrder()
 end
 
 ---------------------------------------------------------------------------
