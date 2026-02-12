@@ -128,8 +128,10 @@ function mdw.createWidget(name, title, x, y)
 end
 
 --- Get the package resource path for a title bar icon.
+-- Uses SVG when setSvgTint is available (dev Mudlet), PNG otherwise.
 function mdw.getIconPath(iconName)
-	return getMudletHomeDir() .. "/" .. mdw.packageName .. "/" .. iconName .. ".svg"
+	local ext = Geyser.Label.setSvgTint and ".svg" or ".png"
+	return getMudletHomeDir() .. "/" .. mdw.packageName .. "/" .. iconName .. ext
 end
 
 function mdw.createTitleBarButtons(widget)
@@ -261,24 +263,32 @@ function mdw.toggleWidthLock(widget)
 end
 
 --- Update fill button icon based on state.
--- Uses PNG icons: down arrow (inactive) or up arrow (active).
 function mdw.updateFillButtonText(widget)
 	if not widget.fillButton then return end
 	local iconName = widget.fill and "fill-active" or "fill-inactive"
-	widget.fillButton:setBackgroundImage(mdw.getIconPath(iconName))
-	if widget.fillButton.setSvgTint then
+	local path = mdw.getIconPath(iconName)
+	if Geyser.Label.setSvgTint then
+		widget.fillButton:setBackgroundImage(path)
 		widget.fillButton:setSvgTint(mdw.config.titleButtonTint)
+	else
+		widget.fillButton:setStyleSheet(string.format(
+			[[QLabel { background-color: transparent; border: none; border-image: url(%s); }]],
+			path))
 	end
 end
 
 --- Update lock button icon based on state.
--- Uses SVG icons: closed lock (active) or open lock (inactive).
 function mdw.updateLockButtonText(widget)
 	if not widget.lockButton then return end
 	local iconName = widget.widthLocked and "lock-active" or "lock-inactive"
-	widget.lockButton:setBackgroundImage(mdw.getIconPath(iconName))
-	if widget.lockButton.setSvgTint then
+	local path = mdw.getIconPath(iconName)
+	if Geyser.Label.setSvgTint then
+		widget.lockButton:setBackgroundImage(path)
 		widget.lockButton:setSvgTint(mdw.config.titleButtonTint)
+	else
+		widget.lockButton:setStyleSheet(string.format(
+			[[QLabel { background-color: transparent; border: none; border-image: url(%s); }]],
+			path))
 	end
 end
 
