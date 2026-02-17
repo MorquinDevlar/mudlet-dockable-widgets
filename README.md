@@ -13,7 +13,8 @@ MDW gives your [Mudlet](https://www.mudlet.org/) profile a custom sidebar UI. Cr
 - **Tabbed Widgets**: Widgets with multiple switchable tabs and an optional "all" channel
 - **Embedded Mapper**: Embed the Mudlet mapper in any widget
 - **Prompt Bar**: Display your MUD prompt with colors at the bottom of the screen
-- **Header Menus**: Toggle sidebar and widget visibility from dropdown menus
+- **Themes**: Choose from multiple color themes (gold, fantasy, emerald, sapphire, ruby, slate, violet, copper) with live preview
+- **Header Menus**: Dropdown menus for sidebars, widgets, font size, and themes
 - **Layout Persistence**: Widget positions, sizes, dock state, and visibility saved automatically
 - **Overflow Modes**: Wrap, ellipsis (truncate with "..."), or hidden text clipping
 - **Resizable**: Drag dock edges, widget borders, and between-widget splitters to resize
@@ -22,7 +23,7 @@ MDW gives your [Mudlet](https://www.mudlet.org/) profile a custom sidebar UI. Cr
 
 ```
 +----------------+------------------------+------------------+
-|           Header Bar (Layout | Widgets menus)              |
+|   Header Bar (Sidebars | Widgets | Font Size | Theme)      |
 +----------------+------------------------+------------------+
 |                |                        |                  |
 |   Left Dock    |    Main Display        |   Right Dock     |
@@ -40,7 +41,7 @@ MDW gives your [Mudlet](https://www.mudlet.org/) profile a custom sidebar UI. Cr
 +----------------+------------------------+------------------+
 ```
 
-- **Header bar** spans the full window width with Layout and Widgets dropdown menus
+- **Header bar** spans the full window width with Sidebars, Widgets, Font Size, and Theme dropdown menus
 - **Left and right docks** hold widgets stacked vertically or side-by-side; drag dock edges to resize
 - **Main display** is the standard Mudlet output area
 - **Prompt bar** sits between the docks at the bottom, showing your MUD prompt with colors
@@ -167,7 +168,7 @@ For detailed API reference and guides, see the **[wiki](https://github.com/Morqu
 | **[Prompt Bar](https://github.com/MorquinDevlar/mudlet-dockable-widgets/wiki/Prompt-Bar)** | Prompt bar API, custom triggers, and GMCP-based prompts |
 | **[GMCP Integration](https://github.com/MorquinDevlar/mudlet-dockable-widgets/wiki/GMCP-Integration)** | Communication channels, character vitals, and integration tips |
 | **[Configuration](https://github.com/MorquinDevlar/mudlet-dockable-widgets/wiki/Configuration)** | All configuration options and customization |
-| **[Header Menus](https://github.com/MorquinDevlar/mudlet-dockable-widgets/wiki/Header-Menus)** | Layout and Widgets dropdown menus, programmatic toggle |
+| **[Header Menus](https://github.com/MorquinDevlar/mudlet-dockable-widgets/wiki/Header-Menus)** | Sidebars, Widgets, Font Size, and Theme dropdown menus |
 | **[Layout Persistence](https://github.com/MorquinDevlar/mudlet-dockable-widgets/wiki/Layout-Persistence)** | What's saved, when it saves, and the Layout API |
 | **[Debugging](https://github.com/MorquinDevlar/mudlet-dockable-widgets/wiki/Debugging)** | Debug mode and diagnostic tools |
 
