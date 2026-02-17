@@ -26,6 +26,14 @@ local function capitalizeThemeName(name)
 	return name:sub(1, 1):upper() .. name:sub(2)
 end
 
+--- Check if all menus are closed.
+-- Why: Avoids duplicating the condition across every hide function,
+-- and ensures adding a new menu only requires updating one place.
+local function noMenusOpen()
+	return not mdw.menus.sidebarsOpen and not mdw.menus.widgetsOpen
+		and not mdw.menus.layoutOpen and not mdw.menus.themeOpen
+end
+
 ---------------------------------------------------------------------------
 -- WIDGET CREATION
 -- Factory functions for creating widget instances.
@@ -3055,14 +3063,6 @@ end
 -- MENU HELPERS
 -- Shared utilities for dropdown menu management.
 ---------------------------------------------------------------------------
-
---- Check if all menus are closed.
--- Why: Avoids duplicating the condition across every hide function,
--- and ensures adding a new menu only requires updating one place.
-local function noMenusOpen()
-	return not mdw.menus.sidebarsOpen and not mdw.menus.widgetsOpen
-		and not mdw.menus.layoutOpen and not mdw.menus.themeOpen
-end
 
 --- Show a dropdown menu with its items.
 -- Why: Consolidates the repetitive pattern of showing overlay, styling button,
