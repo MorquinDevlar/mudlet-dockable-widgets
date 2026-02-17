@@ -57,12 +57,18 @@ mdw.config = {
 	tabPadding = 5, -- Horizontal padding inside tab buttons
 
 	-- Layout: Menus
-	menuItemHeight = 28, -- Height of dropdown menu items
-	menuPadding = 8,     -- Vertical padding inside dropdown menus
-	menuPaddingLeft = 10, -- Left padding for menu items (px)
-	headerButtonWidth = 80, -- Width of header menu buttons
-	menuWidth = 150,     -- Width of dropdown menus
-	menuOverlap = 4,     -- Overlap between menu and header button border
+	menuItemHeight = 28,     -- Height of dropdown menu items
+	menuPadding = 8,         -- Vertical padding inside dropdown menus
+	menuPaddingLeft = 10,    -- Left padding for menu items (px)
+	headerButtonPadding = 12,  -- Right-side padding for header menu buttons
+	menuWidth = 150,         -- Width of dropdown menus
+	menuOverlap = 4,         -- Overlap between menu and header button border
+	layoutMenuWidth = 250,   -- Width of the Font Size dropdown menu
+	themeMenuWidth = 120,    -- Width of the Theme dropdown menu
+	layoutMenuLabelWidth = 128, -- Width of row labels in Layout menu
+	layoutMenuGap = 10,      -- Gap between label and controls in Layout menu
+	layoutMenuBtnWidth = 30, -- Width of +/- buttons in Layout menu
+	layoutMenuValueWidth = 36, -- Width of value display in Layout menu
 
 	-- Layout: Margins
 	widgetMargin = 2,     -- Margin around widgets in docks (px)
@@ -82,57 +88,183 @@ mdw.config = {
 	verticalInsertZone = 0.1, -- Top/bottom 10% of row triggers vertical insert
 	sideBySideZone = 0.2,  -- Top/bottom 20% disallows side-by-side placement
 
-	-- Colors: Background (CSS format for Labels, RGB tables for MiniConsoles)
-	sidebarBackground = "rgb(26,24,21)",
-	widgetBackground = "rgb(30,30,30)",
+	-- Canonical color definitions (RGB tuples, theme-aware)
+	-- Derived CSS/decho values are populated by buildStyles()
+	colors = {
+		-- Backgrounds
+		sidebar           = { 26, 24, 21 },
+		widgetBackground  = { 30, 30, 30 },
+		widgetForeground  = { 200, 200, 200 },
+		headerBackground  = { 38, 38, 38 },
+
+		-- Menu/UI chrome
+		menuBackground    = { 51, 51, 51 },
+		menuBorder        = { 85, 85, 85 },
+
+		-- Layout menu +/- buttons
+		controlBackground = { 40, 38, 35 },
+		controlBorder     = { 70, 65, 58 },
+		controlHover      = { 60, 56, 50 },
+
+		-- Splitters and resize handles
+		splitter          = { 57, 53, 49 },
+		splitterHover     = { 184, 134, 11 },
+
+		-- Accent
+		accent            = { 184, 134, 11 },
+		accentDim         = { 218, 165, 32 },
+
+		-- Tabs
+		tabActive         = { 58, 52, 38 },
+		tabInactive       = { 38, 38, 38 },
+
+		-- Text
+		headerText        = { 184, 134, 11 },
+		menuText          = { 250, 235, 215 },
+		menuHighlight     = { 189, 183, 107 },
+		tabActiveText     = { 189, 183, 107 },
+		tabInactiveText   = { 184, 134, 11 },
+
+		-- Dock highlight (0.4 alpha applied in style generation)
+		dockHighlight     = { 184, 134, 11 },
+	},
+
+	-- Active theme name (overrides specific colors from mdw.themes)
+	theme = "gold",
+
+	-- Legacy color keys populated by buildStyles() for backward compatibility
 	widgetBackgroundRGB = { 30, 30, 30 },
 	widgetForegroundRGB = { 200, 200, 200 },
-	headerBackground = "rgb(38,38,38)",
-	menuBackground = "rgb(50,48,45)",
-
-	-- Colors: Accents
-	splitterColor = "rgb(57,53,49)",
-	splitterHoverColor = "rgb(106,91,58)",
-	dropIndicatorColor = "rgb(106,91,58)",
-	resizeBorderColor = "rgb(57,53,49)",
-	checkboxColor = "rgb(140,120,80)",
-
-	-- Colors: Text (decho format: R,G,B)
-	headerTextColor = "140,120,80",
-	menuTextColor = "230,221,202",    -- Normal menu item text color
-	menuHighlightColor = "196,169,106", -- Highlighted menu item text color
-	tabActiveTextColor = "196,169,106", -- Active tab text color
-	tabInactiveTextColor = "140,120,80", -- Inactive tab text color
-
-	-- Colors: Tab backgrounds
-	tabActiveBackground = "rgb(50,48,45)", -- Active tab background
-	tabInactiveBackground = "rgb(38,38,38)", -- Inactive tab background
 
 	-- Typography
 	fontFamily = "JetBrains Mono NL",
-	fontSize = 11,
-	headerMenuFontSize = 12, -- Font size for header bar buttons and dropdown menus
-	tabFontSize = 11,       -- Font size for tab buttons in tabbed widgets
+	contentFontSize = 11,      -- Base font size for widget content
+	mainFontSize = 11,         -- Main Mudlet console font size
+	promptFontAdjust = 0,      -- Prompt bar offset from contentFontSize
+	headerMenuFontSize = 12,   -- Font size for header bar buttons and dropdown menus
+	tabFontSize = 11,          -- Font size for tab buttons in tabbed widgets
 	widgetHeaderFontSize = 12, -- Font size for widget title bars
 
 	-- Title bar buttons (fill, lock, close)
-	titleButtonSize = 12, -- Width/height of square icon buttons (fill, lock)
-	titleButtonPadding = 5, -- Padding from left edge for fill/lock buttons
-	titleButtonGap = 4,  -- Gap between fill and lock buttons
-	closeButtonPadding = 4, -- Padding from right edge for close button
-	closeButtonColor = "140,120,80",
-	titleButtonTint = "#8C7850", -- SVG tint color for fill/lock/close icons (requires setSvgTint)
+	titleButtonSize = 12,     -- Width/height of square icon buttons (fill, lock)
+	titleButtonPadding = 5,   -- Padding from left edge for fill/lock buttons
+	titleButtonGap = 4,       -- Gap between fill and lock buttons
+	closeButtonPadding = 4,   -- Padding from right edge for close button
+	titleButtonTint = "#8C7850", -- Derived from accentDim by buildStyles()
 
 	-- Buffering
 	maxEchoBuffer = 50, -- Maximum echo buffer lines for widget reflow
 
-	-- Layout Menu Items
-	-- Define the items that appear in the Layout dropdown menu.
+	-- Sidebars Menu Items
+	-- Define the items that appear in the Sidebars dropdown menu.
 	-- Each item has: name (visibility key), label (display text)
-	layoutMenuItems = {
+	sidebarsMenuItems = {
 		{ name = "leftSidebar",  label = "Left Sidebar" },
 		{ name = "rightSidebar", label = "Right Sidebar" },
 		{ name = "promptBar",    label = "Prompt Bar" },
+	},
+}
+
+---------------------------------------------------------------------------
+-- THEME DEFINITIONS
+-- Each theme overrides specific colors from mdw.config.colors.
+-- The "gold" theme is the default and needs no overrides.
+---------------------------------------------------------------------------
+
+mdw.themes = {
+	gold = {}, -- default, uses mdw.config.colors as-is
+	fantasy = {
+		splitterHover   = { 86, 130, 3 },
+		accent          = { 86, 130, 3 },
+		accentDim       = { 138, 154, 91 },
+		headerText      = { 138, 154, 91 },
+		menuHighlight   = { 170, 185, 130 },
+		tabActiveText   = { 138, 154, 91 },
+		tabInactiveText = { 129, 97, 62 },
+		tabActive       = { 38, 48, 30 },
+		controlBorder   = { 74, 93, 35 },
+		controlHover    = { 60, 75, 32 },
+		dockHighlight   = { 86, 130, 3 },
+	},
+	emerald = {
+		splitterHover   = { 45, 135, 75 },
+		accent          = { 45, 135, 75 },
+		accentDim       = { 75, 170, 105 },
+		headerText      = { 75, 170, 105 },
+		menuHighlight   = { 115, 200, 145 },
+		tabActiveText   = { 115, 200, 145 },
+		tabInactiveText = { 75, 170, 105 },
+		tabActive       = { 28, 52, 36 },
+		controlBorder   = { 48, 68, 54 },
+		controlHover    = { 40, 58, 46 },
+		dockHighlight   = { 45, 135, 75 },
+	},
+	sapphire = {
+		splitterHover   = { 60, 120, 190 },
+		accent          = { 60, 120, 190 },
+		accentDim       = { 90, 150, 215 },
+		headerText      = { 90, 150, 215 },
+		menuHighlight   = { 135, 185, 235 },
+		tabActiveText   = { 135, 185, 235 },
+		tabInactiveText = { 90, 150, 215 },
+		tabActive       = { 30, 40, 58 },
+		controlBorder   = { 48, 58, 75 },
+		controlHover    = { 40, 50, 65 },
+		dockHighlight   = { 60, 120, 190 },
+	},
+	ruby = {
+		splitterHover   = { 170, 55, 55 },
+		accent          = { 170, 55, 55 },
+		accentDim       = { 200, 90, 90 },
+		headerText      = { 200, 90, 90 },
+		menuHighlight   = { 225, 135, 135 },
+		tabActiveText   = { 225, 135, 135 },
+		tabInactiveText = { 200, 90, 90 },
+		tabActive       = { 58, 30, 32 },
+		controlBorder   = { 75, 48, 48 },
+		controlHover    = { 65, 40, 40 },
+		dockHighlight   = { 170, 55, 55 },
+	},
+	slate = {
+		sidebar         = { 24, 24, 24 },
+		splitter        = { 55, 55, 55 },
+		splitterHover   = { 140, 140, 140 },
+		accent          = { 140, 140, 140 },
+		accentDim       = { 170, 170, 170 },
+		headerText      = { 170, 170, 170 },
+		menuHighlight   = { 210, 210, 210 },
+		tabActiveText   = { 210, 210, 210 },
+		tabInactiveText = { 170, 170, 170 },
+		tabActive       = { 55, 55, 55 },
+		controlBorder   = { 70, 70, 70 },
+		controlHover    = { 60, 60, 60 },
+		dockHighlight   = { 140, 140, 140 },
+	},
+	violet = {
+		splitterHover   = { 120, 75, 170 },
+		accent          = { 120, 75, 170 },
+		accentDim       = { 155, 110, 200 },
+		headerText      = { 155, 110, 200 },
+		menuHighlight   = { 190, 150, 225 },
+		tabActiveText   = { 190, 150, 225 },
+		tabInactiveText = { 155, 110, 200 },
+		tabActive       = { 44, 32, 58 },
+		controlBorder   = { 60, 50, 75 },
+		controlHover    = { 50, 42, 65 },
+		dockHighlight   = { 120, 75, 170 },
+	},
+	copper = {
+		splitterHover   = { 190, 110, 45 },
+		accent          = { 190, 110, 45 },
+		accentDim       = { 215, 145, 75 },
+		headerText      = { 215, 145, 75 },
+		menuHighlight   = { 240, 180, 115 },
+		tabActiveText   = { 240, 180, 115 },
+		tabInactiveText = { 215, 145, 75 },
+		tabActive       = { 58, 44, 30 },
+		controlBorder   = { 72, 56, 44 },
+		controlHover    = { 62, 48, 36 },
+		dockHighlight   = { 190, 110, 45 },
 	},
 }
 
@@ -254,8 +386,10 @@ mdw.visibility = {
 
 -- Menu state
 mdw.menus = {
-	layoutOpen = false,
+	sidebarsOpen = false,
 	widgetsOpen = false,
+	layoutOpen = false,
+	themeOpen = false,
 }
 
 -- Update flag to prevent teardown during package update

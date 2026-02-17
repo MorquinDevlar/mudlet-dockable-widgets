@@ -136,9 +136,10 @@ function mdw.createPromptBar(winW)
 		height = promptBarContentHeight - topPadding,
 	}, mdw.promptBarContainer))
 	mdw.promptBar:setColor(bgRGB[1], bgRGB[2], bgRGB[3], 255)
+	local promptSize = mdw.getPromptEffectiveFontSize()
 	mdw.promptBar:setFont(cfg.fontFamily)
-	mdw.promptBar:setFontSize(cfg.fontSize)
-	mdw.promptBar:setWrap(mdw.calculateWrap(consoleWidth))
+	mdw.promptBar:setFontSize(promptSize)
+	mdw.promptBar:setWrap(mdw.calculateWrap(consoleWidth, promptSize))
 	setBgColor("MDW_PromptBar", bgRGB[1], bgRGB[2], bgRGB[3])
 	setFgColor("MDW_PromptBar", fgRGB[1], fgRGB[2], fgRGB[3])
 end
@@ -462,6 +463,20 @@ function mdw.applyPromptBarHeight(newHeight)
 	end
 end
 
+--- Ensure prompt bar height is tall enough for its effective font size.
+-- Called after changes to contentFontSize or promptFontAdjust.
+function mdw.ensurePromptBarHeight()
+	local cfg = mdw.config
+	local promptSize = mdw.getPromptEffectiveFontSize()
+	local _, charHeight = calcFontSize(promptSize, cfg.fontFamily)
+	if charHeight and charHeight > 0 then
+		local minHeight = charHeight + cfg.promptBarTopPadding + cfg.separatorHeight
+		if cfg.promptBarHeight < minHeight then
+			mdw.applyPromptBarHeight(minHeight)
+		end
+	end
+end
+
 ---------------------------------------------------------------------------
 -- LAYOUT PERSISTENCE
 -- Save and restore widget layouts across profile reloads.
@@ -479,6 +494,11 @@ function mdw.saveLayout()
 			rightVisible = mdw.visibility.rightSidebar,
 			promptBarVisible = mdw.visibility.promptBar,
 			promptBarHeight = mdw.config.promptBarHeight,
+			contentFontSize = mdw.config.contentFontSize,
+			mainFontSize = mdw.config.mainFontSize,
+			promptFontAdjust = mdw.config.promptFontAdjust,
+			headerFontSize = mdw.config.widgetHeaderFontSize,
+			theme = mdw.config.theme,
 		},
 		widgets = {},
 	}
@@ -496,6 +516,7 @@ function mdw.saveLayout()
 			fill = widget.fill or false,
 			widthLocked = widget.widthLocked or false,
 			lockedWidth = widget.lockedWidth,
+			fontAdjust = widget.fontAdjust or 0,
 			x = widget.container:get_x(),
 			y = widget.container:get_y(),
 			width = widget.container:get_width(),
@@ -547,6 +568,29 @@ function mdw.loadLayout()
 		if layout.docks.promptBarHeight then
 			mdw.config.promptBarHeight = layout.docks.promptBarHeight
 		end
+		-- Font size migration: old format had fontSize + promptFontSize,
+		-- new format has contentFontSize + promptFontAdjust + mainFontSize
+		if layout.docks.contentFontSize then
+			-- New format
+			mdw.config.contentFontSize = layout.docks.contentFontSize
+			if layout.docks.promptFontAdjust then
+				mdw.config.promptFontAdjust = layout.docks.promptFontAdjust
+			end
+			if layout.docks.mainFontSize then
+				mdw.config.mainFontSize = layout.docks.mainFontSize
+			end
+		elseif layout.docks.fontSize then
+			-- Old format: migrate
+			mdw.config.contentFontSize = layout.docks.fontSize
+			local oldPromptSize = layout.docks.promptFontSize or layout.docks.fontSize
+			mdw.config.promptFontAdjust = oldPromptSize - layout.docks.fontSize
+		end
+		if layout.docks.headerFontSize then
+			mdw.config.widgetHeaderFontSize = layout.docks.headerFontSize
+		end
+		if layout.docks.theme then
+			mdw.config.theme = layout.docks.theme
+		end
 	end
 
 	-- Store widget layouts for application during widget creation
@@ -589,6 +633,11 @@ function mdw.showLayout()
 		mdw.echo("  Right visible: " .. tostring(layout.docks.rightVisible))
 		mdw.echo("  Prompt bar visible: " .. tostring(layout.docks.promptBarVisible))
 		mdw.echo("  Prompt bar height: " .. tostring(layout.docks.promptBarHeight or "default"))
+		mdw.echo("  Content font size: " .. tostring(layout.docks.contentFontSize or layout.docks.fontSize or "default"))
+		mdw.echo("  Main font size: " .. tostring(layout.docks.mainFontSize or "default"))
+		mdw.echo("  Prompt font adjust: " .. tostring(layout.docks.promptFontAdjust or "default"))
+		mdw.echo("  Header font size: " .. tostring(layout.docks.headerFontSize or "default"))
+		mdw.echo("  Theme: " .. tostring(layout.docks.theme or "gold"))
 	end
 
 	if layout.widgets then
@@ -629,8 +678,14 @@ end
 function mdw.setup()
 	mdw.echo("Setting up UI...")
 
-	-- Load saved layout first (sets dock widths and pendingLayouts)
+	-- Load saved layout first (sets dock widths, theme, and pendingLayouts)
 	mdw.loadLayout()
+
+	-- Rebuild styles with loaded theme before creating any UI elements
+	mdw.buildStyles()
+
+	-- Apply main console font size
+	setFontSize(mdw.config.mainFontSize)
 
 	mdw.createDocks()
 

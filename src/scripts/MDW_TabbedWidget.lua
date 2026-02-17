@@ -66,6 +66,7 @@ mdw.TabbedWidget.defaults = {
 	overflow = "wrap", -- "wrap", "ellipsis", or "hidden"
 	fill = false,    -- Whether widget fills remaining dock column height
 	widthLocked = false, -- Whether widget's column width is locked
+	fontAdjust = 0,  -- Offset from contentFontSize for this widget
 }
 
 --- Create a new TabbedWidget instance.
@@ -99,6 +100,7 @@ function mdw.TabbedWidget:new(cons)
 	self.fill = cons.fill or false
 	self.widthLocked = cons.widthLocked or false
 	self.lockedWidth = nil
+	self.fontAdjust = cons.fontAdjust or 0
 
 	-- Tab state
 	self.tabObjects = {}  -- Array of tab objects: {name, button, console}
@@ -310,7 +312,7 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 		local fgRGB = cfg.widgetForegroundRGB
 		tabConsole:setColor(bgRGB[1], bgRGB[2], bgRGB[3], 255)
 		tabConsole:setFont(cfg.fontFamily)
-		tabConsole:setFontSize(cfg.fontSize)
+		tabConsole:setFontSize(cfg.contentFontSize)
 		tabConsole:setWrap(mdw.calculateWrap(consoleWidth))
 		setBgColor(consoleName, bgRGB[1], bgRGB[2], bgRGB[3])
 		setFgColor(consoleName, fgRGB[1], fgRGB[2], fgRGB[3])
@@ -413,7 +415,8 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
 		-- Resize tab console
 		tabObj.console:move(cfg.contentPaddingLeft, cfg.titleHeight + cfg.tabBarHeight + cfg.contentPaddingTop)
 		tabObj.console:resize(consoleWidth, consoleHeight)
-		local wrapWidth = mdw.calculateWrap(consoleWidth)
+		local effectiveFontSize = mdw.getEffectiveFontSize(tabbedWidget.fontAdjust)
+		local wrapWidth = mdw.calculateWrap(consoleWidth, effectiveFontSize)
 		local overflow = tabbedWidget.overflow or "wrap"
 		if overflow == "wrap" then
 			tabObj.console:setWrap(wrapWidth)
@@ -423,7 +426,7 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
 	end
 
 	-- Update wrap width for ellipsis truncation
-	tabbedWidget._wrapWidth = mdw.calculateWrap(consoleWidth)
+	tabbedWidget._wrapWidth = mdw.calculateWrap(consoleWidth, mdw.getEffectiveFontSize(tabbedWidget.fontAdjust))
 
 	-- Reflow text at new wrap width (skip for "hidden" mode)
 	local overflow = tabbedWidget.overflow or "wrap"
@@ -742,6 +745,7 @@ function mdw.TabbedWidget:selectTab(tabName)
 	-- Show new tab's console and update button style
 	self.activeTabIndex = tabObj.index
 	tabObj.console:show()
+	tabObj.console:raise()
 	mdw.applyTabActiveStyle(tabObj)
 
 	-- Call onTabChange callback if set
@@ -1024,6 +1028,17 @@ function mdw.TabbedWidget:setFont(font, size)
 			tabObj.console:setFontSize(size)
 		end
 	end
+end
+
+function mdw.TabbedWidget:setFontAdjust(adjust)
+	self.fontAdjust = adjust or 0
+	local effectiveSize = mdw.getEffectiveFontSize(self.fontAdjust)
+	for _, tabObj in ipairs(self.tabObjects) do
+		tabObj.console:setFontSize(effectiveSize)
+		local consoleWidth = tabObj.console:get_width()
+		tabObj.console:setWrap(mdw.calculateWrap(consoleWidth, effectiveSize))
+	end
+	mdw.saveLayout()
 end
 
 ---------------------------------------------------------------------------

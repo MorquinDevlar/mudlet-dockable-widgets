@@ -10,6 +10,23 @@
 ]]
 
 ---------------------------------------------------------------------------
+-- LOCAL HELPERS
+---------------------------------------------------------------------------
+
+--- Check if a click falls inside a label's bounds.
+local function clickInsideLabel(label, x, y)
+	if not label then return false end
+	local lx, ly = label:get_x(), label:get_y()
+	return x >= lx and x <= lx + label:get_width()
+		and y >= ly and y <= ly + label:get_height()
+end
+
+--- Capitalize first letter of a theme name for display.
+local function capitalizeThemeName(name)
+	return name:sub(1, 1):upper() .. name:sub(2)
+end
+
+---------------------------------------------------------------------------
 -- WIDGET CREATION
 -- Factory functions for creating widget instances.
 ---------------------------------------------------------------------------
@@ -87,7 +104,7 @@ function mdw.createWidget(name, title, x, y)
 	local fgRGB = cfg.widgetForegroundRGB
 	widget.content:setColor(bgRGB[1], bgRGB[2], bgRGB[3], 255)
 	widget.content:setFont(cfg.fontFamily)
-	widget.content:setFontSize(cfg.fontSize)
+	widget.content:setFontSize(cfg.contentFontSize)
 	widget.content:setWrap(mdw.calculateWrap(contentWidth))
 	-- Set default text colors so echo() matches the background
 	setBgColor(contentName, bgRGB[1], bgRGB[2], bgRGB[3])
@@ -154,10 +171,10 @@ function mdw.createTitleBarButtons(widget)
 	widget.fillButton:setCursor(mudlet.cursor.PointingHand)
 	widget.fillButton:setToolTip("Auto fill down")
 
-	-- Lock toggle (second from left, with gap)
+	-- Lock toggle (positioned by renderWidgetTitle, next to title text)
 	widget.lockButton = mdw.trackElement(Geyser.Label:new({
 		name = baseName .. "_LockBtn",
-		x = pad + btnS + gap, y = btnY, width = btnS, height = btnS,
+		x = 0, y = btnY, width = btnS, height = btnS,
 	}, widget.container))
 	widget.lockButton:setCursor(mudlet.cursor.PointingHand)
 	widget.lockButton:setToolTip("Locks widget width")
@@ -167,14 +184,12 @@ function mdw.createTitleBarButtons(widget)
 		name = baseName .. "_CloseBtn",
 		x = cw - btnS - closePad, y = btnY, width = btnS, height = btnS,
 	}, widget.container))
-	widget.closeButton:setStyleSheet(mdw.styles.titleButtonClose)
-	widget.closeButton:setFontSize(cfg.widgetHeaderFontSize)
 	widget.closeButton:setCursor(mudlet.cursor.PointingHand)
-	widget.closeButton:decho("<" .. cfg.closeButtonColor .. ">X")
 
 	mdw.setupTitleBarButtonCallbacks(widget)
 	mdw.updateFillButtonText(widget)
 	mdw.updateLockButtonText(widget)
+	mdw.updateCloseButtonIcon(widget)
 end
 
 --- Reposition title bar buttons after a container resize.
@@ -189,10 +204,7 @@ function mdw.repositionTitleBarButtons(widget, containerWidth)
 		widget.fillButton:move(pad, btnY)
 		widget.fillButton:resize(btnS, btnS)
 	end
-	if widget.lockButton then
-		widget.lockButton:move(pad + btnS + gap, btnY)
-		widget.lockButton:resize(btnS, btnS)
-	end
+	-- Lock button is repositioned by renderWidgetTitle (next to title text)
 	if widget.closeButton then
 		widget.closeButton:move(containerWidth - btnS - closePad, btnY)
 		widget.closeButton:resize(btnS, btnS)
@@ -287,6 +299,20 @@ function mdw.updateLockButtonText(widget)
 		widget.lockButton:setSvgTint(mdw.config.titleButtonTint)
 	else
 		widget.lockButton:setStyleSheet(string.format(
+			[[QLabel { background-color: transparent; border: none; border-image: url(%s); }]],
+			path))
+	end
+end
+
+--- Update close button icon.
+function mdw.updateCloseButtonIcon(widget)
+	if not widget.closeButton then return end
+	local path = mdw.getIconPath("close")
+	if Geyser.Label.setSvgTint then
+		widget.closeButton:setBackgroundImage(path)
+		widget.closeButton:setSvgTint(mdw.config.titleButtonTint)
+	else
+		widget.closeButton:setStyleSheet(string.format(
 			[[QLabel { background-color: transparent; border: none; border-image: url(%s); }]],
 			path))
 	end
@@ -417,7 +443,8 @@ function mdw.resizeWidgetContent(widget, targetWidth, targetHeight)
 
 	widget.content:move(cfg.contentPaddingLeft, cfg.titleHeight + cfg.contentPaddingTop)
 	widget.content:resize(contentWidth, contentHeight)
-	local wrapWidth = mdw.calculateWrap(contentWidth)
+	local effectiveFontSize = mdw.getEffectiveFontSize(widget.fontAdjust)
+	local wrapWidth = mdw.calculateWrap(contentWidth, effectiveFontSize)
 	local overflow = widget.overflow or "wrap"
 	if overflow == "wrap" then
 		widget.content:setWrap(wrapWidth)
@@ -2309,45 +2336,51 @@ end
 --- Create header menu buttons.
 function mdw.createHeaderMenus()
 	local cfg = mdw.config
+	local height = cfg.headerHeight - cfg.separatorHeight
+	local charWidth = math.ceil(cfg.headerMenuFontSize * 0.65)
 
-	-- Layout menu button
-	mdw.layoutButton = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_LayoutButton",
-		x = cfg.menuPaddingLeft,
-		y = 0,
-		width = cfg.headerButtonWidth,
-		height = cfg.headerHeight - cfg.separatorHeight,
-	}, mdw.headerPane))
-	mdw.layoutButton:setStyleSheet(mdw.styles.headerButton)
-	mdw.layoutButton:setFontSize(cfg.headerMenuFontSize)
-	mdw.layoutButton:decho("<" .. cfg.headerTextColor .. ">Layout")
-	mdw.layoutButton:setCursor(mudlet.cursor.PointingHand)
-	setLabelClickCallback("MDW_LayoutButton", function()
-		mdw.toggleLayoutMenu()
-	end)
+	local buttonDefs = {
+		{var = "sidebarsButton", name = "MDW_SidebarsButton", text = "Sidebars",  toggle = "toggleSidebarsMenu"},
+		{var = "widgetsButton",  name = "MDW_WidgetsButton",  text = "Widgets",   toggle = "toggleWidgetsMenu"},
+		{var = "layoutButton",   name = "MDW_LayoutButton",   text = "Font Size", toggle = "toggleLayoutMenu"},
+		{var = "themeButton",    name = "MDW_ThemeButton",     text = "Theme",     toggle = "toggleThemeMenu"},
+	}
 
-	-- Widgets menu button
-	mdw.widgetsButton = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_WidgetsButton",
-		x = cfg.menuPaddingLeft + cfg.headerButtonWidth,
-		y = 0,
-		width = cfg.headerButtonWidth,
-		height = cfg.headerHeight - cfg.separatorHeight,
-	}, mdw.headerPane))
-	mdw.widgetsButton:setStyleSheet(mdw.styles.headerButton)
-	mdw.widgetsButton:setFontSize(cfg.headerMenuFontSize)
-	mdw.widgetsButton:decho("<" .. cfg.headerTextColor .. ">Widgets")
-	mdw.widgetsButton:setCursor(mudlet.cursor.PointingHand)
-	setLabelClickCallback("MDW_WidgetsButton", function()
-		mdw.toggleWidgetsMenu()
-	end)
+	local x = cfg.menuPaddingLeft
+	mdw.headerButtonX = {}
 
-	mdw.createLayoutDropdown()
+	for _, def in ipairs(buttonDefs) do
+		-- menuPaddingLeft matches the CSS padding-left; headerButtonPadding adds right-side space
+		local btnWidth = cfg.menuPaddingLeft + #def.text * charWidth + cfg.headerButtonPadding
+		mdw.headerButtonX[def.var] = x
+
+		local btn = mdw.trackElement(Geyser.Label:new({
+			name = def.name,
+			x = x, y = 0,
+			width = btnWidth, height = height,
+		}, mdw.headerPane))
+		btn:setStyleSheet(mdw.styles.headerButton)
+		btn:setFontSize(cfg.headerMenuFontSize)
+		btn:decho("<" .. cfg.headerTextColor .. ">" .. def.text)
+		btn:setCursor(mudlet.cursor.PointingHand)
+
+		local toggleFn = def.toggle
+		setLabelClickCallback(def.name, function()
+			mdw[toggleFn]()
+		end)
+
+		mdw[def.var] = btn
+		x = x + btnWidth
+	end
+
+	mdw.createSidebarsDropdown()
 	mdw.createWidgetsDropdown()
+	mdw.createLayoutDropdown()
+	mdw.createThemeDropdown()
 end
 
---- Create the Layout dropdown menu.
-function mdw.createLayoutDropdown()
+--- Create the Sidebars dropdown menu.
+function mdw.createSidebarsDropdown()
 	local cfg = mdw.config
 	local menuWidth = cfg.menuWidth
 	local menuX = cfg.menuPaddingLeft
@@ -2355,7 +2388,7 @@ function mdw.createLayoutDropdown()
 
 	-- Build items from configuration with current visibility state
 	local items = {}
-	for _, itemDef in ipairs(cfg.layoutMenuItems) do
+	for _, itemDef in ipairs(cfg.sidebarsMenuItems) do
 		items[#items + 1] = {
 			name = itemDef.name,
 			label = itemDef.label,
@@ -2364,23 +2397,23 @@ function mdw.createLayoutDropdown()
 	end
 	local menuHeight = #items * cfg.menuItemHeight + cfg.menuPadding * 2
 
-	mdw.layoutMenuBg = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_LayoutMenuBg",
+	mdw.sidebarsMenuBg = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_SidebarsMenuBg",
 		x = menuX,
 		y = menuY,
 		width = menuWidth,
 		height = menuHeight,
 	}))
-	mdw.layoutMenuBg:setStyleSheet(mdw.styles.menuBackground)
-	mdw.layoutMenuBg:hide()
+	mdw.sidebarsMenuBg:setStyleSheet(mdw.styles.menuBackground)
+	mdw.sidebarsMenuBg:hide()
 
-	mdw.layoutMenuItems = {}
-	mdw.layoutMenuLabels = {}
+	mdw.sidebarsMenuItems = {}
+	mdw.sidebarsMenuLabels = {}
 
 	for i, item in ipairs(items) do
 		local yPos = menuY + cfg.menuPadding + (i - 1) * cfg.menuItemHeight
 		local menuItem = mdw.trackElement(Geyser.Label:new({
-			name = "MDW_LayoutMenu_" .. item.name,
+			name = "MDW_SidebarsMenu_" .. item.name,
 			x = menuX,
 			y = yPos,
 			width = menuWidth,
@@ -2393,18 +2426,18 @@ function mdw.createLayoutDropdown()
 		menuItem:hide()
 
 		local itemName = item.name
-		setLabelClickCallback("MDW_LayoutMenu_" .. itemName, function()
-			mdw.toggleLayoutItem(itemName)
+		setLabelClickCallback("MDW_SidebarsMenu_" .. itemName, function()
+			mdw.toggleSidebarsItem(itemName)
 		end)
-		setLabelOnEnter("MDW_LayoutMenu_" .. itemName, function()
+		setLabelOnEnter("MDW_SidebarsMenu_" .. itemName, function()
 			mdw.updateMenuItemText(menuItem, item.label, mdw.visibility[itemName], true)
 		end)
-		setLabelOnLeave("MDW_LayoutMenu_" .. itemName, function()
+		setLabelOnLeave("MDW_SidebarsMenu_" .. itemName, function()
 			mdw.updateMenuItemText(menuItem, item.label, mdw.visibility[itemName], false)
 		end)
 
-		mdw.layoutMenuItems[item.name] = { label = menuItem, text = item.label }
-		mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = menuItem
+		mdw.sidebarsMenuItems[item.name] = { label = menuItem, text = item.label }
+		mdw.sidebarsMenuLabels[#mdw.sidebarsMenuLabels + 1] = menuItem
 	end
 end
 
@@ -2421,7 +2454,7 @@ end
 function mdw.createWidgetsDropdown()
 	local cfg = mdw.config
 	local menuWidth = cfg.menuWidth
-	local menuX = cfg.menuPaddingLeft + cfg.headerButtonWidth -- After Layout button
+	local menuX = mdw.headerButtonX.widgetsButton
 	local menuY = cfg.headerHeight - cfg.menuOverlap        -- Overlap top border with header button's bottom border
 	local items = mdw.getWidgetNames()
 	local menuHeight = math.max(#items, 1) * cfg.menuItemHeight + cfg.menuPadding * 2
@@ -2448,7 +2481,7 @@ end
 function mdw.addWidgetMenuItem(widgetName, index)
 	local cfg = mdw.config
 	local menuWidth = cfg.menuWidth
-	local menuX = cfg.menuPaddingLeft + cfg.headerButtonWidth -- After Layout button
+	local menuX = mdw.headerButtonX.widgetsButton
 	local menuY = cfg.headerHeight - cfg.menuOverlap
 
 	-- Calculate position
@@ -2519,7 +2552,7 @@ function mdw.rebuildWidgetsMenu()
 	-- Recreate the menu
 	local cfg = mdw.config
 	local menuWidth = cfg.menuWidth
-	local menuX = cfg.menuPaddingLeft + cfg.headerButtonWidth -- After Layout button
+	local menuX = mdw.headerButtonX.widgetsButton
 	local menuY = cfg.headerHeight - cfg.menuOverlap
 	local items = mdw.getWidgetNames()
 	local menuHeight = math.max(#items, 1) * cfg.menuItemHeight + cfg.menuPadding * 2
@@ -2542,6 +2575,473 @@ function mdw.rebuildWidgetsMenu()
 	end
 end
 
+--- Create the Layout dropdown menu placeholder.
+-- The actual menu contents are built dynamically by rebuildLayoutMenu().
+function mdw.createLayoutDropdown()
+	-- Just a placeholder; rebuildLayoutMenu() creates everything on demand
+end
+
+--- Destroy all current layout menu labels and free their Geyser elements.
+function mdw.destroyLayoutMenuElements()
+	for _, label in ipairs(mdw.layoutMenuLabels or {}) do
+		pcall(function() label:hide() end)
+		pcall(function()
+			if label.name then deleteLabel(label.name) end
+		end)
+	end
+	mdw.layoutMenuLabels = {}
+	mdw.layoutMenuMeta = {}
+
+	if mdw.layoutMenuBg then
+		pcall(function() mdw.layoutMenuBg:hide() end)
+		pcall(function()
+			if mdw.layoutMenuBg.name then deleteLabel(mdw.layoutMenuBg.name) end
+		end)
+		mdw.layoutMenuBg = nil
+	end
+end
+
+--- Build (or rebuild) the Layout dropdown menu.
+-- Called each time the menu is shown so per-widget rows reflect current widgets.
+function mdw.rebuildLayoutMenu()
+	mdw.destroyLayoutMenuElements()
+
+	local cfg = mdw.config
+	local menuX = mdw.headerButtonX.layoutButton
+	local menuY = cfg.headerHeight - cfg.menuOverlap
+
+	mdw.layoutMenuLabels = {}
+	mdw.layoutMenuMeta = {}
+
+	local labelWidth = cfg.layoutMenuLabelWidth
+	local gap = cfg.layoutMenuGap
+	local btnWidth = cfg.layoutMenuBtnWidth
+	local valueWidth = cfg.layoutMenuValueWidth + 6 -- extra space for +00 format
+	local innerX = menuX + 10
+	local controlsX = innerX + labelWidth + gap
+
+	local labelStyle = string.format([[
+    QLabel {
+      background-color: transparent;
+      font-family: '%s';
+      font-size: %dpx;
+    }
+  ]], cfg.fontFamily, cfg.headerMenuFontSize)
+
+	local valueStyle = string.format([[
+    QLabel {
+      background-color: transparent;
+      font-family: '%s';
+      font-size: %dpx;
+      qproperty-alignment: 'AlignCenter';
+    }
+  ]], cfg.fontFamily, cfg.headerMenuFontSize)
+
+	-- Unique counter for element names to avoid collisions on rebuild
+	mdw._layoutMenuCounter = (mdw._layoutMenuCounter or 0) + 1
+	local uid = mdw._layoutMenuCounter
+
+	-- Helper to create one font size row with - [value] + buttons
+	local function createFontRow(rowIndex, labelText, displayValue, prefix, onMinus, onPlus)
+		local rowY = menuY + cfg.menuPadding + rowIndex * cfg.menuItemHeight
+		local meta = mdw.layoutMenuMeta
+		local pfx = prefix .. "_" .. uid
+
+		local label = Geyser.Label:new({
+			name = "MDW_LM_" .. pfx .. "_Label",
+			x = innerX, y = rowY,
+			width = labelWidth, height = cfg.menuItemHeight,
+		})
+		label:setStyleSheet(labelStyle)
+		label:setFontSize(cfg.headerMenuFontSize)
+		label:decho("<" .. cfg.menuTextColor .. ">" .. labelText)
+		mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = label
+		meta[#meta + 1] = {label = label, type = "label", text = labelText}
+
+		local minus = Geyser.Label:new({
+			name = "MDW_LM_" .. pfx .. "_Minus",
+			x = controlsX, y = rowY,
+			width = btnWidth, height = cfg.menuItemHeight,
+		})
+		minus:setStyleSheet(mdw.styles.controlButton)
+		minus:setFontSize(16)
+		minus:decho("<" .. cfg.menuTextColor .. ">-")
+		minus:setCursor(mudlet.cursor.PointingHand)
+		mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = minus
+		meta[#meta + 1] = {label = minus, type = "button", text = "-"}
+		setLabelClickCallback(minus.name, onMinus)
+
+		local value = Geyser.Label:new({
+			name = "MDW_LM_" .. pfx .. "_Value",
+			x = controlsX + btnWidth, y = rowY,
+			width = valueWidth, height = cfg.menuItemHeight,
+		})
+		value:setStyleSheet(valueStyle)
+		value:setFontSize(cfg.headerMenuFontSize)
+		value:decho("<" .. cfg.menuTextColor .. ">" .. displayValue)
+		mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = value
+		meta[#meta + 1] = {label = value, type = "value", getValue = function() return displayValue end}
+
+		local plus = Geyser.Label:new({
+			name = "MDW_LM_" .. pfx .. "_Plus",
+			x = controlsX + btnWidth + valueWidth, y = rowY,
+			width = btnWidth, height = cfg.menuItemHeight,
+		})
+		plus:setStyleSheet(mdw.styles.controlButton)
+		plus:setFontSize(16)
+		plus:decho("<" .. cfg.menuTextColor .. ">+")
+		plus:setCursor(mudlet.cursor.PointingHand)
+		mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = plus
+		meta[#meta + 1] = {label = plus, type = "button", text = "+"}
+		setLabelClickCallback(plus.name, onPlus)
+
+		return value
+	end
+
+	-- Format signed offset value for display
+	local function formatOffset(val)
+		if val >= 0 then return "+" .. tostring(val) end
+		return tostring(val)
+	end
+
+	-- Fixed rows
+	local rowIdx = 0
+
+	-- Row 0: Header Font Size
+	createFontRow(rowIdx, "Header Font Size", tostring(cfg.widgetHeaderFontSize), "HeaderFont",
+		function() mdw.adjustHeaderFontSize(-1) end,
+		function() mdw.adjustHeaderFontSize(1) end)
+	rowIdx = rowIdx + 1
+
+	-- Row 1: Content Font Size
+	createFontRow(rowIdx, "Content Font Size", tostring(cfg.contentFontSize), "ContentFont",
+		function() mdw.adjustContentFontSize(-1) end,
+		function() mdw.adjustContentFontSize(1) end)
+	rowIdx = rowIdx + 1
+
+	-- Row 2: Main Font Size
+	createFontRow(rowIdx, "Main Font Size", tostring(cfg.mainFontSize), "MainFont",
+		function() mdw.adjustMainFontSize(-1) end,
+		function() mdw.adjustMainFontSize(1) end)
+	rowIdx = rowIdx + 1
+
+	-- Row 3: Section header "Widget Font Offset"
+	local sectionY = menuY + cfg.menuPadding + rowIdx * cfg.menuItemHeight
+	local sectionLabel = Geyser.Label:new({
+		name = "MDW_LM_SectionHeader_" .. uid,
+		x = innerX, y = sectionY,
+		width = cfg.layoutMenuWidth - 10, height = cfg.menuItemHeight,
+	})
+	sectionLabel:setStyleSheet(labelStyle)
+	sectionLabel:setFontSize(cfg.headerMenuFontSize)
+	sectionLabel:decho("<" .. cfg.headerTextColor .. ">Widget Font Offset")
+	mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = sectionLabel
+	mdw.layoutMenuMeta[#mdw.layoutMenuMeta + 1] = {label = sectionLabel, type = "section"}
+	rowIdx = rowIdx + 1
+
+	-- Row 4: Prompt bar offset
+	createFontRow(rowIdx, "Prompt", formatOffset(cfg.promptFontAdjust), "PromptAdj",
+		function() mdw.adjustPromptFontAdjust(-1) end,
+		function() mdw.adjustPromptFontAdjust(1) end)
+	rowIdx = rowIdx + 1
+
+	-- Per-widget offset rows (sorted by name)
+	local widgetNames = mdw.getWidgetNames()
+	for _, wName in ipairs(widgetNames) do
+		local w = mdw.widgets[wName]
+		local adjust = w.fontAdjust or 0
+		local safeName = wName:gsub("[^%w]", "_")
+		createFontRow(rowIdx, wName, formatOffset(adjust), "WFA_" .. safeName,
+			function() mdw.adjustWidgetFontAdjust(wName, -1) end,
+			function() mdw.adjustWidgetFontAdjust(wName, 1) end)
+		rowIdx = rowIdx + 1
+	end
+
+	-- Calculate total menu height
+	local menuHeight = rowIdx * cfg.menuItemHeight + cfg.menuPadding * 2
+
+	-- Create background
+	mdw.layoutMenuBg = Geyser.Label:new({
+		name = "MDW_LayoutMenuBg_" .. uid,
+		x = menuX,
+		y = menuY,
+		width = cfg.layoutMenuWidth,
+		height = menuHeight,
+	})
+	mdw.layoutMenuBg:setStyleSheet(mdw.styles.menuBackground)
+end
+
+--- Create the Theme dropdown menu.
+-- Placeholder; rebuildThemeMenu() creates everything on demand.
+function mdw.createThemeDropdown()
+	-- Just a placeholder; rebuildThemeMenu() creates everything on demand
+end
+
+--- Destroy all current theme menu labels and free their Geyser elements.
+function mdw.destroyThemeMenuElements()
+	for _, label in ipairs(mdw.themeMenuLabels or {}) do
+		pcall(function() label:hide() end)
+		pcall(function()
+			if label.name then deleteLabel(label.name) end
+		end)
+	end
+	mdw.themeMenuLabels = {}
+	mdw.themeMenuLabelMap = {}
+
+	if mdw.themeMenuBg then
+		pcall(function() mdw.themeMenuBg:hide() end)
+		pcall(function()
+			if mdw.themeMenuBg.name then deleteLabel(mdw.themeMenuBg.name) end
+		end)
+		mdw.themeMenuBg = nil
+	end
+end
+
+--- Build (or rebuild) the Theme dropdown menu.
+function mdw.rebuildThemeMenu()
+	mdw.destroyThemeMenuElements()
+
+	local cfg = mdw.config
+	local menuX = mdw.headerButtonX.themeButton
+	local menuY = cfg.headerHeight - cfg.menuOverlap
+	local themes = mdw.getThemeNames()
+	local menuWidth = cfg.themeMenuWidth
+	local menuHeight = #themes * cfg.menuItemHeight + cfg.menuPadding * 2
+
+	mdw._themeMenuCounter = (mdw._themeMenuCounter or 0) + 1
+	local uid = mdw._themeMenuCounter
+
+	mdw.themeMenuLabels = {}
+	mdw.themeMenuLabelMap = {}
+
+	mdw.themeMenuBg = Geyser.Label:new({
+		name = "MDW_ThemeMenuBg_" .. uid,
+		x = menuX, y = menuY,
+		width = menuWidth, height = menuHeight,
+	})
+	mdw.themeMenuBg:setStyleSheet(mdw.styles.menuBackground)
+
+	for i, themeName in ipairs(themes) do
+		local itemY = menuY + cfg.menuPadding + (i - 1) * cfg.menuItemHeight
+		local displayName = capitalizeThemeName(themeName)
+
+		local item = Geyser.Label:new({
+			name = "MDW_ThemeMenu_" .. themeName .. "_" .. uid,
+			x = menuX, y = itemY,
+			width = menuWidth, height = cfg.menuItemHeight,
+		})
+		item:setStyleSheet(mdw.styles.menuItem)
+		item:setFontSize(cfg.headerMenuFontSize)
+		local themeColors = mdw.themes[themeName] or {}
+		local headerText = themeColors.headerText or mdw.config.colors.headerText
+		item:decho("<" .. mdw.rgbToDecho(headerText) .. ">" .. displayName)
+		item:setCursor(mudlet.cursor.PointingHand)
+		mdw.themeMenuLabels[#mdw.themeMenuLabels + 1] = item
+		mdw.themeMenuLabelMap[themeName] = item
+
+		local tName = themeName
+		setLabelClickCallback(item.name, function()
+			mdw.setTheme(tName)
+			mdw.closeAllMenus()
+		end)
+		setLabelOnEnter(item.name, function()
+			mdw.previewTheme(tName)
+		end)
+	end
+end
+
+--- Update all theme menu item text colors.
+-- Each theme name is shown in its own headerText color.
+function mdw.updateThemeMenuText()
+	if not mdw.themeMenuLabelMap then return end
+	for themeName, label in pairs(mdw.themeMenuLabelMap) do
+		local displayName = capitalizeThemeName(themeName)
+		local themeColors = mdw.themes[themeName] or {}
+		local headerText = themeColors.headerText or mdw.config.colors.headerText
+		label:decho("<" .. mdw.rgbToDecho(headerText) .. ">" .. displayName)
+	end
+end
+
+function mdw.showThemeMenu()
+	mdw.rebuildThemeMenu()
+	mdw.menus.themeOpen = true
+	mdw.createMenuOverlay()
+	mdw.themeButton:setStyleSheet(mdw.styles.headerButtonActive)
+	if mdw.themeMenuBg then mdw.themeMenuBg:show() end
+	for _, label in ipairs(mdw.themeMenuLabels) do
+		label:show()
+	end
+	mdw.applyZOrder()
+end
+
+function mdw.hideThemeMenu()
+	-- Revert any active preview back to the committed theme
+	if mdw._previewTheme then
+		mdw._previewTheme = nil
+		mdw._themePreviewActive = false
+		mdw.buildStyles()
+		mdw.applyThemeStyles()
+	end
+	if mdw.themeMenuBg then mdw.themeMenuBg:hide() end
+	for _, label in ipairs(mdw.themeMenuLabels or {}) do
+		label:hide()
+	end
+	mdw.themeButton:setStyleSheet(mdw.styles.headerButton)
+	mdw.menus.themeOpen = false
+	if noMenusOpen() then mdw.destroyMenuOverlay() end
+end
+
+function mdw.toggleThemeMenu()
+	if mdw.menus.themeOpen then
+		mdw.hideThemeMenu()
+	else
+		if mdw.menus.sidebarsOpen then mdw.hideSidebarsMenu() end
+		if mdw.menus.widgetsOpen then mdw.hideWidgetsMenu() end
+		if mdw.menus.layoutOpen then mdw.hideLayoutMenu() end
+		mdw.showThemeMenu()
+	end
+end
+
+--- Adjust the base content font size for all widget content areas and prompt.
+-- Changes the base; each widget's effective size = base + its fontAdjust.
+-- @param delta number Amount to change (+1 or -1)
+function mdw.adjustContentFontSize(delta)
+	local cfg = mdw.config
+	local newSize = mdw.clamp(cfg.contentFontSize + delta, 8, 20)
+	if newSize == cfg.contentFontSize then return end
+	cfg.contentFontSize = newSize
+
+	-- Apply to all widgets with their individual offsets
+	for _, widget in pairs(mdw.widgets) do
+		local effectiveSize = mdw.getEffectiveFontSize(widget.fontAdjust)
+		if widget.isTabbed then
+			for _, tabObj in ipairs(widget.tabObjects) do
+				tabObj.console:setFontSize(effectiveSize)
+				local cw = tabObj.console:get_width()
+				tabObj.console:setWrap(mdw.calculateWrap(cw, effectiveSize))
+			end
+		else
+			if widget.content then
+				widget.content:setFontSize(effectiveSize)
+				local cw = widget.content:get_width()
+				widget.content:setWrap(mdw.calculateWrap(cw, effectiveSize))
+			end
+		end
+	end
+
+	-- Apply to prompt bar
+	if mdw.promptBar then
+		local promptSize = mdw.getPromptEffectiveFontSize()
+		mdw.promptBar:setFontSize(promptSize)
+		local cw = mdw.promptBar:get_width()
+		mdw.promptBar:setWrap(mdw.calculateWrap(cw, promptSize))
+		mdw.ensurePromptBarHeight()
+	end
+
+	-- Rebuild menu to show new values
+	mdw.rebuildLayoutMenu()
+	mdw.showLayoutMenu()
+	mdw.saveLayout()
+end
+
+--- Adjust the main Mudlet console font size.
+-- @param delta number Amount to change (+1 or -1)
+function mdw.adjustMainFontSize(delta)
+	local cfg = mdw.config
+	local newSize = mdw.clamp(cfg.mainFontSize + delta, 8, 20)
+	if newSize == cfg.mainFontSize then return end
+	cfg.mainFontSize = newSize
+
+	setFontSize(newSize)
+
+	-- Rebuild menu to show new value
+	mdw.rebuildLayoutMenu()
+	mdw.showLayoutMenu()
+	mdw.saveLayout()
+end
+
+--- Adjust the prompt bar font offset from content base.
+-- @param delta number Amount to change (+1 or -1)
+function mdw.adjustPromptFontAdjust(delta)
+	local cfg = mdw.config
+	local newAdjust = cfg.promptFontAdjust + delta
+	local effectiveSize = mdw.clamp(cfg.contentFontSize + newAdjust, 8, 30)
+	newAdjust = effectiveSize - cfg.contentFontSize
+	if newAdjust == cfg.promptFontAdjust then return end
+	cfg.promptFontAdjust = newAdjust
+
+	if mdw.promptBar then
+		local promptSize = mdw.getPromptEffectiveFontSize()
+		mdw.promptBar:setFontSize(promptSize)
+		local cw = mdw.promptBar:get_width()
+		mdw.promptBar:setWrap(mdw.calculateWrap(cw, promptSize))
+		mdw.ensurePromptBarHeight()
+	end
+
+	-- Rebuild menu to show new value
+	mdw.rebuildLayoutMenu()
+	mdw.showLayoutMenu()
+	mdw.saveLayout()
+end
+
+--- Adjust a specific widget's font offset from content base.
+-- @param widgetName string The widget name
+-- @param delta number Amount to change (+1 or -1)
+function mdw.adjustWidgetFontAdjust(widgetName, delta)
+	local widget = mdw.widgets[widgetName]
+	if not widget then return end
+
+	local cfg = mdw.config
+	local newAdjust = (widget.fontAdjust or 0) + delta
+	local effectiveSize = mdw.clamp(cfg.contentFontSize + newAdjust, 8, 30)
+	newAdjust = effectiveSize - cfg.contentFontSize
+	if newAdjust == (widget.fontAdjust or 0) then return end
+	widget.fontAdjust = newAdjust
+
+	if widget.isTabbed then
+		for _, tabObj in ipairs(widget.tabObjects) do
+			tabObj.console:setFontSize(effectiveSize)
+			local cw = tabObj.console:get_width()
+			tabObj.console:setWrap(mdw.calculateWrap(cw, effectiveSize))
+		end
+	else
+		if widget.content then
+			widget.content:setFontSize(effectiveSize)
+			local cw = widget.content:get_width()
+			widget.content:setWrap(mdw.calculateWrap(cw, effectiveSize))
+		end
+	end
+
+	-- Rebuild menu to show new value
+	mdw.rebuildLayoutMenu()
+	mdw.showLayoutMenu()
+	mdw.saveLayout()
+end
+
+--- Adjust the header font size for all widget title bars.
+-- @param delta number Amount to change (+1 or -1)
+function mdw.adjustHeaderFontSize(delta)
+	local cfg = mdw.config
+	local newSize = mdw.clamp(cfg.widgetHeaderFontSize + delta, 8, 20)
+	if newSize == cfg.widgetHeaderFontSize then return end
+	cfg.widgetHeaderFontSize = newSize
+
+	-- Rebuild styles so future widgets get the right size
+	mdw.buildStyles()
+
+	-- Apply to all existing widget title bars
+	for _, widget in pairs(mdw.widgets) do
+		widget.titleBar:setStyleSheet(mdw.styles.titleBar)
+		widget.titleBar:setFontSize(newSize)
+		mdw.renderWidgetTitle(widget)
+	end
+
+	-- Rebuild menu to show new value
+	mdw.rebuildLayoutMenu()
+	mdw.showLayoutMenu()
+	mdw.saveLayout()
+end
+
 --- Update menu item text with checkbox.
 function mdw.updateMenuItemText(menuItem, text, checked, highlighted)
 	local cfg = mdw.config
@@ -2555,6 +3055,14 @@ end
 -- MENU HELPERS
 -- Shared utilities for dropdown menu management.
 ---------------------------------------------------------------------------
+
+--- Check if all menus are closed.
+-- Why: Avoids duplicating the condition across every hide function,
+-- and ensures adding a new menu only requires updating one place.
+local function noMenusOpen()
+	return not mdw.menus.sidebarsOpen and not mdw.menus.widgetsOpen
+		and not mdw.menus.layoutOpen and not mdw.menus.themeOpen
+end
 
 --- Show a dropdown menu with its items.
 -- Why: Consolidates the repetitive pattern of showing overlay, styling button,
@@ -2598,25 +3106,12 @@ function mdw.createMenuOverlay()
 	mdw.menuOverlay:setStyleSheet([[background-color: transparent;]])
 
 	setLabelClickCallback("MDW_MenuOverlay", function(event)
-		local clickX, clickY = event.globalX, event.globalY
+		local x, y = event.globalX, event.globalY
 
-		-- Check if click is within layout menu
-		if mdw.menus.layoutOpen and mdw.layoutMenuBg then
-			local mx, my = mdw.layoutMenuBg:get_x(), mdw.layoutMenuBg:get_y()
-			local mw, mh = mdw.layoutMenuBg:get_width(), mdw.layoutMenuBg:get_height()
-			if clickX >= mx and clickX <= mx + mw and clickY >= my and clickY <= my + mh then
-				return
-			end
-		end
-
-		-- Check if click is within widgets menu
-		if mdw.menus.widgetsOpen and mdw.widgetsMenuBg then
-			local mx, my = mdw.widgetsMenuBg:get_x(), mdw.widgetsMenuBg:get_y()
-			local mw, mh = mdw.widgetsMenuBg:get_width(), mdw.widgetsMenuBg:get_height()
-			if clickX >= mx and clickX <= mx + mw and clickY >= my and clickY <= my + mh then
-				return
-			end
-		end
+		if mdw.menus.sidebarsOpen and clickInsideLabel(mdw.sidebarsMenuBg, x, y) then return end
+		if mdw.menus.widgetsOpen and clickInsideLabel(mdw.widgetsMenuBg, x, y) then return end
+		if mdw.menus.layoutOpen and clickInsideLabel(mdw.layoutMenuBg, x, y) then return end
+		if mdw.menus.themeOpen and clickInsideLabel(mdw.themeMenuBg, x, y) then return end
 
 		mdw.closeAllMenus()
 	end)
@@ -2630,17 +3125,15 @@ function mdw.destroyMenuOverlay()
 	end
 end
 
-function mdw.showLayoutMenu()
-	mdw.menus.layoutOpen = true
-	showMenu(mdw.layoutMenuBg, mdw.layoutMenuLabels, mdw.layoutButton)
+function mdw.showSidebarsMenu()
+	mdw.menus.sidebarsOpen = true
+	showMenu(mdw.sidebarsMenuBg, mdw.sidebarsMenuLabels, mdw.sidebarsButton)
 end
 
-function mdw.hideLayoutMenu()
-	hideMenu(mdw.layoutMenuBg, mdw.layoutMenuLabels, mdw.layoutButton)
-	mdw.menus.layoutOpen = false
-	if not mdw.menus.widgetsOpen then
-		mdw.destroyMenuOverlay()
-	end
+function mdw.hideSidebarsMenu()
+	hideMenu(mdw.sidebarsMenuBg, mdw.sidebarsMenuLabels, mdw.sidebarsButton)
+	mdw.menus.sidebarsOpen = false
+	if noMenusOpen() then mdw.destroyMenuOverlay() end
 end
 
 function mdw.showWidgetsMenu()
@@ -2651,19 +3144,41 @@ end
 function mdw.hideWidgetsMenu()
 	hideMenu(mdw.widgetsMenuBg, mdw.widgetsMenuLabels, mdw.widgetsButton)
 	mdw.menus.widgetsOpen = false
-	if not mdw.menus.layoutOpen then
-		mdw.destroyMenuOverlay()
-	end
+	if noMenusOpen() then mdw.destroyMenuOverlay() end
 end
 
-function mdw.toggleLayoutMenu()
-	if mdw.menus.layoutOpen then
-		mdw.hideLayoutMenu()
+function mdw.showLayoutMenu()
+	mdw.rebuildLayoutMenu()
+	mdw.menus.layoutOpen = true
+	mdw.createMenuOverlay()
+	mdw.layoutButton:setStyleSheet(mdw.styles.headerButtonActive)
+	if mdw.layoutMenuBg then mdw.layoutMenuBg:show() end
+	for _, label in ipairs(mdw.layoutMenuLabels) do
+		label:show()
+	end
+	mdw.applyZOrder()
+end
+
+function mdw.hideLayoutMenu()
+	if mdw.layoutMenuBg then
+		mdw.layoutMenuBg:hide()
+	end
+	for _, label in ipairs(mdw.layoutMenuLabels or {}) do
+		label:hide()
+	end
+	mdw.layoutButton:setStyleSheet(mdw.styles.headerButton)
+	mdw.menus.layoutOpen = false
+	if noMenusOpen() then mdw.destroyMenuOverlay() end
+end
+
+function mdw.toggleSidebarsMenu()
+	if mdw.menus.sidebarsOpen then
+		mdw.hideSidebarsMenu()
 	else
-		mdw.showLayoutMenu()
-		if mdw.menus.widgetsOpen then
-			mdw.hideWidgetsMenu()
-		end
+		if mdw.menus.widgetsOpen then mdw.hideWidgetsMenu() end
+		if mdw.menus.layoutOpen then mdw.hideLayoutMenu() end
+		if mdw.menus.themeOpen then mdw.hideThemeMenu() end
+		mdw.showSidebarsMenu()
 	end
 end
 
@@ -2671,19 +3186,36 @@ function mdw.toggleWidgetsMenu()
 	if mdw.menus.widgetsOpen then
 		mdw.hideWidgetsMenu()
 	else
+		if mdw.menus.sidebarsOpen then mdw.hideSidebarsMenu() end
+		if mdw.menus.layoutOpen then mdw.hideLayoutMenu() end
+		if mdw.menus.themeOpen then mdw.hideThemeMenu() end
 		mdw.showWidgetsMenu()
-		if mdw.menus.layoutOpen then
-			mdw.hideLayoutMenu()
-		end
+	end
+end
+
+function mdw.toggleLayoutMenu()
+	if mdw.menus.layoutOpen then
+		mdw.hideLayoutMenu()
+	else
+		if mdw.menus.sidebarsOpen then mdw.hideSidebarsMenu() end
+		if mdw.menus.widgetsOpen then mdw.hideWidgetsMenu() end
+		if mdw.menus.themeOpen then mdw.hideThemeMenu() end
+		mdw.showLayoutMenu()
 	end
 end
 
 function mdw.closeAllMenus()
-	if mdw.layoutMenuLabels and mdw.menus.layoutOpen then
-		mdw.hideLayoutMenu()
+	if mdw.sidebarsMenuLabels and mdw.menus.sidebarsOpen then
+		mdw.hideSidebarsMenu()
 	end
 	if mdw.widgetsMenuLabels and mdw.menus.widgetsOpen then
 		mdw.hideWidgetsMenu()
+	end
+	if mdw.layoutMenuLabels and mdw.menus.layoutOpen then
+		mdw.hideLayoutMenu()
+	end
+	if mdw.themeMenuLabels and mdw.menus.themeOpen then
+		mdw.hideThemeMenu()
 	end
 	mdw.destroyMenuOverlay()
 end
@@ -2698,9 +3230,9 @@ end
 -- SIDEBAR VISIBILITY TOGGLES
 ---------------------------------------------------------------------------
 
-function mdw.toggleLayoutItem(itemName)
+function mdw.toggleSidebarsItem(itemName)
 	mdw.visibility[itemName] = not mdw.visibility[itemName]
-	local item = mdw.layoutMenuItems[itemName]
+	local item = mdw.sidebarsMenuItems[itemName]
 	if item then
 		mdw.updateMenuItemText(item.label, item.text, mdw.visibility[itemName])
 	end
@@ -2800,7 +3332,8 @@ function mdw.updatePromptBar()
 	if mdw.promptBar then
 		mdw.promptBar:resize(consoleWidth, nil)
 		if mdw.promptBar.setWrap then
-			mdw.promptBar:setWrap(mdw.calculateWrap(consoleWidth))
+			local promptSize = mdw.getPromptEffectiveFontSize()
+			mdw.promptBar:setWrap(mdw.calculateWrap(consoleWidth, promptSize))
 		end
 	end
 	if mdw.promptSeparator then
@@ -2905,6 +3438,29 @@ function mdw.updateWidgetsMenuState()
 		local widget = mdw.widgets[widgetName]
 		if widget then
 			local isShown = mdw.isWidgetShown(widget)
+			mdw.updateMenuItemText(item.label, item.text, isShown)
+		end
+	end
+end
+
+--- Refresh all dropdown menu item styles and text colors after a theme change.
+function mdw.updateAllMenuStyles()
+	local style = mdw.styles.menuItem
+
+	-- Sidebars menu items
+	if mdw.sidebarsMenuItems then
+		for itemName, item in pairs(mdw.sidebarsMenuItems) do
+			item.label:setStyleSheet(style)
+			mdw.updateMenuItemText(item.label, item.text, mdw.visibility[itemName])
+		end
+	end
+
+	-- Widgets menu items
+	if mdw.widgetsMenuItems then
+		for widgetName, item in pairs(mdw.widgetsMenuItems) do
+			item.label:setStyleSheet(style)
+			local widget = mdw.widgets[widgetName]
+			local isShown = widget and mdw.isWidgetShown(widget)
 			mdw.updateMenuItemText(item.label, item.text, isShown)
 		end
 	end

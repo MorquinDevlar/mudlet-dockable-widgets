@@ -10,48 +10,114 @@
 ]]
 
 ---------------------------------------------------------------------------
--- STYLE GENERATION
--- Pre-built stylesheets for consistency across components.
--- Why: Centralizing styles prevents duplication and ensures visual consistency.
--- Changes to appearance only need to happen in one place.
+-- COLOR CONVERTERS
+-- Convert {R, G, B} tuples to various output formats.
 ---------------------------------------------------------------------------
 
---- Generate all stylesheets from current config.
--- Why: Called after config changes to regenerate styles with new values.
+function mdw.rgbToCss(rgb)
+	return string.format("rgb(%d,%d,%d)", rgb[1], rgb[2], rgb[3])
+end
+
+function mdw.rgbToRgba(rgb, alpha)
+	return string.format("rgba(%d,%d,%d,%s)", rgb[1], rgb[2], rgb[3], tostring(alpha))
+end
+
+function mdw.rgbToDecho(rgb)
+	return string.format("%d,%d,%d", rgb[1], rgb[2], rgb[3])
+end
+
+function mdw.rgbToHex(rgb)
+	return string.format("#%02X%02X%02X", rgb[1], rgb[2], rgb[3])
+end
+
+---------------------------------------------------------------------------
+-- THEME RESOLUTION
+---------------------------------------------------------------------------
+
+--- Merge theme overrides onto default colors.
+-- Uses mdw._previewTheme during hover preview, otherwise mdw.config.theme.
+function mdw.resolveColors()
+	local colors = {}
+	for k, v in pairs(mdw.config.colors) do
+		colors[k] = v
+	end
+	local themeName = mdw._previewTheme or mdw.config.theme or "gold"
+	local theme = mdw.themes[themeName]
+	if theme then
+		for k, v in pairs(theme) do
+			colors[k] = v
+		end
+	end
+	return colors
+end
+
+---------------------------------------------------------------------------
+-- STYLE GENERATION
+---------------------------------------------------------------------------
+
+--- Generate all stylesheets from current config and active theme.
+-- Why: Called after config/theme changes to regenerate styles with new values.
 function mdw.buildStyles()
 	local cfg = mdw.config
+	local c = mdw.resolveColors()
+
+	-- Populate legacy config keys for backward compatibility
+	cfg.sidebarBackground = mdw.rgbToCss(c.sidebar)
+	cfg.widgetBackground = mdw.rgbToCss(c.widgetBackground)
+	cfg.widgetBackgroundRGB = c.widgetBackground
+	cfg.widgetForegroundRGB = c.widgetForeground
+	cfg.headerBackground = mdw.rgbToCss(c.headerBackground)
+	cfg.splitterColor = mdw.rgbToCss(c.splitter)
+	cfg.splitterHoverColor = mdw.rgbToCss(c.splitterHover)
+	cfg.dropIndicatorColor = mdw.rgbToCss(c.accent)
+	cfg.resizeBorderColor = mdw.rgbToCss(c.splitter)
+	cfg.headerTextColor = mdw.rgbToDecho(c.headerText)
+	cfg.menuTextColor = mdw.rgbToDecho(c.menuText)
+	cfg.menuHighlightColor = mdw.rgbToDecho(c.menuHighlight)
+	cfg.tabActiveTextColor = mdw.rgbToDecho(c.tabActiveText)
+	cfg.tabInactiveTextColor = mdw.rgbToDecho(c.tabInactiveText)
+	cfg.tabActiveBackground = mdw.rgbToCss(c.tabActive)
+	cfg.tabInactiveBackground = mdw.rgbToCss(c.tabInactive)
+	cfg.titleButtonTint = mdw.rgbToHex(c.accentDim)
+
+	-- CSS values used in styles below
+	local cssSidebar = cfg.sidebarBackground
+	local cssSplitter = cfg.splitterColor
+	local cssSplitterHover = cfg.splitterHoverColor
+	local cssHeader = cfg.headerBackground
+	local cssWidget = cfg.widgetBackground
+	local cssMenuBg = mdw.rgbToCss(c.menuBackground)
+	local cssMenuBorder = mdw.rgbToCss(c.menuBorder)
 
 	mdw.styles.sidebar = string.format([[
     background-color: %s;
-  ]], cfg.sidebarBackground)
+  ]], cssSidebar)
 
 	mdw.styles.splitter = string.format([[
     QLabel { background-color: %s; }
     QLabel:hover { background-color: %s; }
-  ]], cfg.splitterColor, cfg.splitterHoverColor)
+  ]], cssSplitter, cssSplitterHover)
 
 	-- Directional resize border styles: transparent with visible border on widget-facing side
 	local bw = cfg.resizeBorderWidth
-	local bc = cfg.splitterColor
-	local bch = cfg.splitterHoverColor
 	mdw.styles.resizeLeft = string.format([[
     QLabel { background-color: transparent; border-right: %dpx solid %s; }
     QLabel:hover { background-color: transparent; border-right: %dpx solid %s; }
-  ]], bw, bc, bw, bch)
+  ]], bw, cssSplitter, bw, cssSplitterHover)
 	mdw.styles.resizeRight = string.format([[
     QLabel { background-color: transparent; border-left: %dpx solid %s; }
     QLabel:hover { background-color: transparent; border-left: %dpx solid %s; }
-  ]], bw, bc, bw, bch)
+  ]], bw, cssSplitter, bw, cssSplitterHover)
 	mdw.styles.resizeTop = string.format([[
     QLabel { background-color: transparent; border-bottom: %dpx solid %s; }
     QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; }
-  ]], bw, bc, bw, bch)
+  ]], bw, cssSplitter, bw, cssSplitterHover)
 	mdw.styles.resizeBottom = string.format([[
     QLabel { background-color: transparent; border-top: %dpx solid %s; }
     QLabel:hover { background-color: transparent; border-top: %dpx solid %s; }
-  ]], bw, bc, bw, bch)
+  ]], bw, cssSplitter, bw, cssSplitterHover)
 
-	local titlePadLeft = cfg.titleButtonPadding + 2 * cfg.titleButtonSize + (cfg.titleButtonGap or 4)
+	local titlePadLeft = cfg.titleButtonPadding + cfg.titleButtonSize + (cfg.titleButtonGap or 4)
 	local titlePadRight = cfg.closeButtonPadding + cfg.titleButtonSize
 	mdw.styles.titleBar = string.format([[
     background-color: %s;
@@ -60,27 +126,31 @@ function mdw.buildStyles()
     font-size: %dpx;
     padding-left: %dpx;
     padding-right: %dpx;
-  ]], cfg.headerBackground, cfg.fontFamily, cfg.widgetHeaderFontSize,
+  ]], cssHeader, cfg.fontFamily, cfg.widgetHeaderFontSize,
 		titlePadLeft, titlePadRight)
+
+	mdw.styles.contentBackground = string.format([[
+    background-color: %s;
+  ]], cssWidget)
 
 	mdw.styles.widgetContent = string.format([[
     background-color: %s;
     font-family: '%s';
     font-size: %dpx;
-  ]], cfg.widgetBackground, cfg.fontFamily, cfg.fontSize)
+  ]], cssWidget, cfg.fontFamily, cfg.contentFontSize)
 
 	mdw.styles.headerPane = string.format([[
     background-color: %s;
     font-family: '%s';
     font-size: %dpx;
-  ]], cfg.sidebarBackground, cfg.fontFamily, cfg.headerMenuFontSize)
+  ]], cssSidebar, cfg.fontFamily, cfg.headerMenuFontSize)
 
 	mdw.styles.promptBar = string.format([[
     background-color: %s;
     font-family: '%s';
     font-size: %dpx;
     padding-left: %dpx;
-  ]], cfg.sidebarBackground, cfg.fontFamily, cfg.fontSize, cfg.contentPaddingLeft)
+  ]], cssSidebar, cfg.fontFamily, mdw.getPromptEffectiveFontSize(), cfg.contentPaddingLeft)
 
 	mdw.styles.headerButton = string.format([[
     QLabel {
@@ -91,21 +161,23 @@ function mdw.buildStyles()
       border: 2px solid transparent;
     }
     QLabel:hover {
-      background-color: rgb(51,51,51);
-      border: 2px solid rgb(85,85,85);
+      background-color: %s;
+      border: 2px solid %s;
     }
-  ]], cfg.fontFamily, cfg.headerMenuFontSize, cfg.menuPaddingLeft)
+  ]], cfg.fontFamily, cfg.headerMenuFontSize, cfg.menuPaddingLeft,
+		cssMenuBg, cssMenuBorder)
 
 	-- Active state for header buttons when their menu is open
 	mdw.styles.headerButtonActive = string.format([[
     QLabel {
-      background-color: rgb(51,51,51);
+      background-color: %s;
       font-family: '%s';
       font-size: %dpx;
       padding-left: %dpx;
-      border: 2px solid rgb(85,85,85);
+      border: 2px solid %s;
     }
-  ]], cfg.fontFamily, cfg.headerMenuFontSize, cfg.menuPaddingLeft)
+  ]], cssMenuBg, cfg.fontFamily, cfg.headerMenuFontSize, cfg.menuPaddingLeft,
+		cssMenuBorder)
 
 	mdw.styles.menuItem = string.format([[
     QLabel {
@@ -116,32 +188,32 @@ function mdw.buildStyles()
     }
   ]], cfg.fontFamily, cfg.headerMenuFontSize, cfg.menuPaddingLeft)
 
-	mdw.styles.menuBackground = [[
-    background-color: rgb(51,51,51);
-    border: 2px solid rgb(85,85,85);
-  ]]
+	mdw.styles.menuBackground = string.format([[
+    background-color: %s;
+    border: 2px solid %s;
+  ]], cssMenuBg, cssMenuBorder)
 
 	mdw.styles.dropIndicator = string.format([[
     background-color: %s;
-  ]], cfg.dropIndicatorColor)
+  ]], mdw.rgbToCss(c.accent))
 
 	mdw.styles.dockHighlight = string.format([[
-    background-color: rgba(106,91,58,0.4);
+    background-color: %s;
     outline: 2px dashed %s;
-  ]], cfg.dropIndicatorColor)
+  ]], mdw.rgbToRgba(c.dockHighlight, 0.4), mdw.rgbToCss(c.accent))
 
 	mdw.styles.separatorLine = string.format([[
     background-color: %s;
-  ]], cfg.splitterColor)
+  ]], cssSplitter)
 
 	mdw.styles.resizableSeparator = string.format([[
     QLabel { background-color: %s; }
     QLabel:hover { background-color: %s; }
-  ]], cfg.splitterColor, cfg.splitterHoverColor)
+  ]], cssSplitter, cssSplitterHover)
 
 	mdw.styles.tabBar = string.format([[
     background-color: %s;
-  ]], cfg.headerBackground)
+  ]], cssHeader)
 
 	mdw.styles.tabActive = string.format([[
     background-color: %s;
@@ -171,15 +243,19 @@ function mdw.buildStyles()
     opacity: 0.6;
   ]], cfg.tabActiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
 
-	mdw.styles.titleButtonClose = string.format([[
+	mdw.styles.controlButton = string.format([[
     QLabel {
-      background-color: transparent;
-      qproperty-alignment: 'AlignCenter';
+      background-color: %s;
       font-family: '%s';
-      font-size: %dpx;
+      font-size: 16px;
+      qproperty-alignment: 'AlignCenter';
+      border: 1px solid %s;
     }
-    QLabel:hover { background-color: rgba(180,60,60,0.4); }
-  ]], cfg.fontFamily, cfg.widgetHeaderFontSize)
+    QLabel:hover {
+      background-color: %s;
+    }
+  ]], mdw.rgbToCss(c.controlBackground), cfg.fontFamily,
+		mdw.rgbToCss(c.controlBorder), mdw.rgbToCss(c.controlHover))
 
 end
 
@@ -214,11 +290,25 @@ function mdw.clamp(value, min, max)
 	return math.max(min, math.min(max, value))
 end
 
+--- Get the effective font size for a widget given its fontAdjust offset.
+-- Clamps the result to a safe range.
+function mdw.getEffectiveFontSize(fontAdjust)
+	return mdw.clamp(mdw.config.contentFontSize + (fontAdjust or 0), 8, 30)
+end
+
+--- Get the effective font size for the prompt bar.
+function mdw.getPromptEffectiveFontSize()
+	return mdw.clamp(mdw.config.contentFontSize + (mdw.config.promptFontAdjust or 0), 8, 30)
+end
+
 --- Calculate wrap value for a MiniConsole based on pixel width.
 -- Uses calcFontSize to get exact character width for the configured font.
-function mdw.calculateWrap(pixelWidth)
+-- @param pixelWidth number The pixel width of the console
+-- @param fontSize number Optional font size override (defaults to contentFontSize)
+function mdw.calculateWrap(pixelWidth, fontSize)
 	local cfg = mdw.config
-	local charWidth, _ = calcFontSize(cfg.fontSize, cfg.fontFamily)
+	fontSize = fontSize or cfg.contentFontSize
+	local charWidth, _ = calcFontSize(fontSize, cfg.fontFamily)
 	if charWidth and charWidth > 0 then
 		return math.floor(pixelWidth / charWidth)
 	end
@@ -257,9 +347,13 @@ function mdw.renderWidgetTitle(widget)
 	if not widget.titleBar or not widget.title then return end
 	local cfg = mdw.config
 	local cw = widget.container:get_width()
-	local leftPad = cfg.titleButtonPadding + 2 * cfg.titleButtonSize + (cfg.titleButtonGap or 4)
-	local rightPad = cfg.closeButtonPadding + cfg.titleButtonSize
-	local availWidth = cw - leftPad - rightPad
+	local btnS = cfg.titleButtonSize
+	local gap = cfg.titleButtonGap or 4
+	local leftPad = cfg.titleButtonPadding + btnS + gap
+	local rightPad = cfg.closeButtonPadding + btnS
+	-- Reserve space for lock icon next to title
+	local lockSpace = btnS + gap
+	local availWidth = cw - leftPad - rightPad - lockSpace
 	-- Estimate character width for monospace font (~60% of font size)
 	local charWidth = cfg.widgetHeaderFontSize * 0.6
 	local maxChars = math.floor(availWidth / charWidth)
@@ -268,6 +362,16 @@ function mdw.renderWidgetTitle(widget)
 		title = title:sub(1, maxChars - 3) .. "..."
 	end
 	widget.titleBar:decho("<" .. cfg.headerTextColor .. ">" .. title)
+
+	-- Position lock icon to the left of the centered title text
+	if widget.lockButton then
+		local titlePixelWidth = #title * charWidth
+		local contentWidth = cw - leftPad - rightPad
+		local titleStartX = leftPad + (contentWidth - titlePixelWidth) / 2
+		local btnY = math.floor((cfg.titleHeight - btnS) / 2)
+		local lockX = math.max(leftPad, titleStartX - lockSpace)
+		widget.lockButton:move(lockX, btnY)
+	end
 end
 
 --- Show appropriate content for a widget (mapper or default content).
@@ -386,15 +490,27 @@ function mdw.applyZOrder()
 
 	-- Layer 8: Menus
 	if mdw.menuOverlay then safeRaise(mdw.menuOverlay) end
-	if mdw.menus.layoutOpen then
-		if mdw.layoutMenuBg then safeRaise(mdw.layoutMenuBg) end
-		for _, label in ipairs(mdw.layoutMenuLabels or {}) do
+	if mdw.menus.sidebarsOpen then
+		if mdw.sidebarsMenuBg then safeRaise(mdw.sidebarsMenuBg) end
+		for _, label in ipairs(mdw.sidebarsMenuLabels or {}) do
 			safeRaise(label)
 		end
 	end
 	if mdw.menus.widgetsOpen then
 		if mdw.widgetsMenuBg then safeRaise(mdw.widgetsMenuBg) end
 		for _, label in ipairs(mdw.widgetsMenuLabels or {}) do
+			safeRaise(label)
+		end
+	end
+	if mdw.menus.layoutOpen then
+		if mdw.layoutMenuBg then safeRaise(mdw.layoutMenuBg) end
+		for _, label in ipairs(mdw.layoutMenuLabels or {}) do
+			safeRaise(label)
+		end
+	end
+	if mdw.menus.themeOpen then
+		if mdw.themeMenuBg then safeRaise(mdw.themeMenuBg) end
+		for _, label in ipairs(mdw.themeMenuLabels or {}) do
 			safeRaise(label)
 		end
 	end
@@ -806,6 +922,23 @@ function mdw.applyPendingLayout(widget)
 
 	local saved = mdw.pendingLayouts[widget.name]
 
+	-- Apply font adjustment
+	if saved.fontAdjust then
+		widget.fontAdjust = saved.fontAdjust
+		local effectiveSize = mdw.getEffectiveFontSize(widget.fontAdjust)
+		if widget.isTabbed then
+			for _, tabObj in ipairs(widget.tabObjects or {}) do
+				tabObj.console:setFontSize(effectiveSize)
+				local cw = tabObj.console:get_width()
+				tabObj.console:setWrap(mdw.calculateWrap(cw, effectiveSize))
+			end
+		elseif widget.content then
+			widget.content:setFontSize(effectiveSize)
+			local cw = widget.content:get_width()
+			widget.content:setWrap(mdw.calculateWrap(cw, effectiveSize))
+		end
+	end
+
 	-- Apply size first
 	if saved.width and saved.height then
 		widget:resize(saved.width, saved.height)
@@ -898,6 +1031,224 @@ function mdw.getDockConfig(side)
 			visibilityKey = "rightSidebar",
 		}
 	end
+end
+
+---------------------------------------------------------------------------
+-- THEME API
+---------------------------------------------------------------------------
+
+--- Get sorted list of available theme names.
+function mdw.getThemeNames()
+	local names = {}
+	for name in pairs(mdw.themes) do
+		names[#names + 1] = name
+	end
+	table.sort(names)
+	return names
+end
+
+--- Switch to a named theme. Saves layout and rebuilds UI.
+function mdw.setTheme(themeName)
+	if not mdw.themes[themeName] then
+		mdw.echo("Unknown theme: " .. tostring(themeName))
+		return
+	end
+	mdw._previewTheme = nil
+	mdw._themePreviewActive = false
+	mdw.config.theme = themeName
+	mdw.buildStyles()
+	mdw.applyThemeStyles()
+	mdw.saveLayout()
+end
+
+--- Cycle to the next or previous theme.
+-- @param delta number +1 for next, -1 for previous
+function mdw.cycleTheme(delta)
+	local names = mdw.getThemeNames()
+	local current = mdw.config.theme or "gold"
+	local currentIdx = 1
+	for i, name in ipairs(names) do
+		if name == current then
+			currentIdx = i
+			break
+		end
+	end
+	local newIdx = ((currentIdx - 1 + delta) % #names) + 1
+	mdw.setTheme(names[newIdx])
+end
+
+--- Preview a theme without saving. Used for hover previews.
+-- Sets _previewTheme so resolveColors() uses the preview theme
+-- while config.theme retains the committed value.
+function mdw.previewTheme(themeName)
+	if not mdw.themes[themeName] then return end
+	mdw._previewTheme = themeName
+	mdw._themePreviewActive = true
+	mdw.buildStyles()
+	mdw.applyThemeStyles()
+end
+
+--- Re-apply all styles to existing UI elements after a theme change.
+-- Lightweight alternative to teardown+setup - updates in place.
+-- During preview (mdw._themePreviewActive), splitters show their accent
+-- color so the user can see the theme's highlight at a glance.
+function mdw.applyThemeStyles()
+	local cfg = mdw.config
+	local preview = mdw._themePreviewActive
+
+	-- During preview, show splitters in their hover/accent color
+	local splitterStyle = mdw.styles.splitter
+	local separatorStyle = mdw.styles.resizableSeparator
+	local rowSplitterStyle = string.format([[
+      QLabel { background-color: %s; }
+      QLabel:hover { background-color: %s; }
+    ]], cfg.resizeBorderColor, cfg.splitterHoverColor)
+	if preview then
+		local accentSolid = string.format([[
+      QLabel { background-color: %s; }
+      QLabel:hover { background-color: %s; }
+    ]], cfg.splitterHoverColor, cfg.splitterHoverColor)
+		splitterStyle = accentSolid
+		separatorStyle = accentSolid
+		rowSplitterStyle = accentSolid
+	end
+
+	-- Dock backgrounds
+	if mdw.leftDock then mdw.leftDock:setStyleSheet(mdw.styles.sidebar) end
+	if mdw.rightDock then mdw.rightDock:setStyleSheet(mdw.styles.sidebar) end
+
+	-- Dock splitters
+	if mdw.leftSplitter then mdw.leftSplitter:setStyleSheet(splitterStyle) end
+	if mdw.rightSplitter then mdw.rightSplitter:setStyleSheet(splitterStyle) end
+
+	-- Dock highlights
+	if mdw.leftDockHighlight then mdw.leftDockHighlight:setStyleSheet(mdw.styles.dockHighlight) end
+	if mdw.rightDockHighlight then mdw.rightDockHighlight:setStyleSheet(mdw.styles.dockHighlight) end
+
+	-- Drop indicators
+	if mdw.leftDropIndicator then mdw.leftDropIndicator:setStyleSheet(mdw.styles.dropIndicator) end
+	if mdw.rightDropIndicator then mdw.rightDropIndicator:setStyleSheet(mdw.styles.dropIndicator) end
+	if mdw.verticalDropIndicator then mdw.verticalDropIndicator:setStyleSheet(mdw.styles.dropIndicator) end
+
+	-- Header pane and separator
+	if mdw.headerPane then mdw.headerPane:setStyleSheet(mdw.styles.headerPane) end
+	if mdw.headerSeparator then mdw.headerSeparator:setStyleSheet(preview and splitterStyle or mdw.styles.separatorLine) end
+
+	-- Prompt separator and background
+	if mdw.promptSeparator then mdw.promptSeparator:setStyleSheet(separatorStyle) end
+	if mdw.promptBarBg then
+		mdw.promptBarBg:setStyleSheet(mdw.styles.contentBackground)
+	end
+
+	-- Header buttons
+	local headerButtons = {
+		{btn = mdw.sidebarsButton, text = "Sidebars",   open = mdw.menus.sidebarsOpen},
+		{btn = mdw.widgetsButton,  text = "Widgets",    open = mdw.menus.widgetsOpen},
+		{btn = mdw.layoutButton,   text = "Font Size",  open = mdw.menus.layoutOpen},
+		{btn = mdw.themeButton,    text = "Theme",      open = mdw.menus.themeOpen},
+	}
+	for _, hb in ipairs(headerButtons) do
+		if hb.btn then
+			hb.btn:setStyleSheet(hb.open and mdw.styles.headerButtonActive or mdw.styles.headerButton)
+			hb.btn:decho("<" .. cfg.headerTextColor .. ">" .. hb.text)
+		end
+	end
+
+	-- Menu backgrounds
+	if mdw.sidebarsMenuBg then mdw.sidebarsMenuBg:setStyleSheet(mdw.styles.menuBackground) end
+	if mdw.widgetsMenuBg then mdw.widgetsMenuBg:setStyleSheet(mdw.styles.menuBackground) end
+	if mdw.layoutMenuBg then mdw.layoutMenuBg:setStyleSheet(mdw.styles.menuBackground) end
+	if mdw.themeMenuBg then mdw.themeMenuBg:setStyleSheet(mdw.styles.menuBackground) end
+
+	-- Layout menu labels (font row labels, control buttons)
+	if mdw.layoutMenuMeta then
+		for _, m in ipairs(mdw.layoutMenuMeta) do
+			if m.type == "button" then
+				m.label:setStyleSheet(mdw.styles.controlButton)
+				m.label:decho("<" .. cfg.menuTextColor .. ">" .. m.text)
+			elseif m.type == "value" then
+				m.label:decho("<" .. cfg.menuTextColor .. ">" .. tostring(m.getValue()))
+			elseif m.type == "label" then
+				m.label:decho("<" .. cfg.menuTextColor .. ">" .. m.text)
+			end
+		end
+	end
+
+	-- Sidebars and Widgets menu items
+	if mdw.updateAllMenuStyles then mdw.updateAllMenuStyles() end
+
+	-- Row splitters
+	for _, splitter in pairs(mdw.rowSplitters) do
+		splitter:setStyleSheet(rowSplitterStyle)
+	end
+
+	-- Per-widget elements
+	for _, widget in pairs(mdw.widgets) do
+		-- Title bar
+		widget.titleBar:setStyleSheet(mdw.styles.titleBar)
+		mdw.renderWidgetTitle(widget)
+
+		-- Content background
+		if widget.contentBg then
+			widget.contentBg:setStyleSheet(mdw.styles.contentBackground)
+		end
+
+		-- Title bar button tints
+		mdw.updateFillButtonText(widget)
+		mdw.updateLockButtonText(widget)
+		mdw.updateCloseButtonIcon(widget)
+
+		-- Bottom resize handle
+		if widget.bottomResizeHandle then
+			local baseColor = preview and cfg.splitterHoverColor or cfg.resizeBorderColor
+			if widget.isTabbed then
+				widget.bottomResizeHandle:setStyleSheet(string.format([[
+          QLabel { background-color: %s; }
+          QLabel:hover { background-color: %s; }
+        ]], baseColor, cfg.splitterHoverColor))
+			else
+				widget.bottomResizeHandle:setStyleSheet(string.format([[
+          QLabel { background-color: transparent; border-bottom: %dpx solid %s; }
+          QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; }
+        ]], cfg.widgetSplitterHeight, baseColor,
+					cfg.widgetSplitterHeight, cfg.splitterHoverColor))
+			end
+		end
+
+		-- Floating resize edges
+		if preview then
+			local bw = cfg.resizeBorderWidth
+			local ac = cfg.splitterHoverColor
+			if widget.resizeLeft then widget.resizeLeft:setStyleSheet(string.format(
+				[[QLabel { background-color: transparent; border-right: %dpx solid %s; }]], bw, ac)) end
+			if widget.resizeRight then widget.resizeRight:setStyleSheet(string.format(
+				[[QLabel { background-color: transparent; border-left: %dpx solid %s; }]], bw, ac)) end
+			if widget.resizeTop then widget.resizeTop:setStyleSheet(string.format(
+				[[QLabel { background-color: transparent; border-bottom: %dpx solid %s; }]], bw, ac)) end
+			if widget.resizeBottom then widget.resizeBottom:setStyleSheet(string.format(
+				[[QLabel { background-color: transparent; border-top: %dpx solid %s; }]], bw, ac)) end
+		else
+			if widget.resizeLeft then widget.resizeLeft:setStyleSheet(mdw.styles.resizeLeft) end
+			if widget.resizeRight then widget.resizeRight:setStyleSheet(mdw.styles.resizeRight) end
+			if widget.resizeTop then widget.resizeTop:setStyleSheet(mdw.styles.resizeTop) end
+			if widget.resizeBottom then widget.resizeBottom:setStyleSheet(mdw.styles.resizeBottom) end
+		end
+
+		-- Tab styles
+		if widget.isTabbed then
+			if widget.tabBar then widget.tabBar:setStyleSheet(mdw.styles.tabBar) end
+			for idx, tabObj in ipairs(widget.tabObjects or {}) do
+				if idx == widget.activeTabIndex then
+					mdw.applyTabActiveStyle(tabObj)
+				else
+					mdw.applyTabInactiveStyle(tabObj)
+				end
+			end
+		end
+	end
+
+	-- Update theme-related menu text if functions are available
+	if mdw.updateThemeMenuText then mdw.updateThemeMenuText() end
 end
 
 ---------------------------------------------------------------------------
