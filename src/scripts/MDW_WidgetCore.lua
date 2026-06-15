@@ -2427,14 +2427,27 @@ end
 --- Set the gear icon on the admin button (tinted SVG, with a fallback).
 function mdw.updateAdminButtonIcon()
 	if not mdw.adminButton then return end
+	local cfg = mdw.config
 	local path = mdw.getIconPath("gear")
+	local hoverBg = cfg.menuBackgroundCss or "rgb(51,51,51)"
+	local hoverBorder = cfg.menuBorderCss or "rgb(85,85,85)"
 	if Geyser.Label.setSvgTint then
+		-- Hover highlight (bg + border, like the text menu buttons) sits beneath
+		-- the tinted gear, which is a separate image layer.
+		mdw.adminButton:setStyleSheet(string.format([[
+      QLabel { background-color: transparent; border: 2px solid transparent; }
+      QLabel:hover { background-color: %s; border: 2px solid %s; }
+    ]], hoverBg, hoverBorder))
 		mdw.adminButton:setBackgroundImage(path)
-		mdw.adminButton:setSvgTint(mdw.config.titleButtonTint)
+		mdw.adminButton:setSvgTint(cfg.titleButtonTint)
 	else
-		mdw.adminButton:setStyleSheet(string.format(
-			[[QLabel { background-color: transparent; border: none; border-image: url(%s); }]],
-			path))
+		-- PNG fallback: border-image renders the icon; a hover background shows
+		-- through the icon's transparent padding. (A CSS border can't coexist
+		-- with border-image, so the fallback highlight is background-only.)
+		mdw.adminButton:setStyleSheet(string.format([[
+      QLabel { background-color: transparent; border-image: url(%s); }
+      QLabel:hover { background-color: %s; }
+    ]], path, hoverBg))
 	end
 end
 

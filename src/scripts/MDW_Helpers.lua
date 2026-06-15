@@ -88,6 +88,9 @@ function mdw.buildStyles()
 	local cssWidget = cfg.widgetBackground
 	local cssMenuBg = mdw.rgbToCss(c.menuBackground)
 	local cssMenuBorder = mdw.rgbToCss(c.menuBorder)
+	-- Exposed for the admin gear button's hover highlight
+	cfg.menuBackgroundCss = cssMenuBg
+	cfg.menuBorderCss = cssMenuBorder
 
 	mdw.styles.sidebar = string.format([[
     background-color: %s;
@@ -1206,6 +1209,9 @@ function mdw.applyThemeStyles()
 			hb.btn:decho("<" .. cfg.headerTextColor .. ">" .. hb.text)
 		end
 	end
+
+	-- Admin gear button: re-tint and refresh its hover colors for the new theme
+	if mdw.updateAdminButtonIcon then mdw.updateAdminButtonIcon() end
 
 	-- Menu backgrounds
 	if mdw.sidebarsMenuBg then mdw.sidebarsMenuBg:setStyleSheet(mdw.styles.menuBackground) end
