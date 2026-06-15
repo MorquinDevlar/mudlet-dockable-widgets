@@ -503,6 +503,7 @@ function mdw.saveLayout()
 			promptFontAdjust = mdw.config.promptFontAdjust,
 			headerFontSize = mdw.config.widgetHeaderFontSize,
 			theme = mdw.config.theme,
+			originalMainFontSize = mdw.config.originalMainFontSize,
 		},
 		widgets = {},
 	}
@@ -601,6 +602,9 @@ function mdw.loadLayout()
 		-- Only restore a theme that still exists; otherwise keep the default
 		if layout.docks.theme and mdw.themes[layout.docks.theme] then
 			mdw.config.theme = layout.docks.theme
+		end
+		if layout.docks.originalMainFontSize then
+			mdw.config.originalMainFontSize = layout.docks.originalMainFontSize
 		end
 	end
 
@@ -714,6 +718,14 @@ function mdw.setup()
 	-- Rebuild styles with loaded theme before creating any UI elements
 	mdw.buildStyles()
 
+	-- Capture the user's original main console font once (before we change it),
+	-- so a full uninstall can restore it. Persisted via the layout file. Guarded
+	-- because getFontSize() may be absent or differently-shaped across versions.
+	if mdw.config.originalMainFontSize == nil then
+		local ok, size = pcall(function() return getFontSize and getFontSize() end)
+		mdw.config.originalMainFontSize = (ok and type(size) == "number" and size) or mdw.config.mainFontSize
+	end
+
 	-- Apply main console font size
 	setFontSize(mdw.config.mainFontSize)
 
@@ -772,7 +784,8 @@ function mdw.teardown()
 	if mdw.closeAllMenus then mdw.closeAllMenus() end
 	if mdw.destroyLayoutMenuElements then mdw.destroyLayoutMenuElements() end
 	if mdw.destroyThemeMenuElements then mdw.destroyThemeMenuElements() end
-	mdw.menus = { sidebarsOpen = false, widgetsOpen = false, layoutOpen = false, themeOpen = false }
+	if mdw.destroyAdminMenuElements then mdw.destroyAdminMenuElements() end
+	mdw.menus = { sidebarsOpen = false, widgetsOpen = false, layoutOpen = false, themeOpen = false, adminOpen = false }
 
 	mdw.destroyAllElements()
 
@@ -819,13 +832,19 @@ function mdw.onUninstall(_, package)
 
 	mdw._trace("onUninstall fired (isSetUp=" .. tostring(mdw.isSetUp) .. ")")
 
-	-- Always save layout before uninstall (for updates and full uninstall)
-	mdw.saveLayout()
-
-	-- Survives the script reload because MDW_Config preserves it (mdw.isUpdating
-	-- or false); onInstall reads it to distinguish an update from a fresh install.
-	mdw.isUpdating = (mdw.isSetUp == true)
-	mdw._trace("  layout saved; isUpdating=" .. tostring(mdw.isUpdating) .. " -> teardown")
+	if mdw.fullUninstalling then
+		-- A full uninstall already deleted the layout file; don't recreate it,
+		-- and it's not an update, so don't arm update detection.
+		mdw.isUpdating = false
+		mdw._trace("  full uninstall (layout not saved) -> teardown")
+	else
+		-- Save layout, then mark a possible update: a package update fires
+		-- uninstall immediately followed by install. isUpdating survives the
+		-- script reload (MDW_Config preserves it) for onInstall to read.
+		mdw.saveLayout()
+		mdw.isUpdating = (mdw.isSetUp == true)
+		mdw._trace("  layout saved; isUpdating=" .. tostring(mdw.isUpdating) .. " -> teardown")
+	end
 
 	mdw.teardown()
 	mdw.killAllHandlers()
@@ -849,9 +868,15 @@ end
 --- Handle window resize events.
 -- Why: Updates dock and widget positions to match new window dimensions.
 function mdw.onWindowResize()
-	local _, winH = getMainWindowSize()
+	local winW, winH = getMainWindowSize()
 	local cfg = mdw.config
 	local sidebarHeight = winH - cfg.headerHeight
+
+	-- Keep the admin gear anchored to the far right of the header
+	if mdw.adminButton then
+		local gearSize = cfg.headerHeight - cfg.separatorHeight
+		mdw.adminButton:move(winW - gearSize - cfg.menuPaddingLeft, 0)
+	end
 
 	-- Update left dock
 	if mdw.leftDock then

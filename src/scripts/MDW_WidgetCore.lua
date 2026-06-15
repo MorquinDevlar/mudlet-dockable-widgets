@@ -32,6 +32,7 @@ end
 local function noMenusOpen()
 	return not mdw.menus.sidebarsOpen and not mdw.menus.widgetsOpen
 		and not mdw.menus.layoutOpen and not mdw.menus.themeOpen
+		and not mdw.menus.adminOpen
 end
 
 ---------------------------------------------------------------------------
@@ -2400,10 +2401,41 @@ function mdw.createHeaderMenus()
 		x = x + btnWidth
 	end
 
+	-- Admin gear button, anchored to the far right of the header
+	local winW = getMainWindowSize()
+	local gearSize = height
+	mdw.adminButton = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_AdminButton",
+		x = winW - gearSize - cfg.menuPaddingLeft,
+		y = 0,
+		width = gearSize, height = height,
+	}, mdw.headerPane))
+	mdw.adminButton:setCursor(mudlet.cursor.PointingHand)
+	mdw.adminButton:setToolTip("Admin / Uninstall")
+	mdw.updateAdminButtonIcon()
+	setLabelClickCallback("MDW_AdminButton", function()
+		mdw.toggleAdminMenu()
+	end)
+
 	mdw.createSidebarsDropdown()
 	mdw.createWidgetsDropdown()
 	mdw.createLayoutDropdown()
 	mdw.createThemeDropdown()
+	mdw.createAdminDropdown()
+end
+
+--- Set the gear icon on the admin button (tinted SVG, with a fallback).
+function mdw.updateAdminButtonIcon()
+	if not mdw.adminButton then return end
+	local path = mdw.getIconPath("gear")
+	if Geyser.Label.setSvgTint then
+		mdw.adminButton:setBackgroundImage(path)
+		mdw.adminButton:setSvgTint(mdw.config.titleButtonTint)
+	else
+		mdw.adminButton:setStyleSheet(string.format(
+			[[QLabel { background-color: transparent; border: none; border-image: url(%s); }]],
+			path))
+	end
 end
 
 --- Create the Sidebars dropdown menu.
@@ -2926,8 +2958,149 @@ function mdw.toggleThemeMenu()
 		if mdw.menus.sidebarsOpen then mdw.hideSidebarsMenu() end
 		if mdw.menus.widgetsOpen then mdw.hideWidgetsMenu() end
 		if mdw.menus.layoutOpen then mdw.hideLayoutMenu() end
+		if mdw.menus.adminOpen then mdw.hideAdminMenu() end
 		mdw.showThemeMenu()
 	end
+end
+
+---------------------------------------------------------------------------
+-- ADMIN MENU
+-- Gear dropdown with the uninstall/cleanup action. Built dynamically so it
+-- stays right-anchored under the gear across window resizes.
+---------------------------------------------------------------------------
+
+--- Placeholder; rebuildAdminMenu() creates everything on demand.
+function mdw.createAdminDropdown() end
+
+--- Destroy the admin menu's (untracked) labels and free their Geyser elements.
+function mdw.destroyAdminMenuElements()
+	for _, label in ipairs(mdw.adminMenuLabels or {}) do
+		pcall(function() label:hide() end)
+		pcall(function() if label.name then deleteLabel(label.name) end end)
+	end
+	mdw.adminMenuLabels = {}
+	mdw.adminMenuItem = nil
+	mdw._uninstallArmed = false
+	if mdw.adminMenuBg then
+		pcall(function() mdw.adminMenuBg:hide() end)
+		pcall(function() if mdw.adminMenuBg.name then deleteLabel(mdw.adminMenuBg.name) end end)
+		mdw.adminMenuBg = nil
+	end
+end
+
+--- Build (or rebuild) the admin dropdown, right-aligned under the gear.
+function mdw.rebuildAdminMenu()
+	mdw.destroyAdminMenuElements()
+
+	local cfg = mdw.config
+	local winW = getMainWindowSize()
+	local menuWidth = cfg.menuWidth
+	-- Right-align under the gear so the menu always stays on-screen
+	local menuX = winW - cfg.menuPaddingLeft - menuWidth
+	local menuY = cfg.headerHeight - cfg.menuOverlap
+	local menuHeight = cfg.menuItemHeight + cfg.menuPadding * 2
+
+	mdw._adminMenuCounter = (mdw._adminMenuCounter or 0) + 1
+	local uid = mdw._adminMenuCounter
+	mdw.adminMenuLabels = {}
+
+	mdw.adminMenuBg = Geyser.Label:new({
+		name = "MDW_AdminMenuBg_" .. uid,
+		x = menuX, y = menuY, width = menuWidth, height = menuHeight,
+	})
+	mdw.adminMenuBg:setStyleSheet(mdw.styles.menuBackground)
+
+	local item = Geyser.Label:new({
+		name = "MDW_AdminMenu_Uninstall_" .. uid,
+		x = menuX, y = menuY + cfg.menuPadding,
+		width = menuWidth, height = cfg.menuItemHeight,
+	})
+	item:setStyleSheet(mdw.styles.menuItem)
+	item:setFontSize(cfg.headerMenuFontSize)
+	item:decho("<" .. cfg.menuTextColor .. ">Uninstall MDW")
+	item:setCursor(mudlet.cursor.PointingHand)
+	mdw.adminMenuItem = item
+	mdw.adminMenuLabels[#mdw.adminMenuLabels + 1] = item
+
+	setLabelClickCallback(item.name, function() mdw.onUninstallItemClick() end)
+end
+
+--- Two-step confirm: first click arms, second click (within the window) runs.
+function mdw.onUninstallItemClick()
+	local cfg = mdw.config
+	if mdw._uninstallArmed then
+		mdw.uninstall()
+		return
+	end
+	mdw._uninstallArmed = true
+	if mdw.adminMenuItem then
+		mdw.adminMenuItem:decho("<220,70,70>Click again to confirm")
+	end
+	-- Auto-disarm so a stale armed state can't fire later
+	tempTimer(cfg.uninstallConfirmWindow, function()
+		mdw._uninstallArmed = false
+		if mdw.adminMenuItem and mdw.menus.adminOpen then
+			mdw.adminMenuItem:decho("<" .. mdw.config.menuTextColor .. ">Uninstall MDW")
+		end
+	end)
+end
+
+function mdw.showAdminMenu()
+	mdw.rebuildAdminMenu()
+	mdw.menus.adminOpen = true
+	mdw.createMenuOverlay()
+	if mdw.adminMenuBg then mdw.adminMenuBg:show() end
+	for _, label in ipairs(mdw.adminMenuLabels) do
+		label:show()
+	end
+	mdw.applyZOrder()
+end
+
+function mdw.hideAdminMenu()
+	mdw._uninstallArmed = false
+	if mdw.adminMenuBg then mdw.adminMenuBg:hide() end
+	for _, label in ipairs(mdw.adminMenuLabels or {}) do
+		label:hide()
+	end
+	mdw.menus.adminOpen = false
+	if noMenusOpen() then mdw.destroyMenuOverlay() end
+end
+
+function mdw.toggleAdminMenu()
+	if mdw.menus.adminOpen then
+		mdw.hideAdminMenu()
+	else
+		if mdw.menus.sidebarsOpen then mdw.hideSidebarsMenu() end
+		if mdw.menus.widgetsOpen then mdw.hideWidgetsMenu() end
+		if mdw.menus.layoutOpen then mdw.hideLayoutMenu() end
+		if mdw.menus.themeOpen then mdw.hideThemeMenu() end
+		mdw.showAdminMenu()
+	end
+end
+
+--- Completely remove MDW: restore the main console font, delete the saved
+-- layout, and uninstall the package (which tears down the rest of the UI).
+function mdw.uninstall()
+	mdw.closeAllMenus()
+
+	-- onUninstall checks this to skip re-saving the layout we're about to delete
+	mdw.fullUninstalling = true
+
+	-- Restore the user's original main console font
+	if mdw.config.originalMainFontSize then
+		setFontSize(mdw.config.originalMainFontSize)
+	end
+
+	-- Delete the saved layout so no MDW settings persist
+	if mdw.layoutFile then
+		pcall(function() os.remove(mdw.layoutFile) end)
+	end
+
+	mdw.echo("Uninstalling MDW and removing all its settings...")
+	cecho("<gold>[MDW] <yellow>Uninstalling and resetting all settings...\n")
+
+	-- Fires sysUninstallPackage -> mdw.onUninstall -> teardown
+	uninstallPackage(mdw.packageName)
 end
 
 --- Adjust the base content font size for all widget content areas and prompt.
@@ -3102,6 +3275,7 @@ function mdw.createMenuOverlay()
 		if mdw.menus.widgetsOpen and clickInsideLabel(mdw.widgetsMenuBg, x, y) then return end
 		if mdw.menus.layoutOpen and clickInsideLabel(mdw.layoutMenuBg, x, y) then return end
 		if mdw.menus.themeOpen and clickInsideLabel(mdw.themeMenuBg, x, y) then return end
+		if mdw.menus.adminOpen and clickInsideLabel(mdw.adminMenuBg, x, y) then return end
 
 		mdw.closeAllMenus()
 	end)
@@ -3168,6 +3342,7 @@ function mdw.toggleSidebarsMenu()
 		if mdw.menus.widgetsOpen then mdw.hideWidgetsMenu() end
 		if mdw.menus.layoutOpen then mdw.hideLayoutMenu() end
 		if mdw.menus.themeOpen then mdw.hideThemeMenu() end
+		if mdw.menus.adminOpen then mdw.hideAdminMenu() end
 		mdw.showSidebarsMenu()
 	end
 end
@@ -3179,6 +3354,7 @@ function mdw.toggleWidgetsMenu()
 		if mdw.menus.sidebarsOpen then mdw.hideSidebarsMenu() end
 		if mdw.menus.layoutOpen then mdw.hideLayoutMenu() end
 		if mdw.menus.themeOpen then mdw.hideThemeMenu() end
+		if mdw.menus.adminOpen then mdw.hideAdminMenu() end
 		mdw.showWidgetsMenu()
 	end
 end
@@ -3190,6 +3366,7 @@ function mdw.toggleLayoutMenu()
 		if mdw.menus.sidebarsOpen then mdw.hideSidebarsMenu() end
 		if mdw.menus.widgetsOpen then mdw.hideWidgetsMenu() end
 		if mdw.menus.themeOpen then mdw.hideThemeMenu() end
+		if mdw.menus.adminOpen then mdw.hideAdminMenu() end
 		mdw.showLayoutMenu()
 	end
 end
@@ -3206,6 +3383,9 @@ function mdw.closeAllMenus()
 	end
 	if mdw.themeMenuLabels and mdw.menus.themeOpen then
 		mdw.hideThemeMenu()
+	end
+	if mdw.adminMenuLabels and mdw.menus.adminOpen then
+		mdw.hideAdminMenu()
 	end
 	mdw.destroyMenuOverlay()
 end

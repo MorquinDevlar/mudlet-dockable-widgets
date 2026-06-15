@@ -71,6 +71,7 @@ mdw.config = {
 	layoutMenuBtnWidth = 30, -- Width of +/- buttons in Layout menu
 	layoutMenuValueWidth = 36, -- Width of value display in Layout menu
 	layoutMenuBtnFontSize = 16, -- Font size of the +/- buttons in Layout menu
+	uninstallConfirmWindow = 4, -- Seconds the "click again to confirm" uninstall stays armed
 
 	-- Layout: Margins
 	widgetMargin = 2,     -- Margin around widgets in docks (px)
@@ -392,7 +393,12 @@ mdw.menus = {
 	widgetsOpen = false,
 	layoutOpen = false,
 	themeOpen = false,
+	adminOpen = false,
 }
+
+-- mdw.config.originalMainFontSize: the user's main console font size, captured
+-- on first install (before MDW changes it) and persisted in the layout file, so
+-- a full uninstall can restore it. Set at runtime in setup()/loadLayout().
 
 -- Update detection: set true by onUninstall when a live UI existed, read by
 -- onInstall to report an update vs a fresh install. Preserved across the

@@ -542,6 +542,12 @@ function mdw.applyZOrder()
 			safeRaise(label)
 		end
 	end
+	if mdw.menus.adminOpen then
+		if mdw.adminMenuBg then safeRaise(mdw.adminMenuBg) end
+		for _, label in ipairs(mdw.adminMenuLabels or {}) do
+			safeRaise(label)
+		end
+	end
 end
 
 ---------------------------------------------------------------------------

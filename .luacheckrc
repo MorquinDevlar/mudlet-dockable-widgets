@@ -24,6 +24,7 @@ read_globals = {
   "deleteLine",
   "deleteNamedEventHandler",
   "deselect",
+  "getFontSize",
   "Geyser",
   "getMainWindowSize",
   "getMudletHomeDir",
@@ -44,6 +45,7 @@ read_globals = {
   "setLabelOnLeave",
   "setLabelReleaseCallback",
   "tempTimer",
+  "uninstallPackage",
   io = { fields = { "exists" } },
   table = { fields = { "save", "load" } },
 }

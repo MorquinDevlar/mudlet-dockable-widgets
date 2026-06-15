@@ -14,7 +14,7 @@ MDW gives your [Mudlet](https://www.mudlet.org/) profile a custom sidebar UI. Cr
 - **Embedded Mapper**: Embed the Mudlet mapper in any widget
 - **Prompt Bar**: Display your MUD prompt with colors at the bottom of the screen
 - **Themes**: Choose from multiple color themes (gold, fantasy, emerald, sapphire, ruby, slate, violet, copper) with live preview
-- **Header Menus**: Dropdown menus for sidebars, widgets, font size, and themes
+- **Header Menus**: Dropdown menus for sidebars, widgets, font size, and themes, plus a gear menu to cleanly uninstall
 - **Layout Persistence**: Widget positions, sizes, dock state, and visibility saved automatically
 - **Overflow Modes**: Wrap, ellipsis (truncate with "..."), or hidden text clipping
 - **Resizable**: Drag dock edges, widget borders, and between-widget splitters to resize
@@ -23,7 +23,7 @@ MDW gives your [Mudlet](https://www.mudlet.org/) profile a custom sidebar UI. Cr
 
 ```
 +----------------+------------------------+------------------+
-|   Header Bar (Sidebars | Widgets | Font Size | Theme)      |
+|   Header Bar (Sidebars | Widgets | Font Size | Theme) (gear)|
 +----------------+------------------------+------------------+
 |                |                        |                  |
 |   Left Dock    |    Main Display        |   Right Dock     |
@@ -41,7 +41,7 @@ MDW gives your [Mudlet](https://www.mudlet.org/) profile a custom sidebar UI. Cr
 +----------------+------------------------+------------------+
 ```
 
-- **Header bar** spans the full window width with Sidebars, Widgets, Font Size, and Theme dropdown menus
+- **Header bar** spans the full window width with Sidebars, Widgets, Font Size, and Theme dropdown menus, plus a gear icon (far right) whose Admin menu can fully uninstall MDW and reset everything it changed (`mdw.uninstall()`)
 - **Left and right docks** hold widgets stacked vertically or side-by-side; drag dock edges to resize
 - **Main display** is the standard Mudlet output area
 - **Prompt bar** sits between the docks at the bottom, showing your MUD prompt with colors
