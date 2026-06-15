@@ -240,8 +240,14 @@ function mdw.addToStack(stackName, memberName, index)
   index = index or (#stack.members + 1)
   table.insert(stack.members, index, memberName)
 
+  local btnName = "MDW_" .. stackName .. "_Tab_" .. safeName(memberName)
+  -- Clear any stale button of the same name (e.g. a torn-out tab dropped back in)
+  pcall(function() deleteLabel(btnName) end)
+  for i = #mdw.elements, 1, -1 do
+    if mdw.elements[i] and mdw.elements[i].name == btnName then table.remove(mdw.elements, i) break end
+  end
   local btn = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_" .. stackName .. "_Tab_" .. safeName(memberName),
+    name = btnName,
     x = 0, y = 0, width = 60, height = mdw.config.tabBarHeight,
   }, stack.container))
   btn:setCursor(mudlet.cursor.PointingHand)
@@ -249,28 +255,7 @@ function mdw.addToStack(stackName, memberName, index)
   table.insert(stack.tabObjects, index, tabObj)
   stack.tabsByName[memberName] = tabObj
 
-  -- Click selects the tab; dragging it down out of the tab bar ungroups it
-  -- (the member returns to a standalone slot).
-  setLabelClickCallback(btn.name, function(event)
-    mdw._tabPress = { memberName = memberName, startY = event.globalY, done = false }
-  end)
-  setLabelMoveCallback(btn.name, function(event)
-    local p = mdw._tabPress
-    if not p or p.memberName ~= memberName or p.done then return end
-    if event.globalY - p.startY > mdw.config.tabBarHeight + mdw.config.dragThreshold then
-      p.done = true
-      mdw._tabPress = nil
-      -- Defer so we don't delete this tab button from inside its own callback
-      tempTimer(0, function() mdw.removeFromStack(stackName, memberName) end)
-    end
-  end)
-  setLabelReleaseCallback(btn.name, function()
-    local p = mdw._tabPress
-    mdw._tabPress = nil
-    if not p or p.memberName ~= memberName or p.done then return end
-    local s = mdw.widgets[stackName]
-    if s then mdw.selectStackTab(s, memberName) end
-  end)
+  mdw.setupStackTabDrag(stack, tabObj)
 
   mdw.applyHeadless(member)
   if not stack.activeMember then stack.activeMember = memberName end
@@ -447,6 +432,178 @@ function mdw.groupWidgetsIntoStack(memberNames, opts)
   local stack = mdw.createStack(name, { dock = dock, row = first and first.row })
   for _, m in ipairs(memberNames) do mdw.addToStack(name, m) end
   return stack
+end
+
+---------------------------------------------------------------------------
+-- TAB DRAG: select / reorder within the bar / tear out to anywhere
+---------------------------------------------------------------------------
+
+--- Wire a stack tab button: click selects, horizontal drag reorders within the
+-- bar, dragging down/out of the bar tears the member out as a normal widget drag
+-- (so it can be floated, re-docked, or dropped into another group).
+function mdw.setupStackTabDrag(stack, tabObj)
+  local btnName = tabObj.button.name
+  local stackName = stack.name
+  local memberName = tabObj.memberName
+
+  setLabelClickCallback(btnName, function(event)
+    mdw.stackTabDrag = {
+      stackName = stackName, memberName = memberName,
+      startX = event.globalX, startY = event.globalY, mode = nil,
+    }
+  end)
+
+  setLabelMoveCallback(btnName, function(event)
+    local d = mdw.stackTabDrag
+    if not d or d.memberName ~= memberName then return end
+    local s = mdw.widgets[stackName]
+    if not s then return end
+
+    if d.mode == nil then
+      local dx = event.globalX - d.startX
+      local dy = event.globalY - d.startY
+      if dy > mdw.config.tabBarHeight then
+        d.mode = "tearout"
+        mdw.beginTabTearout(s, tabObj, event)
+      elseif math.abs(dx) > mdw.config.dragThreshold then
+        d.mode = "reorder"
+      end
+    end
+
+    if d.mode == "reorder" then
+      mdw.handleStackTabReorder(s, tabObj, event)
+    elseif d.mode == "tearout" then
+      local member = mdw.widgets[memberName]
+      if member and mdw.drag.active and mdw.drag.widget == member then
+        mdw.handleDragMove(member, event)
+      end
+    end
+  end)
+
+  setLabelReleaseCallback(btnName, function(event)
+    local d = mdw.stackTabDrag
+    mdw.stackTabDrag = nil
+    if not d or d.memberName ~= memberName then return end
+    local s = mdw.widgets[stackName]
+
+    if d.mode == nil then
+      if s then mdw.selectStackTab(s, memberName) end
+    elseif d.mode == "reorder" then
+      if s then mdw.commitStackTabReorder(s, tabObj, event) end
+    elseif d.mode == "tearout" then
+      local member = mdw.widgets[memberName]
+      if member and mdw.drag.active and mdw.drag.widget == member then
+        mdw.endDrag(member, event)
+      end
+      mdw.finalizeTabTearout(d)
+    end
+  end)
+end
+
+--- Slide the dragged tab to follow the cursor x (committed on release).
+function mdw.handleStackTabReorder(stack, tabObj, event)
+  local w = mdw.stackTabWidth(tabObj.name)
+  local relX = event.globalX - stack.container:get_x() - w / 2
+  local barW = stack.tabBar:get_width()
+  relX = mdw.clamp(relX, 0, math.max(0, barW - w))
+  tabObj.button:move(relX, 0)
+  tabObj.button:raise()
+end
+
+--- Commit a tab reorder from the cursor's x relative to the other tabs.
+function mdw.commitStackTabReorder(stack, tabObj, event)
+  local fromIdx
+  for i, t in ipairs(stack.tabObjects) do
+    if t == tabObj then fromIdx = i break end
+  end
+  if not fromIdx then mdw.refreshStackTabBar(stack); return end
+
+  local cursorX = event.globalX
+  local x = stack.container:get_x()
+  local toIdx = 1
+  for i, t in ipairs(stack.tabObjects) do
+    if i ~= fromIdx then
+      local tw = mdw.stackTabWidth(t.name)
+      if cursorX > x + tw / 2 then toIdx = toIdx + 1 end
+      x = x + tw
+    end
+  end
+
+  if toIdx ~= fromIdx then
+    local m = table.remove(stack.members, fromIdx)
+    table.insert(stack.members, toIdx, m)
+    local t = table.remove(stack.tabObjects, fromIdx)
+    table.insert(stack.tabObjects, toIdx, t)
+    mdw.saveLayout()
+  end
+  mdw.refreshStackTabBar(stack)
+end
+
+--- Detach a member from its stack and hand it to the widget drag system so it
+-- follows the cursor and can be dropped anywhere. The tab button stays alive
+-- (hidden) as the mouse-event capturer until release.
+function mdw.beginTabTearout(stack, tabObj, event)
+  local memberName = tabObj.memberName
+  local member = mdw.widgets[memberName]
+  if not member then return end
+
+  local idx
+  for i, m in ipairs(stack.members) do
+    if m == memberName then idx = i break end
+  end
+  if idx then
+    table.remove(stack.members, idx)
+    table.remove(stack.tabObjects, idx)
+  end
+  stack.tabsByName[memberName] = nil
+  tabObj.button:hide()
+
+  if memberName == stack.activeMember then
+    stack.activeMember = stack.members[idx] or stack.members[#stack.members]
+  end
+
+  -- Detach into a free-floating widget
+  member.stackId = nil
+  member._preStackSlot = nil
+  mdw.removeHeadless(member)
+  member.docked = nil
+  if member.container then member.container:show() end
+  mdw.showResizeHandles(member)
+
+  if #stack.members > 0 then
+    mdw.layoutStack(stack)
+  end
+
+  -- Hand off to the normal widget drag (follows cursor; endDrag finalises)
+  mdw.startDrag(member, event)
+  mdw.commitDragStart(member)
+end
+
+--- After a tear-out drop: delete the orphaned tab button and clean the stack
+-- (unless the member was dropped straight back into this same stack).
+function mdw.finalizeTabTearout(d)
+  local stack = mdw.widgets[d.stackName]
+  local rejoined = stack and stack.isStack and stack.tabsByName[d.memberName]
+
+  if not rejoined then
+    local btnName = "MDW_" .. d.stackName .. "_Tab_" .. safeName(d.memberName)
+    tempTimer(0, function()
+      pcall(function() deleteLabel(btnName) end)
+      for i = #mdw.elements, 1, -1 do
+        local el = mdw.elements[i]
+        if el and el.name == btnName then table.remove(mdw.elements, i) break end
+      end
+    end)
+  end
+
+  if stack and stack.isStack then
+    if #stack.members == 0 then
+      mdw.destroyStack(stack)
+    else
+      mdw.layoutStack(stack)
+      mdw.saveLayout()
+    end
+  end
 end
 
 ---------------------------------------------------------------------------
