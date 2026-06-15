@@ -676,7 +676,15 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.setup()
+	-- Idempotent: never build a second UI on top of an existing one. Guards
+	-- against a package update that deferred teardown, or a double profile-load.
+	if mdw.isSetUp then mdw.teardown() end
+
 	mdw.echo("Setting up UI...")
+
+	-- Clear any stale theme hover-preview so styles build from the committed theme
+	mdw._previewTheme = nil
+	mdw._themePreviewActive = false
 
 	-- Load saved layout first (sets dock widths, theme, and pendingLayouts)
 	mdw.loadLayout()
@@ -719,6 +727,7 @@ function mdw.setup()
 		mdw.reorganizeDock("right")
 	end)
 
+	mdw.isSetUp = true
 	mdw.echo("UI ready!")
 end
 
@@ -733,6 +742,14 @@ end
 function mdw.teardown()
 	mdw.echo("Cleaning up UI...")
 
+	-- Close menus first: this reclaims the click-away overlay and the
+	-- dynamically-built Font Size / Theme menu labels. Those are not tracked
+	-- elements, so destroyAllElements() cannot see them.
+	if mdw.closeAllMenus then mdw.closeAllMenus() end
+	if mdw.destroyLayoutMenuElements then mdw.destroyLayoutMenuElements() end
+	if mdw.destroyThemeMenuElements then mdw.destroyThemeMenuElements() end
+	mdw.menus = { sidebarsOpen = false, widgetsOpen = false, layoutOpen = false, themeOpen = false }
+
 	mdw.destroyAllElements()
 
 	-- Clear userWidgets so they re-register fresh on reload
@@ -743,6 +760,7 @@ function mdw.teardown()
 	setBorderTop(0)
 	setBorderBottom(0)
 
+	mdw.isSetUp = false
 	mdw.echo("Cleanup complete")
 end
 
@@ -763,24 +781,29 @@ function mdw.onInstall(_, package)
 end
 
 --- Handle package uninstall.
--- Why: Ensures clean removal of all UI elements and handlers.
--- Skips teardown during updates to preserve state.
+-- Why: Ensures clean removal of all UI elements and handlers. A package update
+-- fires uninstall immediately followed by install, so we record that a live UI
+-- existed (mdw.isUpdating) for the following install to report it as an update.
+-- Layout is preserved on disk either way, and setup() is idempotent, so we
+-- always tear down here - skipping teardown would orphan or duplicate elements.
 function mdw.onUninstall(_, package)
 	if package ~= mdw.packageName then return end
 
 	-- Always save layout before uninstall (for updates and full uninstall)
 	mdw.saveLayout()
 
-	if not mdw.isUpdating then
-		mdw.teardown()
-		mdw.killAllHandlers()
-	end
+	-- Survives the script reload because MDW_Config preserves it (mdw.isUpdating
+	-- or false); onInstall reads it to distinguish an update from a fresh install.
+	mdw.isUpdating = (mdw.isSetUp == true)
+
+	mdw.teardown()
+	mdw.killAllHandlers()
 end
 
 --- Handle profile load (Mudlet startup with existing profile).
 -- Why: Re-creates the UI when loading a profile that has the package installed.
 function mdw.onProfileLoad()
-	if not mdw.leftDock then
+	if not mdw.isSetUp then
 		mdw.setup()
 	end
 end

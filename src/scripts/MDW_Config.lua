@@ -392,8 +392,14 @@ mdw.menus = {
 	themeOpen = false,
 }
 
--- Update flag to prevent teardown during package update
-mdw.isUpdating = false
+-- Update detection: set true by onUninstall when a live UI existed, read by
+-- onInstall to report an update vs a fresh install. Preserved across the
+-- package's script reload (the mdw table survives), so use `or` not a reset.
+mdw.isUpdating = mdw.isUpdating or false
+
+-- True between a completed setup() and teardown(). Drives setup() idempotency
+-- and the onProfileLoad guard.
+mdw.isSetUp = mdw.isSetUp or false
 
 -- Layout persistence
 mdw.pendingLayouts = {}

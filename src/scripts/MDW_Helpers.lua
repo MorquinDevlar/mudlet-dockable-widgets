@@ -841,25 +841,44 @@ function mdw.moveWidgetClass(widget, x, y)
 end
 
 --- Destroy a widget class instance.
+-- Why: Fully removes every Geyser element the widget owns (delete, not just
+-- hide) and untracks it, so the widget can be recreated with the same name and
+-- no orphans leak on uninstall. Hiding alone left duplicate-named labels behind.
 function mdw.destroyWidgetClass(widget)
 	widget:hide()
-
 	mdw.widgets[widget.name] = nil
 
-	if widget.fillButton then widget.fillButton:hide() end
-	if widget.lockButton then widget.lockButton:hide() end
-	if widget.closeButton then widget.closeButton:hide() end
-	if widget.resizeLeft then widget.resizeLeft:hide() end
-	if widget.resizeRight then widget.resizeRight:hide() end
-	if widget.resizeTop then widget.resizeTop:hide() end
-	if widget.resizeBottom then widget.resizeBottom:hide() end
-	if widget.resizeTopLeft then widget.resizeTopLeft:hide() end
-	if widget.resizeTopRight then widget.resizeTopRight:hide() end
-	if widget.resizeBottomLeft then widget.resizeBottomLeft:hide() end
-	if widget.resizeBottomRight then widget.resizeBottomRight:hide() end
-	if widget.mapper then widget.mapper:hide() end
+	-- Gather every element this widget owns. Container is deleted last (parent).
+	local owned = {
+		widget.titleBar, widget.content, widget.contentBg, widget.tabBar,
+		widget.fillButton, widget.lockButton, widget.closeButton,
+		widget.mapper, widget._mapperElement,
+		widget.bottomResizeHandle,
+		widget.resizeLeft, widget.resizeRight, widget.resizeTop, widget.resizeBottom,
+		widget.resizeTopLeft, widget.resizeTopRight, widget.resizeBottomLeft, widget.resizeBottomRight,
+	}
+	for _, tabObj in ipairs(widget.tabObjects or {}) do
+		owned[#owned + 1] = tabObj.console
+		owned[#owned + 1] = tabObj.button
+	end
+	owned[#owned + 1] = widget.container
 
-	widget.container:hide()
+	-- Build a lookup so we can splice each destroyed element out of mdw.elements.
+	-- Mirrors destroyAllElements: hide + deleteLabel under pcall (Mudlet has no
+	-- universal delete, so non-label types are at least hidden and untracked).
+	local toRemove = {}
+	for _, element in ipairs(owned) do
+		if element then
+			toRemove[element] = true
+			pcall(function() if element.hide then element:hide() end end)
+			pcall(function() if element.name then deleteLabel(element.name) end end)
+		end
+	end
+	for i = #mdw.elements, 1, -1 do
+		if toRemove[mdw.elements[i]] then
+			table.remove(mdw.elements, i)
+		end
+	end
 
 	if mdw.rebuildWidgetsMenu then
 		mdw.rebuildWidgetsMenu()

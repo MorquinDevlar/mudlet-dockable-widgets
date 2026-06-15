@@ -387,20 +387,27 @@ function mdw.Widget:embedMapper()
 	-- Hide the default content label
 	self.content:hide()
 
-	-- Create mapper if not exists
 	if not self.mapper then
-		self.mapper = Geyser.Mapper:new({
-			name = "MDW_" .. self.name .. "_Mapper",
-			x = 0,
-			y = mdw.config.titleHeight,
-			width = "100%",
-			height = self.container:get_height() - mdw.config.titleHeight,
-		}, self.container)
-
-		-- If widget is hidden, hide the mapper too
-		if self.visible == false then
-			self.mapper:hide()
+		if self._mapperElement then
+			-- Reuse the existing mapper rather than recreating it (a second
+			-- Geyser.Mapper:new with the same name would collide).
+			self.mapper = self._mapperElement
+			self.mapper:show()
+		else
+			self.mapper = mdw.trackElement(Geyser.Mapper:new({
+				name = "MDW_" .. self.name .. "_Mapper",
+				x = 0,
+				y = mdw.config.titleHeight,
+				width = "100%",
+				height = self.container:get_height() - mdw.config.titleHeight,
+			}, self.container))
+			self._mapperElement = self.mapper
 		end
+	end
+
+	-- If widget is hidden, hide the mapper too
+	if self.visible == false then
+		self.mapper:hide()
 	end
 end
 
@@ -408,7 +415,10 @@ function mdw.Widget:removeMapper()
 	if self.mapper then
 		self.mapper:hide()
 		self.mapper = nil
-		self.content:show()
+		-- Only reveal content if the widget itself is visible
+		if self.visible ~= false then
+			self.content:show()
+		end
 	end
 end
 
@@ -437,8 +447,11 @@ end
 
 function mdw.Widget.list()
 	local names = {}
-	for name, _ in pairs(mdw.widgets) do
-		names[#names + 1] = name
+	for name, widget in pairs(mdw.widgets) do
+		-- Only list Widgets, not TabbedWidgets (consistent with Widget.get)
+		if not widget.isTabbed then
+			names[#names + 1] = name
+		end
 	end
 	table.sort(names)
 	return names
