@@ -459,15 +459,17 @@ function mdw.setupStackTabDrag(stack, tabObj)
     local s = mdw.widgets[stackName]
     if not s then return end
 
-    if d.mode == nil then
-      local dx = event.globalX - d.startX
-      local dy = event.globalY - d.startY
-      if dy > mdw.config.tabBarHeight then
-        d.mode = "tearout"
-        mdw.beginTabTearout(s, tabObj, event)
-      elseif math.abs(dx) > mdw.config.dragThreshold then
-        d.mode = "reorder"
-      end
+    -- Decide / update the drag mode. Pulling down out of the tab bar always
+    -- tears out (even mid-reorder); only a horizontal-dominant move within the
+    -- bar reorders, so a mostly-downward drag with slight sideways drift still
+    -- tears out instead of locking to reorder.
+    local dx = event.globalX - d.startX
+    local dy = event.globalY - d.startY
+    if d.mode ~= "tearout" and dy > mdw.config.tabBarHeight then
+      d.mode = "tearout"
+      mdw.beginTabTearout(s, tabObj, event)
+    elseif d.mode == nil and math.abs(dx) > mdw.config.dragThreshold and math.abs(dx) > math.abs(dy) then
+      d.mode = "reorder"
     end
 
     if d.mode == "reorder" then
