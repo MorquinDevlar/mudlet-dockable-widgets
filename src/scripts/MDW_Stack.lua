@@ -476,6 +476,16 @@ function mdw.setupStackTabDrag(stack, tabObj)
       local member = mdw.widgets[memberName]
       if member and mdw.drag.active and mdw.drag.widget == member then
         mdw.handleDragMove(member, event)
+        -- The torn tab button keeps the mouse grab, so it must stay visible and
+        -- unclipped. Slide it within the stack toward the cursor so it reads as
+        -- "being pulled out" instead of a stuck duplicate tab.
+        local tw = mdw.stackTabWidth(tabObj.name)
+        local relX = mdw.clamp(event.globalX - s.container:get_x() - tw / 2,
+          0, math.max(0, s.container:get_width() - tw))
+        local relY = mdw.clamp(event.globalY - s.container:get_y(),
+          0, math.max(0, s.container:get_height() - mdw.config.tabBarHeight))
+        tabObj.button:move(relX, relY)
+        tabObj.button:raise()
       end
     end
   end)
@@ -540,8 +550,9 @@ function mdw.commitStackTabReorder(stack, tabObj, event)
 end
 
 --- Detach a member from its stack and hand it to the widget drag system so it
--- follows the cursor and can be dropped anywhere. The tab button stays alive
--- (hidden) as the mouse-event capturer until release.
+-- follows the cursor and can be dropped anywhere. The tab button MUST stay
+-- visible: it owns the mouse grab, so hiding it would drop the grab and stop
+-- the move/release events mid-drag. finalizeTabTearout deletes it on release.
 function mdw.beginTabTearout(stack, tabObj, event)
   local memberName = tabObj.memberName
   local member = mdw.widgets[memberName]
@@ -556,7 +567,6 @@ function mdw.beginTabTearout(stack, tabObj, event)
     table.remove(stack.tabObjects, idx)
   end
   stack.tabsByName[memberName] = nil
-  tabObj.button:hide()
 
   if memberName == stack.activeMember then
     stack.activeMember = stack.members[idx] or stack.members[#stack.members]
