@@ -1019,6 +1019,17 @@ function mdw.detectDropPosition(side, headerX, headerY, excludeWidget, widgetLef
 				end
 			end
 
+			-- Center/body of a widget (not an edge) -> merge into it as a tab
+			for _, w in ipairs(row) do
+				local wx = w.container:get_x()
+				local wy = w.container:get_y()
+				local ww = w.container:get_width()
+				local wh = w.container:get_height()
+				if headerX >= wx and headerX <= wx + ww and headerY >= wy and headerY <= wy + wh then
+					return "tab", rowIndex, 0, w
+				end
+			end
+
 			-- Default to above/below based on position
 			if headerY < rowMidY then
 				return "above", rowIndex, 0, nil
@@ -1196,6 +1207,14 @@ function mdw.updateDropIndicator(widget)
 		dockCfg.dropIndicator:show()
 	end
 
+	-- Tab-merge: highlight the target's tab-bar area to signal "drop to add a tab"
+	if dropType == "tab" and targetWidget and targetWidget.container then
+		local ind = dockCfg.dropIndicator
+		ind:move(targetWidget.container:get_x(), targetWidget.container:get_y())
+		ind:resize(targetWidget.container:get_width(), cfg.tabBarHeight)
+		ind:show()
+	end
+
 	-- Store drop position for endDrag
 	mdw.drag.insertSide = side
 	mdw.drag.dropType = dropType
@@ -1261,6 +1280,17 @@ function mdw.dockWidgetWithPosition(widget, side, dropType, rowIndex, positionIn
 		widget.rowPosition = nil
 		widget.subRow = nil
 		mdw.showResizeHandles(widget)
+		return
+	end
+
+	-- Tab merge: dropped onto another occupant's body -> combine into a tab group.
+	if dropType == "tab" and targetWidget and mdw.addToStack then
+		if targetWidget.isStack then
+			mdw.addToStack(targetWidget.name, widget.name)
+		else
+			mdw.groupWidgetsIntoStack({ targetWidget.name, widget.name },
+				{ dock = targetWidget.docked or side })
+		end
 		return
 	end
 
