@@ -918,7 +918,7 @@ function mdw.detectDropPosition(side, headerX, headerY, excludeWidget, widgetLef
 				end
 
 				local colXPos = dockXPos
-				for ci, col in ipairs(columns) do
+				for _, col in ipairs(columns) do
 					local colWidth
 					if hasCustomRatios then
 						colWidth = colAvailableWidth * ((col[1].widthRatio or 1) / colTotalRatio)
@@ -1036,11 +1036,19 @@ function mdw.updateDropIndicator(widget)
 
 	if not side then
 		mdw.hideDropIndicator()
+		-- If we were previewing a drop (which shifts other docked widgets to
+		-- make room), undo that shift now that the cursor has left every zone.
+		-- Guard on insertSide so we only relayout on the transition, not per frame.
+		local hadPreview = mdw.drag.insertSide ~= nil
 		mdw.drag.insertSide = nil
 		mdw.drag.dropType = nil
 		mdw.drag.rowIndex = nil
 		mdw.drag.positionInRow = nil
 		mdw.drag.targetWidget = nil
+		if hadPreview then
+			mdw.reorganizeDock("left")
+			mdw.reorganizeDock("right")
+		end
 		return
 	end
 
@@ -2683,7 +2691,7 @@ function mdw.rebuildLayoutMenu()
 			width = btnWidth, height = cfg.menuItemHeight,
 		})
 		minus:setStyleSheet(mdw.styles.controlButton)
-		minus:setFontSize(16)
+		minus:setFontSize(cfg.layoutMenuBtnFontSize)
 		minus:decho("<" .. cfg.menuTextColor .. ">-")
 		minus:setCursor(mudlet.cursor.PointingHand)
 		mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = minus
@@ -2707,7 +2715,7 @@ function mdw.rebuildLayoutMenu()
 			width = btnWidth, height = cfg.menuItemHeight,
 		})
 		plus:setStyleSheet(mdw.styles.controlButton)
-		plus:setFontSize(16)
+		plus:setFontSize(cfg.layoutMenuBtnFontSize)
 		plus:decho("<" .. cfg.menuTextColor .. ">+")
 		plus:setCursor(mudlet.cursor.PointingHand)
 		mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = plus

@@ -828,7 +828,7 @@ end
 --- Handle window resize events.
 -- Why: Updates dock and widget positions to match new window dimensions.
 function mdw.onWindowResize()
-	local winW, winH = getMainWindowSize()
+	local _, winH = getMainWindowSize()
 	local cfg = mdw.config
 	local sidebarHeight = winH - cfg.headerHeight
 

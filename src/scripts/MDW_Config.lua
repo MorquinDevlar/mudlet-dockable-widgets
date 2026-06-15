@@ -70,6 +70,7 @@ mdw.config = {
 	layoutMenuGap = 10,      -- Gap between label and controls in Layout menu
 	layoutMenuBtnWidth = 30, -- Width of +/- buttons in Layout menu
 	layoutMenuValueWidth = 36, -- Width of value display in Layout menu
+	layoutMenuBtnFontSize = 16, -- Font size of the +/- buttons in Layout menu
 
 	-- Layout: Margins
 	widgetMargin = 2,     -- Margin around widgets in docks (px)

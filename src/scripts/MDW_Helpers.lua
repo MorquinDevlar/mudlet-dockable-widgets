@@ -247,14 +247,14 @@ function mdw.buildStyles()
     QLabel {
       background-color: %s;
       font-family: '%s';
-      font-size: 16px;
+      font-size: %dpx;
       qproperty-alignment: 'AlignCenter';
       border: 1px solid %s;
     }
     QLabel:hover {
       background-color: %s;
     }
-  ]], mdw.rgbToCss(c.controlBackground), cfg.fontFamily,
+  ]], mdw.rgbToCss(c.controlBackground), cfg.fontFamily, cfg.layoutMenuBtnFontSize,
 		mdw.rgbToCss(c.controlBorder), mdw.rgbToCss(c.controlHover))
 
 end
@@ -510,7 +510,13 @@ function mdw.applyZOrder()
 		mdw.raiseWidgetElements(mdw.drag.widget)
 	end
 
-	-- Layer 8: Menus
+	-- Layer 8: Prompt bar
+	if mdw.promptBarContainer then safeRaise(mdw.promptBarContainer) end
+	if mdw.promptBarBg then safeRaise(mdw.promptBarBg) end
+	if mdw.promptBar then safeRaise(mdw.promptBar) end
+
+	-- Layer 9: Menus (raised last so a tall dropdown is never clipped behind
+	-- the prompt bar; the click-away overlay sits just below the menu labels)
 	if mdw.menuOverlay then safeRaise(mdw.menuOverlay) end
 	if mdw.menus.sidebarsOpen then
 		if mdw.sidebarsMenuBg then safeRaise(mdw.sidebarsMenuBg) end
@@ -536,11 +542,6 @@ function mdw.applyZOrder()
 			safeRaise(label)
 		end
 	end
-
-	-- Layer 9: Prompt bar
-	if mdw.promptBarContainer then safeRaise(mdw.promptBarContainer) end
-	if mdw.promptBarBg then safeRaise(mdw.promptBarBg) end
-	if mdw.promptBar then safeRaise(mdw.promptBar) end
 end
 
 ---------------------------------------------------------------------------
@@ -1037,6 +1038,7 @@ end
 -- NOTE: Returns a new table each call. Not suitable for hot paths;
 -- cache the result if calling repeatedly within the same operation.
 function mdw.getDockConfig(side)
+	assert(side == "left" or side == "right", "getDockConfig: side must be 'left' or 'right'")
 	local cfg = mdw.config
 	local winW = getMainWindowSize()
 
@@ -1225,6 +1227,22 @@ function mdw.applyThemeStyles()
 		-- Content background
 		if widget.contentBg then
 			widget.contentBg:setStyleSheet(mdw.styles.contentBackground)
+		end
+
+		-- Re-color the live console interior(s) so a theme that overrides
+		-- widgetBackground/widgetForeground also updates existing widgets.
+		local bg = cfg.widgetBackgroundRGB
+		local fg = cfg.widgetForegroundRGB
+		local consoles = widget.isTabbed and widget.tabObjects or { { console = widget.content } }
+		for _, tabObj in ipairs(consoles) do
+			local con = tabObj.console
+			if con then
+				con:setColor(bg[1], bg[2], bg[3], 255)
+				if con.name then
+					setBgColor(con.name, bg[1], bg[2], bg[3])
+					setFgColor(con.name, fg[1], fg[2], fg[3])
+				end
+			end
 		end
 
 		-- Title bar button tints
