@@ -33,6 +33,7 @@ read_globals = {
   "raiseEvent",
   "registerNamedEventHandler",
   "selectCurrentLine",
+  "setBackgroundColor",
   "setBgColor",
   "setBorderBottom",
   "setBorderLeft",

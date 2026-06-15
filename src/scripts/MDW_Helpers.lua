@@ -51,6 +51,17 @@ function mdw.resolveColors()
 	return colors
 end
 
+--- Apply the (theme-resolved) main console background color.
+-- Why: The central Mudlet game area is not a MiniConsole MDW owns, so it must
+-- be colored via setBackgroundColor("main", ...). Theme-aware: a theme can
+-- override `mainBackground`; otherwise the config default is used.
+function mdw.applyMainBackground()
+	local bg = mdw.resolveColors().mainBackground
+	if bg then
+		setBackgroundColor("main", bg[1], bg[2], bg[3])
+	end
+end
+
 ---------------------------------------------------------------------------
 -- STYLE GENERATION
 ---------------------------------------------------------------------------
@@ -1212,6 +1223,9 @@ function mdw.applyThemeStyles()
 
 	-- Admin gear button: re-tint and refresh its hover colors for the new theme
 	if mdw.updateAdminButtonIcon then mdw.updateAdminButtonIcon() end
+
+	-- Main console background (a theme may override mainBackground)
+	mdw.applyMainBackground()
 
 	-- Menu backgrounds
 	if mdw.sidebarsMenuBg then mdw.sidebarsMenuBg:setStyleSheet(mdw.styles.menuBackground) end

@@ -716,8 +716,9 @@ function mdw.setup()
 		mdw.config.originalMainFontSize = (ok and type(size) == "number" and size) or mdw.config.mainFontSize
 	end
 
-	-- Apply main console font size
+	-- Apply main console font size and background color
 	setFontSize(mdw.config.mainFontSize)
+	mdw.applyMainBackground()
 
 	mdw.notify("Building widgets")
 	mdw.createDocks()
@@ -847,6 +848,7 @@ end
 -- Why: Mudlet resets setBorderLeft/Right/Top/Bottom to 0 on new connections.
 function mdw.onConnection()
 	mdw.applyBorders()
+	mdw.applyMainBackground()
 end
 
 --- Handle window resize events.

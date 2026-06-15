@@ -99,6 +99,7 @@ mdw.config = {
 		widgetBackground  = { 30, 30, 30 },
 		widgetForeground  = { 200, 200, 200 },
 		headerBackground  = { 38, 38, 38 },
+		mainBackground    = { 17, 16, 16 }, -- Mudlet main console background (theme-overridable)
 
 		-- Menu/UI chrome
 		menuBackground    = { 51, 51, 51 },

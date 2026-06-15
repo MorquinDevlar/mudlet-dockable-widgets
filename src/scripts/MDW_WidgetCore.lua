@@ -3099,10 +3099,11 @@ function mdw.uninstall()
 	-- onUninstall checks this to skip re-saving the layout we're about to delete
 	mdw.fullUninstalling = true
 
-	-- Restore the user's original main console font
+	-- Restore the user's original main console font and background (black default)
 	if mdw.config.originalMainFontSize then
 		setFontSize(mdw.config.originalMainFontSize)
 	end
+	setBackgroundColor("main", 0, 0, 0)
 
 	-- Delete the saved layout so no MDW settings persist
 	if mdw.layoutFile then
