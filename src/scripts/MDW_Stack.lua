@@ -249,7 +249,25 @@ function mdw.addToStack(stackName, memberName, index)
   table.insert(stack.tabObjects, index, tabObj)
   stack.tabsByName[memberName] = tabObj
 
-  setLabelClickCallback(btn.name, function()
+  -- Click selects the tab; dragging it down out of the tab bar ungroups it
+  -- (the member returns to a standalone slot).
+  setLabelClickCallback(btn.name, function(event)
+    mdw._tabPress = { memberName = memberName, startY = event.globalY, done = false }
+  end)
+  setLabelMoveCallback(btn.name, function(event)
+    local p = mdw._tabPress
+    if not p or p.memberName ~= memberName or p.done then return end
+    if event.globalY - p.startY > mdw.config.tabBarHeight + mdw.config.dragThreshold then
+      p.done = true
+      mdw._tabPress = nil
+      -- Defer so we don't delete this tab button from inside its own callback
+      tempTimer(0, function() mdw.removeFromStack(stackName, memberName) end)
+    end
+  end)
+  setLabelReleaseCallback(btn.name, function()
+    local p = mdw._tabPress
+    mdw._tabPress = nil
+    if not p or p.memberName ~= memberName or p.done then return end
     local s = mdw.widgets[stackName]
     if s then mdw.selectStackTab(s, memberName) end
   end)
@@ -265,14 +283,20 @@ end
 --- Remove a member from a stack, restoring it as a standalone widget.
 function mdw.removeFromStack(stackName, memberName)
   local stack = mdw.widgets[stackName]
-  if not stack or not stack.isStack then return end
+  if not stack or not stack.isStack then
+    mdw.echo("removeFromStack: no stack '" .. tostring(stackName) .. "' (see mdw.Stack.list())")
+    return
+  end
   local member = mdw.widgets[memberName]
 
   local idx
   for i, m in ipairs(stack.members) do
     if m == memberName then idx = i break end
   end
-  if not idx then return end
+  if not idx then
+    mdw.echo("removeFromStack: '" .. tostring(memberName) .. "' is not in '" .. tostring(stackName) .. "'")
+    return
+  end
 
   local tabObj = stack.tabObjects[idx]
   table.remove(stack.members, idx)

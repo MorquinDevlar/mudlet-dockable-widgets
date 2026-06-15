@@ -1207,12 +1207,14 @@ function mdw.updateDropIndicator(widget)
 		dockCfg.dropIndicator:show()
 	end
 
-	-- Tab-merge: highlight the target's tab-bar area to signal "drop to add a tab"
+	-- Tab-merge: highlight the target's tab-bar area to signal "drop to add a tab".
+	-- Raise it above the target widget (indicators sit below docked widgets).
 	if dropType == "tab" and targetWidget and targetWidget.container then
 		local ind = dockCfg.dropIndicator
 		ind:move(targetWidget.container:get_x(), targetWidget.container:get_y())
 		ind:resize(targetWidget.container:get_width(), cfg.tabBarHeight)
 		ind:show()
+		ind:raise()
 	end
 
 	-- Store drop position for endDrag
