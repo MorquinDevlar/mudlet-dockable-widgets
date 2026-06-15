@@ -184,6 +184,9 @@ function mdw.createStack(name, opts)
   }, stack.container))
   stack.tabBar:setStyleSheet(mdw.styles.tabBar)
   stack.tabBar:setCursor(mudlet.cursor.OpenHand)
+  -- The tab bar is the drag handle; alias it as titleBar so the generic drag
+  -- code (which sets the title-bar cursor) works on a stack unchanged.
+  stack.titleBar = stack.tabBar
 
   -- Bottom resize handle (named so setupDockedResizeHandle wires it up unchanged)
   stack.bottomResizeHandle = mdw.trackElement(Geyser.Label:new({

@@ -1266,9 +1266,14 @@ function mdw.applyThemeStyles()
 
 	-- Per-widget elements
 	for _, widget in pairs(mdw.widgets) do
-		-- Title bar
-		widget.titleBar:setStyleSheet(mdw.styles.titleBar)
-		mdw.renderWidgetTitle(widget)
+		-- Title bar (a stack has no real title bar - restyle its tab bar + tabs)
+		if widget.isStack then
+			if widget.tabBar then widget.tabBar:setStyleSheet(mdw.styles.tabBar) end
+			if mdw.refreshStackTabBar then mdw.refreshStackTabBar(widget) end
+		else
+			widget.titleBar:setStyleSheet(mdw.styles.titleBar)
+			mdw.renderWidgetTitle(widget)
+		end
 
 		-- Content background
 		if widget.contentBg then
@@ -1299,7 +1304,7 @@ function mdw.applyThemeStyles()
 		-- Bottom resize handle
 		if widget.bottomResizeHandle then
 			local baseColor = preview and cfg.splitterHoverColor or cfg.resizeBorderColor
-			if widget.isTabbed then
+			if widget.isTabbed or widget.isStack then
 				widget.bottomResizeHandle:setStyleSheet(string.format([[
           QLabel { background-color: %s; }
           QLabel:hover { background-color: %s; }

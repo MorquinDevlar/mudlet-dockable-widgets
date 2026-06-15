@@ -610,6 +610,12 @@ function mdw.handleDragMove(widget, event)
 		local newY = math.max(cfg.headerHeight + cfg.separatorHeight, event.globalY - mdw.drag.offsetY)
 		widget.container:move(newX, newY)
 
+		-- Stack member containers are siblings positioned in absolute coords, so
+		-- re-place them whenever the stack container moves during a drag.
+		if widget.isStack and mdw.resizeStackContent then
+			mdw.resizeStackContent(widget)
+		end
+
 		if not widget.docked then
 			mdw.updateResizeBorders(widget)
 		end
