@@ -467,7 +467,7 @@ function mdw.setupStackTabDrag(stack, tabObj)
     local dy = event.globalY - d.startY
     if d.mode ~= "tearout" and dy > mdw.config.tabBarHeight then
       d.mode = "tearout"
-      mdw.beginTabTearout(s, tabObj, event)
+      mdw.beginTabGhost(s, tabObj)
     elseif d.mode == nil and math.abs(dx) > mdw.config.dragThreshold and math.abs(dx) > math.abs(dy) then
       d.mode = "reorder"
     end
@@ -475,10 +475,7 @@ function mdw.setupStackTabDrag(stack, tabObj)
     if d.mode == "reorder" then
       mdw.handleStackTabReorder(s, tabObj, event)
     elseif d.mode == "tearout" then
-      local member = mdw.widgets[memberName]
-      if member and mdw.drag.active and mdw.drag.widget == member then
-        mdw.handleDragMove(member, event)
-      end
+      mdw.updateTabGhost(s, tabObj, event)
     end
   end)
 
@@ -493,9 +490,9 @@ function mdw.setupStackTabDrag(stack, tabObj)
     elseif d.mode == "reorder" then
       if s then mdw.commitStackTabReorder(s, tabObj, event) end
     elseif d.mode == "tearout" then
-      -- Defer: don't run endDrag or delete the capturer button from inside this
-      -- button's own release callback (deleting the label mid-callback corrupts it).
-      tempTimer(0, function() mdw.finalizeTabTearout(d) end)
+      -- Defer the detach + placement out of this button's own release callback
+      -- (placement deletes this very tab button).
+      tempTimer(0, function() mdw.dropTabGhost(d) end)
     end
   end)
 end
@@ -539,81 +536,153 @@ function mdw.commitStackTabReorder(stack, tabObj, event)
   mdw.refreshStackTabBar(stack)
 end
 
---- Detach a member from its stack and hand it to the widget drag system so it
--- follows the cursor and can be dropped anywhere. The tab button MUST stay
--- visible: it owns the mouse grab, so hiding it would drop the grab and stop
--- the move/release events mid-drag. finalizeTabTearout deletes it on release.
-function mdw.beginTabTearout(stack, tabObj, event)
-  local memberName = tabObj.memberName
-  local member = mdw.widgets[memberName]
-  if not member then return end
+--- Tear-out uses a small "ghost" that follows the cursor (like DockView); the
+-- member stays in the stack untouched, so there is no mouse-grab handoff. The
+-- member is only detached + placed on release.
 
+--- Create the ghost label (a small tab-sized box showing the member title).
+function mdw.createTabGhost(title)
+  mdw._ghostCounter = (mdw._ghostCounter or 0) + 1
+  local ghost = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_TabGhost_" .. mdw._ghostCounter,
+    x = 0, y = 0, width = mdw.stackTabWidth(title), height = mdw.config.tabBarHeight,
+  }))
+  ghost:setStyleSheet(mdw.styles.tabActive)
+  ghost:setFontSize(mdw.config.tabFontSize)
+  ghost:decho("<" .. mdw.config.tabActiveTextColor .. ">" .. tostring(title))
+  return ghost
+end
+
+--- Begin a tear-out: spawn the ghost and dim the original tab. The widget does
+-- not move; only the ghost does.
+function mdw.beginTabGhost(stack, tabObj)
+  local d = mdw.stackTabDrag
+  if not d then return end
+  d.ghost = mdw.createTabGhost(tabObj.name)
+  if mdw.styles.tabDragging then
+    tabObj.button:setStyleSheet(mdw.styles.tabDragging)
+    tabObj.button:setFontSize(mdw.config.tabFontSize)
+    tabObj.button:decho("<" .. mdw.config.tabInactiveTextColor .. ">" .. tabObj.name)
+  end
+end
+
+--- Move the ghost to the cursor and update the drop indicator from the cursor.
+function mdw.updateTabGhost(stack, tabObj, event)
+  local d = mdw.stackTabDrag
+  if not d then return end
+  d.lastX = event.globalX
+  d.lastY = event.globalY
+  local member = mdw.widgets[d.memberName]
+  if member then
+    mdw.updateDropIndicator(member, event.globalX, event.globalY)
+  end
+  if d.ghost then
+    d.ghost:move(event.globalX - 12, event.globalY + 8)
+    d.ghost:raise()
+  end
+end
+
+--- Detach a member from a stack: remove its tab, restore its own chrome.
+function mdw.detachMember(stack, memberName)
   local idx
   for i, m in ipairs(stack.members) do
     if m == memberName then idx = i break end
   end
+  local tabObj = idx and stack.tabObjects[idx]
   if idx then
     table.remove(stack.members, idx)
     table.remove(stack.tabObjects, idx)
   end
   stack.tabsByName[memberName] = nil
-
+  if tabObj and tabObj.button then
+    pcall(function() tabObj.button:hide() end)
+    pcall(function() if tabObj.button.name then deleteLabel(tabObj.button.name) end end)
+    for i = #mdw.elements, 1, -1 do
+      if mdw.elements[i] == tabObj.button then table.remove(mdw.elements, i) break end
+    end
+  end
+  local member = mdw.widgets[memberName]
+  if member then
+    member.stackId = nil
+    member._preStackSlot = nil
+    mdw.removeHeadless(member)
+  end
   if memberName == stack.activeMember then
     stack.activeMember = stack.members[idx] or stack.members[#stack.members]
   end
-
-  -- The tab button owns the mouse grab and must stay shown to keep it, but make
-  -- it invisible (blank + transparent) so only the floating widget's own title
-  -- bar shows the name. finalizeTabTearout deletes it on release.
-  tabObj.button:setStyleSheet([[background-color: transparent; border: none;]])
-  tabObj.button:echo("")
-  if mdw.stackTabDrag then mdw.stackTabDrag.orphanButton = tabObj.button end
-
-  -- Detach into a free-floating widget
-  member.stackId = nil
-  member._preStackSlot = nil
-  mdw.removeHeadless(member)
-  member.docked = nil
-  if member.container then member.container:show() end
-  mdw.showResizeHandles(member)
-
-  if #stack.members > 0 then
-    mdw.layoutStack(stack)
-  end
-
-  -- Hand off to the normal widget drag, grabbed by its title bar at the cursor
-  mdw.startDrag(member, event)
-  mdw.commitDragStart(member)
-  mdw.drag.offsetX = math.min(60, member.container:get_width() / 2)
-  mdw.drag.offsetY = mdw.config.titleHeight / 2
+  if #stack.members > 0 then mdw.layoutStack(stack) end
 end
 
---- Run (deferred) after a tear-out is released: delete the invisible capturer
--- button, finalise the dropped member, then destroy the stack if it emptied.
-function mdw.finalizeTabTearout(d)
-  -- 1. Delete the capturer button FIRST so a re-merge into the same stack can
-  -- reuse its name without a collision.
-  local btn = d.orphanButton
-  if btn then
-    pcall(function() btn:hide() end)
-    pcall(function() if btn.name then deleteLabel(btn.name) end end)
+--- Run (deferred) on tear-out release: delete the ghost, then detach the member
+-- and place it where the cursor was (float / dock / merge into another group).
+function mdw.dropTabGhost(d)
+  if d.ghost then
+    pcall(function() d.ghost:hide() end)
+    pcall(function() if d.ghost.name then deleteLabel(d.ghost.name) end end)
     for i = #mdw.elements, 1, -1 do
-      if mdw.elements[i] == btn then table.remove(mdw.elements, i) break end
+      if mdw.elements[i] == d.ghost then table.remove(mdw.elements, i) break end
     end
+    d.ghost = nil
   end
 
-  -- 2. Finalise the dropped member (float / dock / merge into a group). endDrag
-  -- reads the drop target stored by the last updateDropIndicator.
-  local member = mdw.widgets[d.memberName]
-  if member and mdw.drag.active and mdw.drag.widget == member then
-    mdw.endDrag(member)
-  end
+  -- The last updateDropIndicator stored the drop intent here.
+  local side = mdw.drag.insertSide
+  local dropType = mdw.drag.dropType
+  local target = mdw.drag.targetWidget
+  local rowIndex = mdw.drag.rowIndex
+  local positionInRow = mdw.drag.positionInRow
+  mdw.hideDropIndicator()
+  mdw.updateDockHighlight(nil)
+  mdw.drag.insertSide = nil
+  mdw.drag.dropType = nil
+  mdw.drag.targetWidget = nil
+  mdw.drag.rowIndex = nil
+  mdw.drag.positionInRow = nil
 
-  -- 3. Destroy the original stack if it ended up empty
   local stack = mdw.widgets[d.stackName]
-  if stack and stack.isStack and #stack.members == 0 then
-    mdw.destroyStack(stack)
+  local member = mdw.widgets[d.memberName]
+  if not stack or not member then return end
+
+  -- Dropped back onto its own stack: cancel, restore the tab.
+  if dropType == "tab" and target == stack then
+    mdw.refreshStackTabBar(stack)
+    mdw.layoutStack(stack)
+    return
   end
+
+  mdw.detachMember(stack, d.memberName)
+
+  if not side then
+    -- Float where the cursor was released
+    member.docked = nil
+    member.row = nil
+    member.rowPosition = nil
+    member.subRow = nil
+    if member.container then
+      member.container:move(math.max(0, (d.lastX or 100) - 30), math.max(0, (d.lastY or 100) - 10))
+      member.container:show()
+    end
+    mdw.showResizeHandles(member)
+    mdw.updateResizeBorders(member)
+  elseif dropType == "tab" and target and target ~= stack then
+    if target.isStack then
+      mdw.addToStack(target.name, d.memberName)
+    else
+      mdw.groupWidgetsIntoStack({ target.name, d.memberName }, { dock = target.docked or side })
+    end
+  else
+    mdw.dockWidgetWithPosition(member, side, dropType, rowIndex, positionInRow, target)
+    mdw.hideResizeHandles(member)
+  end
+
+  local s2 = mdw.widgets[d.stackName]
+  if s2 and s2.isStack and #s2.members == 0 then
+    mdw.destroyStack(s2)
+  end
+  mdw.reorganizeDock("left")
+  mdw.reorganizeDock("right")
+  mdw.saveLayout()
+  if mdw.rebuildWidgetsMenu then mdw.rebuildWidgetsMenu() end
 end
 
 ---------------------------------------------------------------------------

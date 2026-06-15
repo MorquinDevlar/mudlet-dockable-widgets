@@ -1050,22 +1050,26 @@ function mdw.detectDropPosition(side, headerX, headerY, excludeWidget, widgetLef
 end
 
 --- Update the drop indicator position during drag.
-function mdw.updateDropIndicator(widget)
+-- pointX/pointY (optional): use a cursor point instead of the widget's own
+-- position (for the ghost-based tab tear-out, where the widget doesn't move).
+function mdw.updateDropIndicator(widget, pointX, pointY)
 	local cfg = mdw.config
 
 	local widgetX = widget.container:get_x()
 	local widgetY = widget.container:get_y()
 	local widgetW = widget.container:get_width()
-	local centerX = widgetX + widgetW / 2
-	local headerY = widgetY + cfg.titleHeight / 2
+	local centerX = pointX or (widgetX + widgetW / 2)
+	local headerY = pointY or (widgetY + cfg.titleHeight / 2)
+	local leftX = pointX or widgetX
+	local rightX = pointX or (widgetX + widgetW)
 
 	-- Detect dock zone
 	local side = mdw.getDockZoneAtPoint(centerX, headerY)
 	if not side then
-		side = mdw.getDockZoneAtPoint(widgetX, headerY)
+		side = mdw.getDockZoneAtPoint(leftX, headerY)
 	end
 	if not side then
-		side = mdw.getDockZoneAtPoint(widgetX + widgetW, headerY)
+		side = mdw.getDockZoneAtPoint(rightX, headerY)
 	end
 
 	mdw.updateDockHighlight(side)
@@ -1093,7 +1097,7 @@ function mdw.updateDropIndicator(widget)
 	local dockXPos = dockCfg.xPos
 
 	local dropType, rowIndex, positionInRow, targetWidget = mdw.detectDropPosition(
-		side, centerX, headerY, widget, widgetX, widgetX + widgetW)
+		side, centerX, headerY, widget, leftX, rightX)
 
 	local docked = mdw.getDockedWidgets(side, widget)
 	local rows = mdw.groupWidgetsByRow(docked)
