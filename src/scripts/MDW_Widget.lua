@@ -136,7 +136,8 @@ function mdw.Widget:new(cons)
 	if self.overflow ~= "wrap" then
 		self.content:setWrap(10000)
 	end
-	self._wrapWidth = mdw.calculateWrap(self.content:get_width(), mdw.getEffectiveFontSize(self.fontAdjust))
+	-- Apply the effective font size (honours fontAdjust) and wrap at creation
+	mdw.applyWidgetFontSize(self)
 
 	-- Apply height
 	if self.height ~= mdw.config.widgetHeight then
@@ -344,10 +345,7 @@ end
 
 function mdw.Widget:setFontAdjust(adjust)
 	self.fontAdjust = adjust or 0
-	local effectiveSize = mdw.getEffectiveFontSize(self.fontAdjust)
-	self.content:setFontSize(effectiveSize)
-	local contentWidth = self.content:get_width()
-	self.content:setWrap(mdw.calculateWrap(contentWidth, effectiveSize))
+	mdw.applyWidgetFontSize(self)
 	mdw.saveLayout()
 end
 

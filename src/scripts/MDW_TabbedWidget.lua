@@ -162,7 +162,8 @@ function mdw.TabbedWidget:new(cons)
 		end
 	end
 	if #self.tabObjects > 0 then
-		self._wrapWidth = mdw.calculateWrap(self.tabObjects[1].console:get_width())
+		-- Apply the effective font size (honours fontAdjust) and wrap at creation
+		mdw.applyWidgetFontSize(self)
 	end
 
 	-- Apply height
@@ -1034,12 +1035,7 @@ end
 
 function mdw.TabbedWidget:setFontAdjust(adjust)
 	self.fontAdjust = adjust or 0
-	local effectiveSize = mdw.getEffectiveFontSize(self.fontAdjust)
-	for _, tabObj in ipairs(self.tabObjects) do
-		tabObj.console:setFontSize(effectiveSize)
-		local consoleWidth = tabObj.console:get_width()
-		tabObj.console:setWrap(mdw.calculateWrap(consoleWidth, effectiveSize))
-	end
+	mdw.applyWidgetFontSize(self)
 	mdw.saveLayout()
 end
 

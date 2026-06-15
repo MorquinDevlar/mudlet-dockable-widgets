@@ -574,26 +574,32 @@ function mdw.loadLayout()
 			mdw.config.promptBarHeight = layout.docks.promptBarHeight
 		end
 		-- Font size migration: old format had fontSize + promptFontSize,
-		-- new format has contentFontSize + promptFontAdjust + mainFontSize
+		-- new format has contentFontSize + promptFontAdjust + mainFontSize.
+		-- Every value is clamped: a hand-edited or corrupt file must not push an
+		-- out-of-range size, especially mainFontSize which hits the real console.
 		if layout.docks.contentFontSize then
 			-- New format
-			mdw.config.contentFontSize = layout.docks.contentFontSize
+			mdw.config.contentFontSize = mdw.clamp(layout.docks.contentFontSize, 8, 20)
 			if layout.docks.promptFontAdjust then
 				mdw.config.promptFontAdjust = layout.docks.promptFontAdjust
 			end
 			if layout.docks.mainFontSize then
-				mdw.config.mainFontSize = layout.docks.mainFontSize
+				mdw.config.mainFontSize = mdw.clamp(layout.docks.mainFontSize, 8, 20)
 			end
 		elseif layout.docks.fontSize then
 			-- Old format: migrate
-			mdw.config.contentFontSize = layout.docks.fontSize
+			mdw.config.contentFontSize = mdw.clamp(layout.docks.fontSize, 8, 20)
 			local oldPromptSize = layout.docks.promptFontSize or layout.docks.fontSize
 			mdw.config.promptFontAdjust = oldPromptSize - layout.docks.fontSize
 		end
+		-- Keep the prompt offset within the effective clamp [8,30]
+		local promptEff = mdw.clamp(mdw.config.contentFontSize + mdw.config.promptFontAdjust, 8, 30)
+		mdw.config.promptFontAdjust = promptEff - mdw.config.contentFontSize
 		if layout.docks.headerFontSize then
-			mdw.config.widgetHeaderFontSize = layout.docks.headerFontSize
+			mdw.config.widgetHeaderFontSize = mdw.clamp(layout.docks.headerFontSize, 8, 20)
 		end
-		if layout.docks.theme then
+		-- Only restore a theme that still exists; otherwise keep the default
+		if layout.docks.theme and mdw.themes[layout.docks.theme] then
 			mdw.config.theme = layout.docks.theme
 		end
 	end

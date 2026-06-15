@@ -301,6 +301,28 @@ function mdw.getPromptEffectiveFontSize()
 	return mdw.clamp(mdw.config.contentFontSize + (mdw.config.promptFontAdjust or 0), 8, 30)
 end
 
+--- Apply a widget's effective font size to its console(s), refresh the wrap
+-- width and the cached ellipsis width, then reflow.
+-- Why: Single source of truth for font sizing so creation, resize, menu
+-- adjustments, and layout restore can never drift apart (the previous copies
+-- disagreed on whether they also updated _wrapWidth / reflowed).
+function mdw.applyWidgetFontSize(widget)
+	local size = mdw.getEffectiveFontSize(widget.fontAdjust)
+	local overflow = widget.overflow or "wrap"
+	local consoles = widget.isTabbed and widget.tabObjects or { { console = widget.content } }
+	local wrapWidth
+	for _, tabObj in ipairs(consoles) do
+		local console = tabObj.console
+		if console then
+			console:setFontSize(size)
+			wrapWidth = mdw.calculateWrap(console:get_width(), size)
+			if overflow == "wrap" then console:setWrap(wrapWidth) end
+		end
+	end
+	widget._wrapWidth = wrapWidth
+	if overflow ~= "hidden" and widget.reflow then widget:reflow() end
+end
+
 --- Calculate wrap value for a MiniConsole based on pixel width.
 -- Uses calcFontSize to get exact character width for the configured font.
 -- @param pixelWidth number The pixel width of the console
@@ -944,18 +966,7 @@ function mdw.applyPendingLayout(widget)
 	-- Apply font adjustment
 	if saved.fontAdjust then
 		widget.fontAdjust = saved.fontAdjust
-		local effectiveSize = mdw.getEffectiveFontSize(widget.fontAdjust)
-		if widget.isTabbed then
-			for _, tabObj in ipairs(widget.tabObjects or {}) do
-				tabObj.console:setFontSize(effectiveSize)
-				local cw = tabObj.console:get_width()
-				tabObj.console:setWrap(mdw.calculateWrap(cw, effectiveSize))
-			end
-		elseif widget.content then
-			widget.content:setFontSize(effectiveSize)
-			local cw = widget.content:get_width()
-			widget.content:setWrap(mdw.calculateWrap(cw, effectiveSize))
-		end
+		mdw.applyWidgetFontSize(widget)
 	end
 
 	-- Apply size first

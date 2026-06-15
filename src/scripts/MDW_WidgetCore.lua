@@ -2769,8 +2769,9 @@ function mdw.rebuildLayoutMenu()
 	for _, wName in ipairs(widgetNames) do
 		local w = mdw.widgets[wName]
 		local adjust = w.fontAdjust or 0
-		local safeName = wName:gsub("[^%w]", "_")
-		createFontRow(rowIdx, wName, formatOffset(adjust), "WFA_" .. safeName,
+		-- Use the row index (unique per rebuild) for the element name so two
+		-- widget names differing only in punctuation can't collide.
+		createFontRow(rowIdx, wName, formatOffset(adjust), "WFA_" .. rowIdx,
 			function() mdw.adjustWidgetFontAdjust(wName, -1) end,
 			function() mdw.adjustWidgetFontAdjust(wName, 1) end)
 		rowIdx = rowIdx + 1
@@ -2932,20 +2933,7 @@ function mdw.adjustContentFontSize(delta)
 
 	-- Apply to all widgets with their individual offsets
 	for _, widget in pairs(mdw.widgets) do
-		local effectiveSize = mdw.getEffectiveFontSize(widget.fontAdjust)
-		if widget.isTabbed then
-			for _, tabObj in ipairs(widget.tabObjects) do
-				tabObj.console:setFontSize(effectiveSize)
-				local cw = tabObj.console:get_width()
-				tabObj.console:setWrap(mdw.calculateWrap(cw, effectiveSize))
-			end
-		else
-			if widget.content then
-				widget.content:setFontSize(effectiveSize)
-				local cw = widget.content:get_width()
-				widget.content:setWrap(mdw.calculateWrap(cw, effectiveSize))
-			end
-		end
+		mdw.applyWidgetFontSize(widget)
 	end
 
 	-- Apply to prompt bar
@@ -2958,7 +2946,6 @@ function mdw.adjustContentFontSize(delta)
 	end
 
 	-- Rebuild menu to show new values
-	mdw.rebuildLayoutMenu()
 	mdw.showLayoutMenu()
 	mdw.saveLayout()
 end
@@ -2974,7 +2961,6 @@ function mdw.adjustMainFontSize(delta)
 	setFontSize(newSize)
 
 	-- Rebuild menu to show new value
-	mdw.rebuildLayoutMenu()
 	mdw.showLayoutMenu()
 	mdw.saveLayout()
 end
@@ -2998,7 +2984,6 @@ function mdw.adjustPromptFontAdjust(delta)
 	end
 
 	-- Rebuild menu to show new value
-	mdw.rebuildLayoutMenu()
 	mdw.showLayoutMenu()
 	mdw.saveLayout()
 end
@@ -3017,22 +3002,9 @@ function mdw.adjustWidgetFontAdjust(widgetName, delta)
 	if newAdjust == (widget.fontAdjust or 0) then return end
 	widget.fontAdjust = newAdjust
 
-	if widget.isTabbed then
-		for _, tabObj in ipairs(widget.tabObjects) do
-			tabObj.console:setFontSize(effectiveSize)
-			local cw = tabObj.console:get_width()
-			tabObj.console:setWrap(mdw.calculateWrap(cw, effectiveSize))
-		end
-	else
-		if widget.content then
-			widget.content:setFontSize(effectiveSize)
-			local cw = widget.content:get_width()
-			widget.content:setWrap(mdw.calculateWrap(cw, effectiveSize))
-		end
-	end
+	mdw.applyWidgetFontSize(widget)
 
 	-- Rebuild menu to show new value
-	mdw.rebuildLayoutMenu()
 	mdw.showLayoutMenu()
 	mdw.saveLayout()
 end
@@ -3056,7 +3028,6 @@ function mdw.adjustHeaderFontSize(delta)
 	end
 
 	-- Rebuild menu to show new value
-	mdw.rebuildLayoutMenu()
 	mdw.showLayoutMenu()
 	mdw.saveLayout()
 end
