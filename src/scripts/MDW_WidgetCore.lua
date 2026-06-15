@@ -417,6 +417,12 @@ end
 function mdw.resizeWidgetContent(widget, targetWidth, targetHeight)
 	local cfg = mdw.config
 
+	-- Handle stacks (tab groups) - they own their own content layout
+	if widget.isStack and mdw.resizeStackContent then
+		mdw.resizeStackContent(widget, targetWidth, targetHeight)
+		return
+	end
+
 	-- Handle tabbed widgets (check function exists to avoid errors if TabbedWidget not loaded)
 	if widget.isTabbed and mdw.resizeTabbedWidgetContent then
 		mdw.resizeTabbedWidgetContent(widget, targetWidth, targetHeight)
@@ -427,27 +433,33 @@ function mdw.resizeWidgetContent(widget, targetWidth, targetHeight)
 	local cw = targetWidth or widget.container:get_width()
 	local ch = targetHeight or widget.container:get_height()
 
-	-- Reserve space for bottom resize handle when docked
-	local resizeHandleHeight = widget.docked and cfg.widgetSplitterHeight or 0
-	local contentAreaHeight = ch - cfg.titleHeight - resizeHandleHeight
+	-- Headless members (inside a stack) render without their own title bar or
+	-- resize handle - the stack provides the chrome and sizes the container to
+	-- the content rect.
+	local titleH = widget._headless and 0 or cfg.titleHeight
+	local resizeHandleHeight = (widget.docked and not widget._headless) and cfg.widgetSplitterHeight or 0
+	local contentAreaHeight = ch - titleH - resizeHandleHeight
 	local contentAreaWidth = cw -- Full width - splitters are separate elements now
 	local contentWidth = contentAreaWidth - cfg.contentPaddingLeft
 	local contentHeight = contentAreaHeight - cfg.contentPaddingTop
 
 	-- Use RELATIVE positions (children are parented to container)
-	widget.titleBar:move(0, 0)
-	widget.titleBar:resize(cw, cfg.titleHeight)
-
-	mdw.repositionTitleBarButtons(widget, cw)
-	mdw.renderWidgetTitle(widget)
+	if widget._headless then
+		widget.titleBar:hide()
+	else
+		widget.titleBar:move(0, 0)
+		widget.titleBar:resize(cw, cfg.titleHeight)
+		mdw.repositionTitleBarButtons(widget, cw)
+		mdw.renderWidgetTitle(widget)
+	end
 
 	-- Resize background label that fills the padding area (not overlapping right splitter)
 	if widget.contentBg then
-		widget.contentBg:move(0, cfg.titleHeight)
+		widget.contentBg:move(0, titleH)
 		widget.contentBg:resize(contentAreaWidth, contentAreaHeight)
 	end
 
-	widget.content:move(cfg.contentPaddingLeft, cfg.titleHeight + cfg.contentPaddingTop)
+	widget.content:move(cfg.contentPaddingLeft, titleH + cfg.contentPaddingTop)
 	widget.content:resize(contentWidth, contentHeight)
 	local effectiveFontSize = mdw.getEffectiveFontSize(widget.fontAdjust)
 	local wrapWidth = mdw.calculateWrap(contentWidth, effectiveFontSize)
@@ -461,15 +473,20 @@ function mdw.resizeWidgetContent(widget, targetWidth, targetHeight)
 	if overflow ~= "hidden" and widget.reflow then widget:reflow() end
 
 	if widget.mapper then
-		widget.mapper:move(cfg.contentPaddingLeft, cfg.titleHeight + cfg.contentPaddingTop)
+		widget.mapper:move(cfg.contentPaddingLeft, titleH + cfg.contentPaddingTop)
 		widget.mapper:resize(contentWidth, contentHeight)
 	end
 
-	-- Position bottom resize handle at widget bottom (hit area extends above visible line)
+	-- Position bottom resize handle at widget bottom (hit area extends above visible line).
+	-- Headless members have no own handle (the stack provides one).
 	if widget.bottomResizeHandle then
-		local handleHeight = cfg.widgetSplitterHeight + cfg.resizeHandleHitPad
-		widget.bottomResizeHandle:move(0, ch - handleHeight)
-		widget.bottomResizeHandle:resize(cw, handleHeight)
+		if widget._headless then
+			widget.bottomResizeHandle:hide()
+		else
+			local handleHeight = cfg.widgetSplitterHeight + cfg.resizeHandleHitPad
+			widget.bottomResizeHandle:move(0, ch - handleHeight)
+			widget.bottomResizeHandle:resize(cw, handleHeight)
+		end
 	end
 end
 
@@ -762,7 +779,8 @@ end
 function mdw.getDockedWidgets(side, excludeWidget)
 	local docked = {}
 	for _, w in pairs(mdw.widgets) do
-		if w.docked == side and w ~= excludeWidget and w.visible ~= false then
+		-- Members of a stack (w.stackId set) are laid out by their stack, not directly
+		if w.docked == side and w ~= excludeWidget and w.visible ~= false and not w.stackId then
 			docked[#docked + 1] = w
 		end
 	end

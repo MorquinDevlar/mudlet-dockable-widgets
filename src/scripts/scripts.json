@@ -36,6 +36,12 @@
         "isFolder": "no"
     },
     {
+        "name": "MDW_Stack",
+        "isActive": "yes",
+        "script": "",
+        "isFolder": "no"
+    },
+    {
         "name": "MDW_Examples",
         "isActive": "yes",
         "script": "",

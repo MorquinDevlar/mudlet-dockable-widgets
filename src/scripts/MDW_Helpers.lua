@@ -458,7 +458,16 @@ function mdw.raiseWidgetElements(widget)
 	if widget.lockButton then safeRaise(widget.lockButton) end
 	if widget.closeButton then safeRaise(widget.closeButton) end
 
-	if widget.isTabbed then
+	if widget.isStack then
+		-- Members are siblings: raise the active member's full element set above the
+		-- stack container, then the stack's tab bar + tab buttons above the member.
+		local active = widget.activeMember and mdw.widgets[widget.activeMember]
+		if active then mdw.raiseWidgetElements(active) end
+		if widget.tabBar then safeRaise(widget.tabBar) end
+		for _, tabObj in ipairs(widget.tabObjects or {}) do
+			if tabObj.button then safeRaise(tabObj.button) end
+		end
+	elseif widget.isTabbed then
 		if widget.tabBar then safeRaise(widget.tabBar) end
 		for _, tabObj in ipairs(widget.tabObjects or {}) do
 			if tabObj.button then safeRaise(tabObj.button) end
@@ -516,16 +525,16 @@ function mdw.applyZOrder()
 		safeRaise(splitter)
 	end
 
-	-- Layer 5: Docked widgets
+	-- Layer 5: Docked widgets (stack members are raised by their stack, not here)
 	for _, widget in pairs(mdw.widgets) do
-		if widget.docked and not (mdw.drag.active and mdw.drag.widget == widget) then
+		if widget.docked and not widget.stackId and not (mdw.drag.active and mdw.drag.widget == widget) then
 			mdw.raiseWidgetElements(widget)
 		end
 	end
 
-	-- Layer 6: Floating widgets (skip drag widget)
+	-- Layer 6: Floating widgets (skip drag widget and stack members)
 	for _, widget in pairs(mdw.widgets) do
-		if not widget.docked and not (mdw.drag.active and mdw.drag.widget == widget) then
+		if not widget.docked and not widget.stackId and not (mdw.drag.active and mdw.drag.widget == widget) then
 			mdw.raiseWidgetElements(widget)
 		end
 	end

@@ -380,27 +380,32 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
 	local cw = targetWidth or tabbedWidget.container:get_width()
 	local ch = targetHeight or tabbedWidget.container:get_height()
 
-	-- Reserve space for bottom resize handle when docked
-	local resizeHandleHeight = tabbedWidget.docked and cfg.widgetSplitterHeight or 0
-	local contentAreaHeight = ch - cfg.titleHeight - cfg.tabBarHeight - resizeHandleHeight
+	-- Headless members (inside a stack) skip their own title bar; the tab bar
+	-- moves to the top and the stack provides the resize handle.
+	local titleH = tabbedWidget._headless and 0 or cfg.titleHeight
+	local resizeHandleHeight = (tabbedWidget.docked and not tabbedWidget._headless) and cfg.widgetSplitterHeight or 0
+	local contentAreaHeight = ch - titleH - cfg.tabBarHeight - resizeHandleHeight
 	local contentAreaWidth = cw -- Full width - splitters are separate elements now
 	local consoleWidth = contentAreaWidth - cfg.contentPaddingLeft
 	local consoleHeight = contentAreaHeight - cfg.contentPaddingTop
 
-	-- Resize title bar
-	tabbedWidget.titleBar:move(0, 0)
-	tabbedWidget.titleBar:resize(cw, cfg.titleHeight)
-
-	mdw.repositionTitleBarButtons(tabbedWidget, cw)
-	mdw.renderWidgetTitle(tabbedWidget)
+	-- Resize title bar (skipped when headless)
+	if tabbedWidget._headless then
+		tabbedWidget.titleBar:hide()
+	else
+		tabbedWidget.titleBar:move(0, 0)
+		tabbedWidget.titleBar:resize(cw, cfg.titleHeight)
+		mdw.repositionTitleBarButtons(tabbedWidget, cw)
+		mdw.renderWidgetTitle(tabbedWidget)
+	end
 
 	-- Resize tab bar
-	tabbedWidget.tabBar:move(0, cfg.titleHeight)
+	tabbedWidget.tabBar:move(0, titleH)
 	tabbedWidget.tabBar:resize(cw, cfg.tabBarHeight)
 
 	-- Resize background label that fills the padding area (not overlapping right splitter)
 	if tabbedWidget.contentBg then
-		tabbedWidget.contentBg:move(0, cfg.titleHeight + cfg.tabBarHeight)
+		tabbedWidget.contentBg:move(0, titleH + cfg.tabBarHeight)
 		tabbedWidget.contentBg:resize(contentAreaWidth, contentAreaHeight)
 	end
 
@@ -412,11 +417,11 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
 		local tabX = (i - 1) * tabWidth
 
 		-- Resize tab button
-		tabObj.button:move(tabX, cfg.titleHeight)
+		tabObj.button:move(tabX, titleH)
 		tabObj.button:resize(tabWidth, cfg.tabBarHeight)
 
 		-- Resize tab console
-		tabObj.console:move(cfg.contentPaddingLeft, cfg.titleHeight + cfg.tabBarHeight + cfg.contentPaddingTop)
+		tabObj.console:move(cfg.contentPaddingLeft, titleH + cfg.tabBarHeight + cfg.contentPaddingTop)
 		tabObj.console:resize(consoleWidth, consoleHeight)
 		local effectiveFontSize = mdw.getEffectiveFontSize(tabbedWidget.fontAdjust)
 		local wrapWidth = mdw.calculateWrap(consoleWidth, effectiveFontSize)
@@ -435,10 +440,14 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
 	local overflow = tabbedWidget.overflow or "wrap"
 	if overflow ~= "hidden" and tabbedWidget.reflow then tabbedWidget:reflow() end
 
-	-- Position bottom resize handle at widget bottom
+	-- Position bottom resize handle at widget bottom (hidden when headless)
 	if tabbedWidget.bottomResizeHandle then
-		tabbedWidget.bottomResizeHandle:move(0, ch - cfg.widgetSplitterHeight)
-		tabbedWidget.bottomResizeHandle:resize(cw, cfg.widgetSplitterHeight)
+		if tabbedWidget._headless then
+			tabbedWidget.bottomResizeHandle:hide()
+		else
+			tabbedWidget.bottomResizeHandle:move(0, ch - cfg.widgetSplitterHeight)
+			tabbedWidget.bottomResizeHandle:resize(cw, cfg.widgetSplitterHeight)
+		end
 	end
 end
 
