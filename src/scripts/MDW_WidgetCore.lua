@@ -3576,6 +3576,13 @@ function mdw.toggleWidget(widgetName)
 	local widget = mdw.widgets[widgetName]
 	if not widget then return end
 
+	-- A grouped member isn't independently hideable; "showing" it = switch to its tab
+	if widget.stackId then
+		local stack = mdw.widgets[widget.stackId]
+		if stack then mdw.selectStackTab(stack, widgetName) end
+		return
+	end
+
 	local isCurrentlyShown = mdw.isWidgetShown(widget)
 
 	if isCurrentlyShown then

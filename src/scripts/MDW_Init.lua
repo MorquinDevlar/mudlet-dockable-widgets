@@ -489,6 +489,10 @@ end
 --- Save the current layout to file.
 -- Captures dock widths, visibility, and all widget positions/sizes.
 function mdw.saveLayout()
+	-- Suppressed while rebuilding stacks on load (the layout is mid-restore;
+	-- rebuildStacksFromLayout saves once when done).
+	if mdw._restoringLayout then return end
+
 	local layout = {
 		version = 1,
 		docks = {
@@ -535,6 +539,19 @@ function mdw.saveLayout()
 			for i, tabObj in ipairs(widget.tabObjects) do
 				layout.widgets[name].tabOrder[i] = tabObj.name
 			end
+		end
+		-- Stacks save their ordered members + active tab; members record their
+		-- stack and the standalone slot to return to on ungroup.
+		if widget.isStack then
+			layout.widgets[name].isStack = true
+			layout.widgets[name].activeMember = widget.activeMember
+			layout.widgets[name].members = {}
+			for i, m in ipairs(widget.members) do
+				layout.widgets[name].members[i] = m
+			end
+		elseif widget.stackId then
+			layout.widgets[name].stackId = widget.stackId
+			layout.widgets[name].preStackSlot = widget._preStackSlot
 		end
 	end
 
@@ -746,6 +763,9 @@ function mdw.setup()
 
 	-- Fire event so user scripts can create additional widgets
 	raiseEvent("mdwReady")
+
+	-- Rebuild saved tab groups now that all member widgets exist
+	if mdw.rebuildStacksFromLayout then mdw.rebuildStacksFromLayout() end
 
 	-- Deferred dock reorganize to ensure fill button visibility after Qt layout settles
 	tempTimer(0, function()

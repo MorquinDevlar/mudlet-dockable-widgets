@@ -226,12 +226,15 @@ function mdw.addToStack(stackName, memberName, index)
   if member.isStack then return end      -- no nesting (Phase 1)
   if member.stackId then return end      -- already grouped
 
-  -- Remember the standalone slot for a clean ungroup
-  member._preStackSlot = {
-    docked = member.docked, row = member.row, rowPosition = member.rowPosition,
-    subRow = member.subRow, widthRatio = member.widthRatio, fill = member.fill,
-    widthLocked = member.widthLocked, lockedWidth = member.lockedWidth,
-  }
+  -- Remember the standalone slot for a clean ungroup (unless restore already
+  -- set it from the saved layout).
+  if not member._preStackSlot then
+    member._preStackSlot = {
+      docked = member.docked, row = member.row, rowPosition = member.rowPosition,
+      subRow = member.subRow, widthRatio = member.widthRatio, fill = member.fill,
+      widthLocked = member.widthLocked, lockedWidth = member.lockedWidth,
+    }
+  end
   member.stackId = stackName
 
   index = index or (#stack.members + 1)
@@ -347,6 +350,66 @@ function mdw.destroyStack(stack)
   local side = stack.docked
   mdw.widgets[stack.name] = nil
   if side then mdw.reorganizeDock(side) end
+end
+
+--- Rebuild stacks from the saved layout, after all member widgets exist.
+-- Stacks are not created by user widget functions, so their pendingLayouts
+-- records survive (no widget consumed them). Members were early-returned by
+-- applyPendingLayout (hidden, _pendingStackId set); here we create each stack
+-- and absorb its members, then dock any orphaned member standalone.
+function mdw.rebuildStacksFromLayout()
+  if not mdw.pendingLayouts then return end
+  mdw._restoringLayout = true
+
+  for name, saved in pairs(mdw.pendingLayouts) do
+    if saved.isStack and not mdw.widgets[name] then
+      local stack = mdw.createStack(name, { dock = saved.dock, row = saved.row })
+      if stack then
+        stack.rowPosition = saved.rowPosition or 0
+        stack.subRow = saved.subRow or 0
+        stack.widthRatio = saved.widthRatio
+        stack.fill = saved.fill or false
+        stack.widthLocked = saved.widthLocked or false
+        stack.lockedWidth = saved.lockedWidth
+        for _, memberName in ipairs(saved.members or {}) do
+          local member = mdw.widgets[memberName]
+          if member and member._pendingStackId == name then
+            member._pendingStackId = nil
+            mdw.addToStack(name, memberName)
+          end
+        end
+        if saved.activeMember and stack.tabsByName[saved.activeMember] then
+          mdw.selectStackTab(stack, saved.activeMember)
+        end
+      end
+    end
+  end
+
+  -- Fallback: any member whose stack record was missing -> dock it standalone
+  for _, widget in pairs(mdw.widgets) do
+    if widget._pendingStackId then
+      widget._pendingStackId = nil
+      local s = widget._preStackSlot
+      widget._preStackSlot = nil
+      if widget.container then widget.container:show() end
+      if s and s.docked then
+        widget.docked = s.docked
+        widget.row = s.row
+        widget.rowPosition = s.rowPosition
+        widget.subRow = s.subRow
+        widget.widthRatio = s.widthRatio
+        widget.fill = s.fill
+        widget.widthLocked = s.widthLocked
+        widget.lockedWidth = s.lockedWidth
+        if mdw.updateDockButtonVisibility then mdw.updateDockButtonVisibility(widget) end
+      end
+    end
+  end
+
+  mdw._restoringLayout = false
+  mdw.reorganizeDock("left")
+  mdw.reorganizeDock("right")
+  mdw.saveLayout()
 end
 
 --- Convenience: group several existing widgets into a new stack at the first's slot.

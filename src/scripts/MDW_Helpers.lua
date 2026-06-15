@@ -908,6 +908,11 @@ end
 -- hide) and untracks it, so the widget can be recreated with the same name and
 -- no orphans leak on uninstall. Hiding alone left duplicate-named labels behind.
 function mdw.destroyWidgetClass(widget)
+	-- If grouped into a stack, detach first (removes the tab + cleans the stack)
+	if widget.stackId and mdw.removeFromStack then
+		mdw.removeFromStack(widget.stackId, widget.name)
+	end
+
 	widget:hide()
 	mdw.widgets[widget.name] = nil
 
@@ -1003,6 +1008,19 @@ function mdw.applyPendingLayout(widget)
 	end
 
 	local saved = mdw.pendingLayouts[widget.name]
+
+	-- A stack member: don't place it standalone. mdw.rebuildStacksFromLayout()
+	-- (run after all widgets are created) absorbs it into its stack. Keep it
+	-- hidden until then and remember the slot to return to on a future ungroup.
+	if saved.stackId then
+		widget._pendingStackId = saved.stackId
+		widget._preStackSlot = saved.preStackSlot
+		if widget.fontAdjust ~= nil and saved.fontAdjust then
+			widget.fontAdjust = saved.fontAdjust
+		end
+		if widget.container then widget.container:hide() end
+		return true, saved
+	end
 
 	-- Apply font adjustment
 	if saved.fontAdjust then
