@@ -1006,6 +1006,10 @@ function mdw.applyPendingLayout(widget)
 	-- Apply visibility (only if not already hidden due to hidden sidebar)
 	if saved.visible == false and widget.visible ~= false then
 		widget:hide()
+	elseif saved.visible == true and widget.visible == false and not widget.originalDock then
+		-- Saved visible but constructed hidden: restore visibility, unless it's
+		-- hidden because its dock's sidebar is hidden (originalDock set above).
+		widget:show()
 	end
 
 	mdw.pendingLayouts[widget.name] = nil

@@ -51,6 +51,7 @@ mdw.config = {
 	headerHeight = 30,    -- Height of top header bar
 	promptBarHeight = 30, -- Height of bottom prompt bar
 	minPromptBarHeight = 25, -- Minimum prompt bar height when resizing
+	minMainHeight = 100,  -- Minimum main-console height preserved when resizing the prompt bar
 
 	-- Layout: Tabbed widgets
 	tabBarHeight = 22, -- Height of tab button bar

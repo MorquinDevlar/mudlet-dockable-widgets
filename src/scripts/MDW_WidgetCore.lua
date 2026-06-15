@@ -1515,14 +1515,17 @@ function mdw.reorganizeDock(side)
 			end
 		end
 
-		local xPos = dockXPos
+		-- Pre-compute every column's width so the row can't overflow the dock.
+		-- Each column is floored at minWidgetWidth; if the floored widths plus
+		-- the splitters between them exceed the available width (e.g. many narrow
+		-- side-by-side columns in a small dock), scale them down to fit.
+		local colWidths = {}
 		for ci, col in ipairs(columns) do
 			local first = col[1]
-			local columnWidth
-
+			local w
 			if useLockLayout then
 				if first.widthLocked and first.lockedWidth then
-					columnWidth = first.lockedWidth
+					w = first.lockedWidth
 				else
 					-- Distribute remaining space among unlocked columns by ratio
 					local remaining = availableWidth - lockedTotal
@@ -1530,18 +1533,29 @@ function mdw.reorganizeDock(side)
 					for _, uc in ipairs(unlockedCols) do
 						unlockedRatio = unlockedRatio + (uc[1].widthRatio or 1)
 					end
-					columnWidth = remaining * ((first.widthRatio or 1) / unlockedRatio)
+					w = remaining * ((first.widthRatio or 1) / unlockedRatio)
 				end
+			elseif hasCustomRatios then
+				w = availableWidth * ((first.widthRatio or 1) / totalRatio)
 			else
-				if hasCustomRatios then
-					columnWidth = availableWidth * ((first.widthRatio or 1) / totalRatio)
-				else
-					columnWidth = availableWidth / numColumns
-				end
+				w = availableWidth / numColumns
 			end
+			colWidths[ci] = math.max(cfg.minWidgetWidth, w)
+		end
+		local splitterTotal = math.max(0, numColumns - 1) * cfg.widgetSplitterWidth
+		local widthsSum = splitterTotal
+		for _, w in ipairs(colWidths) do widthsSum = widthsSum + w end
+		if widthsSum > availableWidth then
+			local usable = math.max(0, availableWidth - splitterTotal)
+			local colsTotal = math.max(1, widthsSum - splitterTotal)
+			for i = 1, #colWidths do
+				colWidths[i] = math.floor(colWidths[i] * usable / colsTotal)
+			end
+		end
 
-			-- Enforce minimum width
-			columnWidth = math.max(cfg.minWidgetWidth, columnWidth)
+		local xPos = dockXPos
+		for ci, col in ipairs(columns) do
+			local columnWidth = colWidths[ci]
 
 			-- Check if any widget in this column has fill enabled
 			local fillWidgets = {}

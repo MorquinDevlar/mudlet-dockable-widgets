@@ -23,8 +23,9 @@ function mdw.createDocks()
 	-- Set Mudlet borders based on visibility (loaded from layout)
 	mdw.applyBorders()
 
-	-- Calculate sidebar height (window height minus header)
-	local sidebarHeight = winH - cfg.headerHeight
+	-- Calculate sidebar height (window height minus header); clamp so a tiny
+	-- or zero-size window can't feed negative geometry into Geyser.
+	local sidebarHeight = math.max(0, winH - cfg.headerHeight)
 
 	mdw.createHeader(winW)
 	mdw.createPromptBar(winW)
@@ -83,7 +84,8 @@ function mdw.createPromptBar(winW)
 	local leftWidth = mdw.visibility.leftSidebar and cfg.leftDockWidth or 0
 	local rightWidth = mdw.visibility.rightSidebar and cfg.rightDockWidth or 0
 
-	local promptBarWidth = winW - leftWidth - rightWidth
+	-- Clamp so a window narrower than the docks can't feed negative width/wrap
+	local promptBarWidth = math.max(0, winW - leftWidth - rightWidth)
 	local promptBarContentHeight = cfg.promptBarHeight - cfg.separatorHeight
 	local bgRGB = cfg.widgetBackgroundRGB
 	local fgRGB = cfg.widgetForegroundRGB
@@ -419,7 +421,9 @@ function mdw.setupPromptBarSplitter()
 		local _, winH = getMainWindowSize()
 		local separatorY = event.globalY - mdw.promptBarDrag.offsetY
 		local newHeight = winH - separatorY
-		local maxHeight = winH - cfg.headerHeight
+		-- Reserve a minimum main-console height so the prompt bar can't be
+		-- dragged up far enough to collapse the main display.
+		local maxHeight = math.max(cfg.minPromptBarHeight, winH - cfg.headerHeight - cfg.minMainHeight)
 		newHeight = mdw.clamp(newHeight, cfg.minPromptBarHeight, maxHeight)
 		mdw.applyPromptBarHeight(newHeight)
 	end)
@@ -544,10 +548,11 @@ function mdw.loadLayout()
 	end
 
 	local layout = {}
-	table.load(mdw.layoutFile, layout)
-
-	if not layout.version then
-		mdw.debugEcho("Invalid layout file")
+	-- Tolerate a corrupt/truncated layout file: a raise here would otherwise
+	-- abort setup() before the UI is built, leaving no way to recover in-app.
+	local ok = pcall(table.load, mdw.layoutFile, layout)
+	if not ok or not layout.version or type(layout.widgets) ~= "table" then
+		mdw.debugEcho("Layout file missing/corrupt; using defaults")
 		return false
 	end
 

@@ -195,8 +195,10 @@ function mdw.TabbedWidget:new(cons)
 		mdw.applyTabOrder(self, saved.tabOrder)
 	end
 
-	-- Restore active tab from saved layout or use provided/default
-	if applied and saved and saved.activeTab then
+	-- Restore active tab from saved layout or use provided/default. Guard the
+	-- saved name against the current tab set: a stale name would otherwise leave
+	-- selectTab with nothing shown (all consoles start hidden) - a blank widget.
+	if applied and saved and saved.activeTab and self.tabsByName[saved.activeTab] then
 		self:selectTab(saved.activeTab)
 	else
 		local initialTab = cons.activeTab or self.tabs[1]
