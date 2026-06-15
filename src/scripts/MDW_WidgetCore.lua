@@ -169,8 +169,6 @@ function mdw.createTitleBarButtons(widget)
 	local closePad = cfg.closeButtonPadding
 	local btnY = math.floor((btnH - btnS) / 2)
 
-	local gap = cfg.titleButtonGap or 4
-
 	-- Fill toggle (far left, with padding from edge)
 	widget.fillButton = mdw.trackElement(Geyser.Label:new({
 		name = baseName .. "_FillBtn",
@@ -205,7 +203,6 @@ function mdw.repositionTitleBarButtons(widget, containerWidth)
 	local cfg = mdw.config
 	local btnS = cfg.titleButtonSize
 	local pad = cfg.titleButtonPadding
-	local gap = cfg.titleButtonGap or 4
 	local closePad = cfg.closeButtonPadding
 	local btnY = math.floor((cfg.titleHeight - btnS) / 2)
 	if widget.fillButton then
