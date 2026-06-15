@@ -3097,7 +3097,7 @@ function mdw.uninstall()
 	end
 
 	mdw.echo("Uninstalling MDW and removing all its settings...")
-	cecho("<gold>[MDW] <yellow>Uninstalling and resetting all settings...\n")
+	mdw.notify("Uninstalling and resetting all settings")
 
 	-- Fires sysUninstallPackage -> mdw.onUninstall -> teardown
 	uninstallPackage(mdw.packageName)

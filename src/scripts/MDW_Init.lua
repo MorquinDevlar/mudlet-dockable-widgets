@@ -763,6 +763,7 @@ function mdw.setup()
 
 	mdw.isSetUp = true
 	mdw.echo("UI ready!")
+	mdw.notify("Ready")
 	mdw._trace("setup: UI ready (isSetUp=true)")
 end
 

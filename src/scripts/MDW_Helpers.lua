@@ -283,6 +283,17 @@ function mdw.echo(msg)
 	debugc("[MDW] " .. msg)
 end
 
+--- User-facing notification echoed to the MAIN window in theme colors.
+-- Format: [ MDW - message ]. Use this for things the user should see (status,
+-- systematic actions); mdw.echo goes to the debug console for diagnostics.
+-- The accent matches the active theme, so it restyles automatically.
+function mdw.notify(msg)
+	local cfg = mdw.config
+	local accent = cfg.headerTextColor or "184,134,11"   -- theme accent (gold by default)
+	local body = cfg.menuTextColor or "250,235,215"      -- soft cream
+	decho(string.format("<%s>[ MDW - <%s>%s<%s> ]\n", accent, body, tostring(msg), accent))
+end
+
 --- Clamp a value between min and max bounds.
 -- Why: Prevents dimension values from exceeding valid ranges,
 -- which would cause layout corruption or negative coordinates.

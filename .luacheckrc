@@ -20,6 +20,7 @@ read_globals = {
   "cecho",
   "copy2decho",
   "debugc",
+  "decho",
   "deleteLabel",
   "deleteLine",
   "deleteNamedEventHandler",
