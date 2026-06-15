@@ -686,7 +686,18 @@ end
 -- Handles setup, teardown, and Mudlet events.
 ---------------------------------------------------------------------------
 
+-- TEMP DEBUG: echo lifecycle milestones to the MAIN window (mdw.echo only goes
+-- to the debug console, so a fast package update is easy to miss). Timestamped
+-- with os.clock() to show ordering/timing. Toggle off with
+-- `mdw._lifecycleDebug = false`, or delete this block and its calls to remove.
+mdw._lifecycleDebug = true
+function mdw._trace(msg)
+	if not mdw._lifecycleDebug then return end
+	cecho(string.format("<gold>[MDW %.3fs] <yellow>%s\n", os.clock(), msg))
+end
+
 function mdw.setup()
+	mdw._trace("setup: start (isSetUp=" .. tostring(mdw.isSetUp) .. ")")
 	-- Idempotent: never build a second UI on top of an existing one. Guards
 	-- against a package update that deferred teardown, or a double profile-load.
 	if mdw.isSetUp then mdw.teardown() end
@@ -740,6 +751,7 @@ function mdw.setup()
 
 	mdw.isSetUp = true
 	mdw.echo("UI ready!")
+	mdw._trace("setup: UI ready (isSetUp=true)")
 end
 
 --- Register a function to create user widgets on package load.
@@ -751,6 +763,7 @@ function mdw.registerWidgets(func)
 end
 
 function mdw.teardown()
+	mdw._trace("teardown: closing menus + destroying elements")
 	mdw.echo("Cleaning up UI...")
 
 	-- Close menus first: this reclaims the click-away overlay and the
@@ -773,6 +786,7 @@ function mdw.teardown()
 
 	mdw.isSetUp = false
 	mdw.echo("Cleanup complete")
+	mdw._trace("teardown: complete (isSetUp=false)")
 end
 
 --- Handle package installation.
@@ -783,12 +797,15 @@ function mdw.onInstall(_, package)
 
 	if mdw.isUpdating then
 		mdw.isUpdating = false
+		mdw._trace("onInstall fired -> UPDATE detected")
 		mdw.echo("Update complete!")
 	else
+		mdw._trace("onInstall fired -> fresh install")
 		mdw.echo("Package installed!")
 	end
 
 	mdw.setup()
+	mdw._trace("onInstall done")
 end
 
 --- Handle package uninstall.
@@ -800,15 +817,19 @@ end
 function mdw.onUninstall(_, package)
 	if package ~= mdw.packageName then return end
 
+	mdw._trace("onUninstall fired (isSetUp=" .. tostring(mdw.isSetUp) .. ")")
+
 	-- Always save layout before uninstall (for updates and full uninstall)
 	mdw.saveLayout()
 
 	-- Survives the script reload because MDW_Config preserves it (mdw.isUpdating
 	-- or false); onInstall reads it to distinguish an update from a fresh install.
 	mdw.isUpdating = (mdw.isSetUp == true)
+	mdw._trace("  layout saved; isUpdating=" .. tostring(mdw.isUpdating) .. " -> teardown")
 
 	mdw.teardown()
 	mdw.killAllHandlers()
+	mdw._trace("onUninstall done (handlers killed)")
 end
 
 --- Handle profile load (Mudlet startup with existing profile).
