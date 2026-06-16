@@ -453,8 +453,20 @@ end
 function mdw.wrapInHomeStack(widget)
   if not widget or widget.isStack then return end
   if widget.stackId or widget._pendingStackId then return end
-  local stackName = "grp_" .. widget.name
-  if mdw.widgets[stackName] then return end
+  -- Wrapping must NEVER fail - a failure would leave the widget rendering bare
+  -- (the old centered-title style we no longer allow). Clear a stale empty group
+  -- hogging the name, then fall back to a suffixed name if one is still taken.
+  local base = "grp_" .. widget.name
+  local existing = mdw.widgets[base]
+  if existing and existing.isStack and #(existing.members or {}) == 0 then
+    mdw.destroyStack(existing)
+  end
+  local stackName = base
+  local n = 1
+  while mdw.widgets[stackName] do
+    n = n + 1
+    stackName = base .. "_" .. n
+  end
 
   -- Capture the widget's resolved slot, then vacate it so the new group becomes
   -- the sole occupant of that spot (no transient double-occupancy).

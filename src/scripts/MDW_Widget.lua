@@ -302,6 +302,11 @@ end
 
 function mdw.Widget:show()
 	local g = self:_group()
+	-- A widget must never render bare: wrap it in its home group first.
+	if not g and mdw.wrapInHomeStack then
+		mdw.wrapInHomeStack(self)
+		g = self:_group()
+	end
 	if g then
 		mdw.showStack(g, self.name)
 	else

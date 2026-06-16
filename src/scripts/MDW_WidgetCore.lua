@@ -3526,6 +3526,19 @@ function mdw.toggleWidget(widgetName)
 	local widget = mdw.widgets[widgetName]
 	if not widget then return end
 
+	-- A widget should never be bare. If one escaped its group, re-wrap and show
+	-- it (recovery), then stop.
+	if not widget.isStack and not widget.stackId and mdw.wrapInHomeStack then
+		mdw.wrapInHomeStack(widget)
+		if widget.stackId then
+			local g = mdw.widgets[widget.stackId]
+			if g then mdw.showStack(g, widgetName) end
+			if mdw.updateWidgetsMenuState then mdw.updateWidgetsMenuState() end
+			mdw.saveLayout()
+			return
+		end
+	end
+
 	-- Every widget lives in a group. Toggling brings it to the front of its group
 	-- (show the group + select its tab), or hides the group if this widget is
 	-- already the visible, active tab.
