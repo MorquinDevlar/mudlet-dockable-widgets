@@ -447,15 +447,9 @@ function mdw.setupStackTabDrag(stack, tabObj)
   local memberName = tabObj.memberName
 
   setLabelClickCallback(btnName, function(event)
-    -- Remember where in the bar's height the press landed so we can tell when
-    -- the cursor later leaves the header band (event.y is label-local; fall back
-    -- to the bar's mid-line if it ever reports something out of range).
-    local barH = mdw.config.tabBarHeight
-    local ly = tonumber(event.y)
     mdw.stackTabDrag = {
       stackName = stackName, memberName = memberName,
       startX = event.globalX, startY = event.globalY, mode = nil,
-      clickLocalY = (ly and ly >= 0 and ly <= barH) and ly or barH / 2,
     }
   end)
 
@@ -465,21 +459,22 @@ function mdw.setupStackTabDrag(stack, tabObj)
     local s = mdw.widgets[stackName]
     if not s then return end
 
-    -- Decide / update the drag mode. The tab bar is a "bounce zone": while the
-    -- cursor stays within the header band a horizontal drag reorders side to
-    -- side; the moment it leaves the band (up or down, past a small margin) the
-    -- tab pops out - even mid-reorder, in which case we snap the tabs back first.
+    -- Decide / update the drag mode. A vertical pull (up OR down, same distance
+    -- either way) tears the tab out; a shallow, horizontal-dominant slide
+    -- reorders. Every drag direction stays live - no need to aim a straight
+    -- vertical line. Tearing out is eager before a reorder begins; once we're
+    -- reordering we tolerate more vertical wobble so a sideways slide does not
+    -- pop out by accident (and if it does pop, we snap the tabs back first).
     local dx = event.globalX - d.startX
     local dy = event.globalY - d.startY
     local barH = mdw.config.tabBarHeight
     local margin = mdw.config.dragThreshold
-    local bandY = (d.clickLocalY or barH / 2) + dy
-    local leftHeader = bandY < -margin or bandY > barH + margin
-    if d.mode ~= "tearout" and leftHeader then
+    local vPull = (d.mode == "reorder") and barH or barH / 2
+    if d.mode ~= "tearout" and math.abs(dy) > vPull then
       if d.mode == "reorder" then mdw.refreshStackTabBar(s) end
       d.mode = "tearout"
       mdw.beginTabGhost(s, tabObj)
-    elseif d.mode == nil and math.abs(dx) > margin then
+    elseif d.mode == nil and math.abs(dx) > margin and math.abs(dx) > math.abs(dy) then
       d.mode = "reorder"
     end
 
