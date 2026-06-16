@@ -57,9 +57,15 @@ function mdw.resizeStackContent(stack, targetWidth, targetHeight)
   local ch = targetHeight or stack.container:get_height()
   local resizeHandleHeight = stack.docked and cfg.widgetSplitterHeight or 0
 
-  -- Tab bar (also the drag handle for the empty area beside the tabs)
+  -- Tab bar. It is a move handle only while floating; show the open-hand cursor
+  -- then, and a plain arrow when docked (where it is not draggable).
   stack.tabBar:move(0, 0)
   stack.tabBar:resize(cw, cfg.tabBarHeight)
+  if stack.docked then
+    stack.tabBar:setCursor(mudlet.cursor.Arrow or 0)
+  else
+    stack.tabBar:setCursor(mudlet.cursor.OpenHand)
+  end
   mdw.refreshStackTabBar(stack)
 
   -- Member containers are siblings (top-level), positioned in absolute coords.
