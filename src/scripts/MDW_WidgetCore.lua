@@ -678,6 +678,9 @@ function mdw.resetDrag()
 	d.ghostAnchorY = nil
 	d.ghostX = nil
 	d.ghostY = nil
+	d.live = nil
+	d.liveStartX = nil
+	d.liveStartY = nil
 	d.startMouseX = nil
 	d.startMouseY = nil
 	d.originalDock = nil
@@ -788,20 +791,39 @@ function mdw.handleDragMove(widget, event)
 	local dx = event.globalX - mdw.drag.startMouseX
 	local dy = event.globalY - mdw.drag.startMouseY
 
-	-- Separate a click from a drag: only spawn the ghost past the move threshold.
+	-- Past the move threshold, start the drag. A FLOATING widget moves bodily
+	-- (the whole thing follows the cursor); a docked one shows just a title-box
+	-- ghost (the docked path is unused while every widget is grouped, since docked
+	-- tab bars are not drag handles - docked widgets move by tearing out a tab).
 	if not mdw.drag.hasMoved then
 		if math.abs(dx) <= cfg.dragThreshold and math.abs(dy) <= cfg.dragThreshold then
 			return
 		end
 		mdw.drag.hasMoved = true
-		-- For a group, label the ghost with its active member, not the internal
-		-- "grp_<name>" stack name.
-		local ghostTitle = widget.title or widget.name
-		if widget.isStack and widget.activeMember then
-			local m = mdw.widgets[widget.activeMember]
-			ghostTitle = (m and (m.title or m.name)) or ghostTitle
+		if not widget.docked then
+			mdw.drag.live = true
+			mdw.drag.liveStartX = widget.container:get_x()
+			mdw.drag.liveStartY = widget.container:get_y()
+		else
+			local ghostTitle = widget.title or widget.name
+			if widget.isStack and widget.activeMember then
+				local m = mdw.widgets[widget.activeMember]
+				ghostTitle = (m and (m.title or m.name)) or ghostTitle
+			end
+			mdw.drag.ghost = mdw.createDragGhost(ghostTitle)
 		end
-		mdw.drag.ghost = mdw.createDragGhost(ghostTitle)
+	end
+
+	if mdw.drag.live then
+		-- The whole widget follows the cursor (delta from its start position).
+		local newX = math.max(0, mdw.drag.liveStartX + dx)
+		local newY = math.max(cfg.headerHeight + cfg.separatorHeight, mdw.drag.liveStartY + dy)
+		widget.container:move(newX, newY)
+		if widget.isStack and mdw.resizeStackContent then mdw.resizeStackContent(widget) end
+		mdw.updateResizeBorders(widget)
+		mdw.updateDropIndicator(widget) -- detect a re-dock target from the widget's position
+		mdw.raiseWidgetElements(widget)
+		return
 	end
 
 	-- Move the ghost (anchor + cursor delta); the real widget does not move.
