@@ -529,6 +529,11 @@ function mdw.setupTabDrag(tabbedWidget, tabObj)
 			if math.abs(event.globalX - d.startMouseX) <= mdw.config.dragThreshold then return end
 			d.hasMoved = true
 			d.tabObj.button:setCursor(mudlet.cursor.ClosedHand)
+			-- Show the dragged tab as selected while moving; dim the real active
+			-- one. refreshTabBar (on release) restores the actual selection.
+			local active = d.tabbedWidget.tabObjects[d.tabbedWidget.activeTabIndex]
+			if active and active ~= d.tabObj then mdw.applyTabInactiveStyle(active, "channel") end
+			mdw.applyTabActiveStyle(d.tabObj, "channel")
 		end
 		mdw.barTabSlide(d.ctx, d.tabObj, event)
 	end)
