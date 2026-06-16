@@ -44,7 +44,7 @@ mdw.config = {
 	widgetSplitterWidth = 2, -- Width of between-widget splitters (horizontal resize)
 	resizeBorderWidth = 2, -- Visual width of floating widget resize borders
 	resizeHitWidth = 8,    -- Click target width for resize borders (extends outward)
-	resizeCornerSize = 10, -- How far corner grab zones extend along each adjacent edge
+	resizeCornerSize = 20, -- How far corner grab zones extend along each adjacent edge
 	resizeHandleHitPad = 4, -- Extra hit area above bottom resize handle (px)
 
 	-- Layout: Header and prompt bar
@@ -56,6 +56,7 @@ mdw.config = {
 	-- Layout: Tabbed widgets
 	tabBarHeight = 22, -- Height of tab button bar
 	tabPadding = 5, -- Horizontal padding inside tab buttons
+	tabGap = 4, -- Gap between group (Stack) tabs so they read as separate tabs
 
 	-- Layout: Menus
 	menuItemHeight = 28,     -- Height of dropdown menu items

@@ -30,6 +30,15 @@ function mdw.rgbToHex(rgb)
 	return string.format("#%02X%02X%02X", rgb[1], rgb[2], rgb[3])
 end
 
+--- Lighten an {R, G, B} tuple by a flat amount per channel (clamped to 255).
+function mdw.lightenRgb(rgb, amount)
+	return {
+		math.min(255, rgb[1] + amount),
+		math.min(255, rgb[2] + amount),
+		math.min(255, rgb[3] + amount),
+	}
+end
+
 ---------------------------------------------------------------------------
 -- THEME RESOLUTION
 ---------------------------------------------------------------------------
@@ -89,6 +98,10 @@ function mdw.buildStyles()
 	cfg.tabInactiveTextColor = mdw.rgbToDecho(c.tabInactiveText)
 	cfg.tabActiveBackground = mdw.rgbToCss(c.tabActive)
 	cfg.tabInactiveBackground = mdw.rgbToCss(c.tabInactive)
+	-- Inactive group tabs sit on the group tab bar (headerBackground), so they need
+	-- their own tone lifted off the bar - tabInactive matches the bar exactly and
+	-- would be invisible. Derive it from the bar so it stays distinct in every theme.
+	cfg.tabGroupInactiveBackground = mdw.rgbToCss(mdw.lightenRgb(c.headerBackground, 14))
 	cfg.titleButtonTint = mdw.rgbToHex(c.accentDim)
 
 	-- CSS values used in styles below
@@ -131,24 +144,25 @@ function mdw.buildStyles()
     QLabel:hover { background-color: transparent; border-top: %dpx solid %s; }
   ]], bw, cssSplitter, bw, cssSplitterHover)
 
-	-- Corner brackets: hover-only L of the two edges meeting at that corner, so a
-	-- diagonal-resize corner gets visible feedback (the edges already highlight).
+	-- Corner brackets: an L of the two edges meeting at that corner. Subtle by
+	-- default (so the widget border is continuous around the corner) and accent on
+	-- hover, matching the edges.
 	mdw.styles.resizeCornerTL = string.format([[
-    QLabel { background-color: transparent; }
+    QLabel { background-color: transparent; border-top: %dpx solid %s; border-left: %dpx solid %s; }
     QLabel:hover { background-color: transparent; border-top: %dpx solid %s; border-left: %dpx solid %s; }
-  ]], bw, cssSplitterHover, bw, cssSplitterHover)
+  ]], bw, cssSplitter, bw, cssSplitter, bw, cssSplitterHover, bw, cssSplitterHover)
 	mdw.styles.resizeCornerTR = string.format([[
-    QLabel { background-color: transparent; }
+    QLabel { background-color: transparent; border-top: %dpx solid %s; border-right: %dpx solid %s; }
     QLabel:hover { background-color: transparent; border-top: %dpx solid %s; border-right: %dpx solid %s; }
-  ]], bw, cssSplitterHover, bw, cssSplitterHover)
+  ]], bw, cssSplitter, bw, cssSplitter, bw, cssSplitterHover, bw, cssSplitterHover)
 	mdw.styles.resizeCornerBL = string.format([[
-    QLabel { background-color: transparent; }
+    QLabel { background-color: transparent; border-bottom: %dpx solid %s; border-left: %dpx solid %s; }
     QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; border-left: %dpx solid %s; }
-  ]], bw, cssSplitterHover, bw, cssSplitterHover)
+  ]], bw, cssSplitter, bw, cssSplitter, bw, cssSplitterHover, bw, cssSplitterHover)
 	mdw.styles.resizeCornerBR = string.format([[
-    QLabel { background-color: transparent; }
+    QLabel { background-color: transparent; border-bottom: %dpx solid %s; border-right: %dpx solid %s; }
     QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; border-right: %dpx solid %s; }
-  ]], bw, cssSplitterHover, bw, cssSplitterHover)
+  ]], bw, cssSplitter, bw, cssSplitter, bw, cssSplitterHover, bw, cssSplitterHover)
 
 	local titlePadLeft = cfg.titleButtonPadding + cfg.titleButtonSize + (cfg.titleButtonGap or 4)
 	local titlePadRight = cfg.closeButtonPadding + cfg.titleButtonSize
@@ -276,7 +290,7 @@ function mdw.buildStyles()
   ]], cfg.tabActiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
 
 	mdw.styles.groupTabInactive = string.format([[
-    background-color: transparent;
+    background-color: %s;
     border-top-left-radius: 5px;
     border-top-right-radius: 5px;
     qproperty-alignment: 'AlignCenter';
@@ -284,7 +298,7 @@ function mdw.buildStyles()
     font-size: %dpx;
     padding-left: %dpx;
     padding-right: %dpx;
-  ]], cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+  ]], cfg.tabGroupInactiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
 
 	-- Channel (tabbed-widget) tabs: a fine accent underline when active, NO fill
 	-- and NO dividers between them. A transparent underline keeps inactive tabs

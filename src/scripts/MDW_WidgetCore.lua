@@ -575,7 +575,7 @@ end
 function mdw.createDragGhost(title)
 	mdw._ghostCounter = (mdw._ghostCounter or 0) + 1
 	local cfg = mdw.config
-	local w = (mdw.stackTabWidth and mdw.stackTabWidth(title)) or 80
+	local w = (mdw.stackTabWidth and (mdw.stackTabWidth(title) - (cfg.tabGap or 0))) or 80
 	local ghost = mdw.trackElement(Geyser.Label:new({
 		name = "MDW_DragGhost_" .. mdw._ghostCounter,
 		x = 0, y = 0, width = w, height = cfg.tabBarHeight,
@@ -2310,6 +2310,7 @@ function mdw.updateResizeBorders(widget)
 	local y = widget.container:get_y()
 	local w = widget.container:get_width()
 	local h = widget.container:get_height()
+	local bw = cfg.resizeBorderWidth
 	local hw = cfg.resizeHitWidth
 	local cs = cfg.resizeCornerSize
 
@@ -2328,20 +2329,20 @@ function mdw.updateResizeBorders(widget)
 
 	-- Corners: cs x cs at each widget corner; the hover bracket sits on the lines
 	if widget.resizeTopLeft then
-		widget.resizeTopLeft:move(x, y)
-		widget.resizeTopLeft:resize(cs, cs)
+		widget.resizeTopLeft:move(x - bw, y - bw)
+		widget.resizeTopLeft:resize(cs + bw, cs + bw)
 	end
 	if widget.resizeTopRight then
-		widget.resizeTopRight:move(x + w - cs, y)
-		widget.resizeTopRight:resize(cs, cs)
+		widget.resizeTopRight:move(x + w - cs, y - bw)
+		widget.resizeTopRight:resize(cs + bw, cs + bw)
 	end
 	if widget.resizeBottomLeft then
-		widget.resizeBottomLeft:move(x, y + h - cs)
-		widget.resizeBottomLeft:resize(cs, cs)
+		widget.resizeBottomLeft:move(x - bw, y + h - cs)
+		widget.resizeBottomLeft:resize(cs + bw, cs + bw)
 	end
 	if widget.resizeBottomRight then
 		widget.resizeBottomRight:move(x + w - cs, y + h - cs)
-		widget.resizeBottomRight:resize(cs, cs)
+		widget.resizeBottomRight:resize(cs + bw, cs + bw)
 	end
 end
 

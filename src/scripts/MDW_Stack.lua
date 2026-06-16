@@ -20,11 +20,13 @@ local function safeName(s)
   return (tostring(s):gsub("[^%w]", "_"))
 end
 
---- Pixel width of a stack tab button from its label (monospace estimate).
+--- Pixel width of a stack tab "slot" (button + trailing gap) from its label. The
+-- gap is left as bar background between tabs; the button itself is rendered
+-- tabGap narrower (see refreshStackTabBar). All reorder/ghost math uses this slot.
 function mdw.stackTabWidth(title)
   local cfg = mdw.config
   local charWidth = math.ceil(cfg.tabFontSize * 0.65)
-  return cfg.tabPadding * 2 + #tostring(title) * charWidth + 8
+  return cfg.tabPadding * 2 + #tostring(title) * charWidth + 8 + (cfg.tabGap or 0)
 end
 
 ---------------------------------------------------------------------------
@@ -35,10 +37,11 @@ end
 function mdw.refreshStackTabBar(stack)
   local cfg = mdw.config
   local x = 0
+  local gap = cfg.tabGap or 0
   for _, tabObj in ipairs(stack.tabObjects) do
     local w = mdw.stackTabWidth(tabObj.name)
     tabObj.button:move(x, 0)
-    tabObj.button:resize(w, cfg.tabBarHeight)
+    tabObj.button:resize(w - gap, cfg.tabBarHeight)
     if tabObj.memberName == stack.activeMember then
       mdw.applyTabActiveStyle(tabObj, "group")
     else
