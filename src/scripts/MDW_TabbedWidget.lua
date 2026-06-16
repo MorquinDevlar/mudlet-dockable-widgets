@@ -461,7 +461,7 @@ end
 ---------------------------------------------------------------------------
 -- TAB STYLE HELPERS
 -- Centralized tab button styling to avoid duplication across
--- selectTab, refreshTabBar, commitTabDragStart, and creation.
+-- selectTab, refreshTabBar, and creation.
 ---------------------------------------------------------------------------
 
 -- kind: "group" (widget/stack tabs) or "channel" (tabbed-widget tabs, the default).
@@ -487,7 +487,22 @@ end
 -- Follows the same threshold-based click/drag pattern as widget dragging.
 ---------------------------------------------------------------------------
 
---- Register click/move/release callbacks on a tab button for drag-to-reorder.
+-- Build the shared-reorder context for a TabbedWidget's (equal-width) channel bar.
+local function channelTabBarCtx(tw)
+	local cfg = mdw.config
+	return {
+		tabs = tw.tabObjects,
+		y = tw._headless and 0 or cfg.titleHeight,
+		originX = function() return tw.container:get_x() end,
+		barWidth = function() return tw.tabBar:get_width() end,
+		widthOf = function() return tw.tabBar:get_width() / math.max(1, #tw.tabObjects) end,
+		onReorder = function(fromIdx, toIdx) mdw.reorderTab(tw, fromIdx, toIdx) end,
+		refresh = function() mdw.refreshTabBar(tw) end,
+	}
+end
+
+--- Register click/move/release callbacks on a channel tab button. Click selects;
+-- a horizontal drag reorders via the shared tab-bar reorder (no tear-out).
 function mdw.setupTabDrag(tabbedWidget, tabObj)
 	local labelName = tabObj.button.name
 	local widgetName = tabbedWidget.name
@@ -495,153 +510,40 @@ function mdw.setupTabDrag(tabbedWidget, tabObj)
 
 	setLabelClickCallback(labelName, function(event)
 		local tw = mdw.widgets[widgetName]
-		if not tw then return end
-		local tab = tw.tabsByName[tabName]
-		if not tab then return end
-		mdw.startTabDrag(tw, tab, event)
+		if not (tw and tw.tabsByName[tabName]) then return end
+		mdw.tabDrag = {
+			tabbedWidget = tw,
+			tabObj = tw.tabsByName[tabName],
+			startMouseX = event.globalX,
+			hasMoved = false,
+			ctx = channelTabBarCtx(tw),
+		}
 	end)
 
 	setLabelMoveCallback(labelName, function(event)
-		local tw = mdw.widgets[widgetName]
-		if not tw then return end
-		if mdw.tabDrag.active and mdw.tabDrag.tabbedWidget == tw then
-			mdw.handleTabDragMove(tw, event)
+		local d = mdw.tabDrag
+		if not d or not d.tabObj or d.tabObj.name ~= tabName then return end
+		if d.tabbedWidget ~= mdw.widgets[widgetName] then return end
+		if #d.tabbedWidget.tabObjects < 2 then return end
+		if not d.hasMoved then
+			if math.abs(event.globalX - d.startMouseX) <= mdw.config.dragThreshold then return end
+			d.hasMoved = true
+			d.tabObj.button:setCursor(mudlet.cursor.ClosedHand)
 		end
+		mdw.barTabSlide(d.ctx, d.tabObj, event)
 	end)
 
-	setLabelReleaseCallback(labelName, function()
-		local tw = mdw.widgets[widgetName]
-		if not tw then return end
-		if mdw.tabDrag.active and mdw.tabDrag.tabbedWidget == tw then
-			mdw.endTabDrag(tw)
-		end
-	end)
-end
-
---- Record initial state on mouse down (does not commit to drag yet).
-function mdw.startTabDrag(tw, tabObj, event)
-	-- Calculate startTabX from known layout (parent-relative, matching move() coords)
-	local numTabs = #tw.tabObjects
-	local tabWidth = tw.tabBar:get_width() / numTabs
-	local startTabX = (tabObj.index - 1) * tabWidth
-
-	mdw.tabDrag.active = true
-	mdw.tabDrag.tabbedWidget = tw
-	mdw.tabDrag.tabObj = tabObj
-	mdw.tabDrag.originalIndex = tabObj.index
-	mdw.tabDrag.startMouseX = event.globalX
-	mdw.tabDrag.startTabX = startTabX
-	mdw.tabDrag.hasMoved = false
-	mdw.tabDrag.dropIndex = tabObj.index
-end
-
---- Commit to drag once horizontal movement exceeds threshold.
-function mdw.commitTabDragStart()
-	if mdw.tabDrag.hasMoved then return end
-	mdw.tabDrag.hasMoved = true
-
-	local tabObj = mdw.tabDrag.tabObj
-	tabObj.button:setStyleSheet(mdw.styles.tabDragging)
-	tabObj.button:setFontSize(mdw.config.tabFontSize)
-	tabObj.button:decho("<" .. mdw.config.tabActiveTextColor .. ">" .. tabObj.name)
-	tabObj.button:setCursor(mudlet.cursor.ClosedHand)
-	tabObj.button:raise()
-end
-
---- Handle mouse movement during tab drag.
-function mdw.handleTabDragMove(tw, event)
-	local cfg = mdw.config
-	local movedX = math.abs(event.globalX - mdw.tabDrag.startMouseX)
-
-	-- Only one tab - nothing to reorder
-	if #tw.tabObjects < 2 then return end
-
-	-- Check threshold before committing
-	if not mdw.tabDrag.hasMoved then
-		if movedX > cfg.dragThreshold then
-			mdw.commitTabDragStart()
-		else
+	setLabelReleaseCallback(labelName, function(event)
+		local d = mdw.tabDrag
+		mdw.tabDrag = nil
+		if not d or not d.tabObj or d.tabObj.name ~= tabName then return end
+		if not d.hasMoved then
+			d.tabbedWidget:selectTab(d.tabObj.name)
 			return
 		end
-	end
-
-	local tabObj = mdw.tabDrag.tabObj
-	local numTabs = #tw.tabObjects
-	local tabBarWidth = tw.tabBar:get_width()
-	local tabWidth = tabBarWidth / numTabs
-
-	-- Use delta-based movement to avoid screen vs window coordinate mismatch
-	local deltaX = event.globalX - mdw.tabDrag.startMouseX
-	local newTabX = mdw.clamp(mdw.tabDrag.startTabX + deltaX, 0, tabBarWidth - tabWidth)
-	tabObj.button:move(newTabX, cfg.titleHeight)
-	tabObj.button:raise()
-
-	-- Calculate drop index from tab center position (container-relative)
-	local tabCenter = newTabX + tabWidth / 2
-	local dropIndex = mdw.clamp(math.floor(tabCenter / tabWidth) + 1, 1, numTabs)
-	mdw.tabDrag.dropIndex = dropIndex
-
-	-- Slide other tabs to make room
-	mdw.updateTabDropPositions(tw, mdw.tabDrag.originalIndex, dropIndex, tabWidth)
-end
-
---- Slide non-dragged tabs to show gap at drop position.
-function mdw.updateTabDropPositions(tw, fromIndex, toIndex, tabWidth)
-	local cfg = mdw.config
-
-	for i, tab in ipairs(tw.tabObjects) do
-		if tab ~= mdw.tabDrag.tabObj then
-			local visualPos = i
-			if fromIndex < toIndex then
-				-- Dragging right: tabs between from+1..to shift left by one slot
-				if i > fromIndex and i <= toIndex then
-					visualPos = i - 1
-				end
-			elseif fromIndex > toIndex then
-				-- Dragging left: tabs between to..from-1 shift right by one slot
-				if i >= toIndex and i < fromIndex then
-					visualPos = i + 1
-				end
-			end
-			tab.button:move((visualPos - 1) * tabWidth, cfg.titleHeight)
-		end
-	end
-end
-
---- End tab drag: either select tab (click) or commit reorder (drag).
-function mdw.endTabDrag(tw)
-	local tabObj = mdw.tabDrag.tabObj
-	local hasMoved = mdw.tabDrag.hasMoved
-	local fromIndex = mdw.tabDrag.originalIndex
-	local toIndex = mdw.tabDrag.dropIndex
-
-	-- Clear drag state
-	mdw.tabDrag.active = false
-	mdw.tabDrag.tabbedWidget = nil
-	mdw.tabDrag.tabObj = nil
-	mdw.tabDrag.originalIndex = nil
-	mdw.tabDrag.startMouseX = 0
-	mdw.tabDrag.startTabX = 0
-	mdw.tabDrag.hasMoved = false
-	mdw.tabDrag.dropIndex = nil
-
-	if not hasMoved then
-		-- Click without movement: select the tab
-		tw:selectTab(tabObj.name)
-		return
-	end
-
-	-- Restore cursor
-	tabObj.button:setCursor(mudlet.cursor.PointingHand)
-
-	-- Commit reorder if position changed
-	if fromIndex ~= toIndex then
-		mdw.reorderTab(tw, fromIndex, toIndex)
-	end
-
-	-- Refresh all tab positions and styles
-	mdw.refreshTabBar(tw)
-	mdw.saveLayout()
+		d.tabObj.button:setCursor(mudlet.cursor.PointingHand)
+		mdw.barTabCommit(d.ctx, d.tabObj, event)
+	end)
 end
 
 --- Reorder a tab within a TabbedWidget's arrays.

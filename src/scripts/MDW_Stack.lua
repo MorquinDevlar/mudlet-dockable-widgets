@@ -574,43 +574,30 @@ function mdw.setupStackTabDrag(stack, tabObj)
   end)
 end
 
+--- Build the shared-reorder context for a stack's (variable-width, left-packed) tab bar.
+function mdw.stackTabBarCtx(stack)
+  return {
+    tabs = stack.tabObjects,
+    y = 0,
+    originX = function() return stack.container:get_x() end,
+    barWidth = function() return stack.tabBar:get_width() end,
+    widthOf = function(t) return mdw.stackTabWidth(t.name) end,
+    onReorder = function(fromIdx, toIdx)
+      table.insert(stack.members, toIdx, table.remove(stack.members, fromIdx))
+      table.insert(stack.tabObjects, toIdx, table.remove(stack.tabObjects, fromIdx))
+    end,
+    refresh = function() mdw.refreshStackTabBar(stack) end,
+  }
+end
+
 --- Slide the dragged tab to follow the cursor x (committed on release).
 function mdw.handleStackTabReorder(stack, tabObj, event)
-  local w = mdw.stackTabWidth(tabObj.name)
-  local relX = event.globalX - stack.container:get_x() - w / 2
-  local barW = stack.tabBar:get_width()
-  relX = mdw.clamp(relX, 0, math.max(0, barW - w))
-  tabObj.button:move(relX, 0)
-  tabObj.button:raise()
+  mdw.barTabSlide(mdw.stackTabBarCtx(stack), tabObj, event)
 end
 
 --- Commit a tab reorder from the cursor's x relative to the other tabs.
 function mdw.commitStackTabReorder(stack, tabObj, event)
-  local fromIdx
-  for i, t in ipairs(stack.tabObjects) do
-    if t == tabObj then fromIdx = i break end
-  end
-  if not fromIdx then mdw.refreshStackTabBar(stack); return end
-
-  local cursorX = event.globalX
-  local x = stack.container:get_x()
-  local toIdx = 1
-  for i, t in ipairs(stack.tabObjects) do
-    if i ~= fromIdx then
-      local tw = mdw.stackTabWidth(t.name)
-      if cursorX > x + tw / 2 then toIdx = toIdx + 1 end
-      x = x + tw
-    end
-  end
-
-  if toIdx ~= fromIdx then
-    local m = table.remove(stack.members, fromIdx)
-    table.insert(stack.members, toIdx, m)
-    local t = table.remove(stack.tabObjects, fromIdx)
-    table.insert(stack.tabObjects, toIdx, t)
-    mdw.saveLayout()
-  end
-  mdw.refreshStackTabBar(stack)
+  mdw.barTabCommit(mdw.stackTabBarCtx(stack), tabObj, event)
 end
 
 --- Tear-out uses a small "ghost" that follows the cursor (like DockView); the

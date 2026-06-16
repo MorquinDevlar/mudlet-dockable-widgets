@@ -587,6 +587,51 @@ function mdw.createDragGhost(title)
 	return ghost
 end
 
+---------------------------------------------------------------------------
+-- SHARED TAB-BAR REORDER
+-- Drives both the group (Stack) tab bar and the channel (TabbedWidget) tab bar.
+-- Only the dragged tab follows the cursor; the drop index is recomputed on
+-- release by walking the other tabs at their real widths, so it is correct for
+-- equal- AND variable-width tabs (the old channel code assumed equal widths).
+-- ctx: { tabs, originX(), barWidth(), widthOf(tabObj), y, onReorder(from,to), refresh() }
+---------------------------------------------------------------------------
+
+--- Move the dragged tab button to follow the cursor x (within the bar).
+function mdw.barTabSlide(ctx, tabObj, event)
+	local w = ctx.widthOf(tabObj)
+	local relX = mdw.clamp(event.globalX - ctx.originX() - w / 2, 0, math.max(0, ctx.barWidth() - w))
+	tabObj.button:move(relX, ctx.y)
+	tabObj.button:raise()
+end
+
+--- Commit a reorder from the cursor's x relative to the other tabs, then refresh.
+function mdw.barTabCommit(ctx, tabObj, event)
+	local tabs = ctx.tabs
+	local fromIdx
+	for i, t in ipairs(tabs) do
+		if t == tabObj then fromIdx = i break end
+	end
+	if not fromIdx then ctx.refresh() return end
+
+	-- Walk the other tabs left to right at their widths; passing a tab's
+	-- midpoint means the drop lands after it.
+	local x = ctx.originX()
+	local toIdx = 1
+	for i, t in ipairs(tabs) do
+		if i ~= fromIdx then
+			local tw = ctx.widthOf(t)
+			if event.globalX > x + tw / 2 then toIdx = toIdx + 1 end
+			x = x + tw
+		end
+	end
+
+	if toIdx ~= fromIdx then
+		ctx.onReorder(fromIdx, toIdx)
+		mdw.saveLayout()
+	end
+	ctx.refresh()
+end
+
 --- Clear all transient drag state (called when a drag ends or is cancelled).
 function mdw.resetDrag()
 	local d = mdw.drag
