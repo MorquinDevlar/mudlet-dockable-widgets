@@ -2841,9 +2841,9 @@ function mdw.rebuildThemeMenu()
 	})
 	mdw.themeMenuBg:setStyleSheet(mdw.styles.menuBackground)
 
+	mdw._hoveredTheme = nil
 	for i, themeName in ipairs(themes) do
 		local itemY = menuY + cfg.menuPadding + (i - 1) * cfg.menuItemHeight
-		local displayName = capitalizeThemeName(themeName)
 
 		local item = Geyser.Label:new({
 			name = "MDW_ThemeMenu_" .. themeName .. "_" .. uid,
@@ -2852,33 +2852,48 @@ function mdw.rebuildThemeMenu()
 		})
 		item:setStyleSheet(mdw.styles.menuItem)
 		item:setFontSize(cfg.headerMenuFontSize)
-		local themeColors = mdw.themes[themeName] or {}
-		local headerText = themeColors.headerText or mdw.config.colors.headerText
-		item:decho("<" .. mdw.rgbToDecho(headerText) .. ">" .. displayName)
 		item:setCursor(mudlet.cursor.PointingHand)
 		mdw.themeMenuLabels[#mdw.themeMenuLabels + 1] = item
 		mdw.themeMenuLabelMap[themeName] = item
 
 		local tName = themeName
 		setLabelClickCallback(item.name, function()
+			-- Select the theme; the [x] moves to it and the menu stays open
+			-- (matching the Widgets menu).
 			mdw.setTheme(tName)
-			mdw.closeAllMenus()
 		end)
 		setLabelOnEnter(item.name, function()
+			mdw._hoveredTheme = tName
 			mdw.previewTheme(tName)
 		end)
+		setLabelOnLeave(item.name, function()
+			mdw._hoveredTheme = nil
+			mdw.updateThemeMenuText()
+		end)
 	end
+
+	-- Render the [x]/[ ] checkmarks (and per-theme colours).
+	mdw.updateThemeMenuText()
 end
 
---- Update all theme menu item text colors.
--- Each theme name is shown in its own headerText color.
+--- Re-render every theme menu item: an [x] on the active theme, each name in its
+-- own headerText color, and the hovered item highlighted - matching the Widgets
+-- menu. Called on theme change and hover (so the preview's re-render keeps the
+-- highlight, tracked via mdw._hoveredTheme).
 function mdw.updateThemeMenuText()
 	if not mdw.themeMenuLabelMap then return end
+	local cfg = mdw.config
+	local current = cfg.theme
+	local hovered = mdw._hoveredTheme
 	for themeName, label in pairs(mdw.themeMenuLabelMap) do
 		local displayName = capitalizeThemeName(themeName)
+		local highlighted = (themeName == hovered)
+		local checkmark = (themeName == current) and "[x] " or "[ ] "
 		local themeColors = mdw.themes[themeName] or {}
-		local headerText = themeColors.headerText or mdw.config.colors.headerText
-		label:decho("<" .. mdw.rgbToDecho(headerText) .. ">" .. displayName)
+		local headerText = themeColors.headerText or cfg.colors.headerText
+		local nameColor = highlighted and cfg.menuHighlightColor or mdw.rgbToDecho(headerText)
+		local checkColor = highlighted and cfg.menuHighlightColor or cfg.headerTextColor
+		label:decho("<" .. checkColor .. ">" .. checkmark .. "<" .. nameColor .. ">" .. displayName)
 	end
 end
 
@@ -2895,6 +2910,7 @@ function mdw.showThemeMenu()
 end
 
 function mdw.hideThemeMenu()
+	mdw._hoveredTheme = nil
 	-- Revert any active preview back to the committed theme
 	if mdw._previewTheme then
 		mdw._previewTheme = nil
