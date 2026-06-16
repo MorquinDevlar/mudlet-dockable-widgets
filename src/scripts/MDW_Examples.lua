@@ -76,7 +76,7 @@ local function createExampleWidgets()
 	local comm = mdw.TabbedWidget:new({
 		name = "Comm",
 		title = "Communications",
-		tabs = { "All", "Room", "Tell", "Chat" },
+		tabs = { "All", "Room", "Tell", "Chat", "Group" },
 		allTab = "All",
 		activeTab = "All",
 		dock = "right",
@@ -98,6 +98,15 @@ local function createExampleWidgets()
 		.. "demonstrate that word wrap is handled automatically when text "
 		.. "exceeds the widget width.\n")
 	comm:cechoTo("Chat", "<cyan>[Chat] Player2: Welcome to the game!\n")
+
+	-- Group chat: each member's name in its own color (decho RGB)
+	comm:dechoTo("Group", "<120,120,120>--- Group Chat ---\n")
+	comm:dechoTo("Group", "<90,200,210>Aria<200,200,200>: Anyone up for the Willowdale dungeon?\n")
+	comm:dechoTo("Group", "<120,190,90>Borin<200,200,200>: Aye - let me repair first.\n")
+	comm:dechoTo("Group", "<220,180,90>Celes<200,200,200>: I'll stock up on potions.\n")
+	comm:dechoTo("Group", "<210,120,200>Dax<200,200,200>: On my way, meet at the gate.\n")
+	comm:dechoTo("Group", "<120,160,230>Eira<200,200,200>: Saving a healer slot for me!\n")
+	comm:dechoTo("Group", "<90,200,210>Aria<200,200,200>: Perfect - let's move out.\n")
 
 	---------------------------------------------------------------------------
 	-- PROMPT BAR FALLBACK
