@@ -74,8 +74,10 @@ function mdw.resizeStackContent(stack, targetWidth, targetHeight)
     if member and member.container then
       member.container:move(contentX, contentY)
       member.container:resize(contentW, contentH)
-      mdw.resizeWidgetContent(member, contentW, contentH)
+      -- Only the active member is visible, so only it needs its content laid out;
+      -- hidden members are re-laid when selected (selectStackTab -> resize again).
       if memberName == stack.activeMember then
+        mdw.resizeWidgetContent(member, contentW, contentH)
         member.container:show()
         if mdw.showWidgetContent then mdw.showWidgetContent(member) end
       else
@@ -242,10 +244,7 @@ function mdw.addToStack(stackName, memberName, index)
 
   local btnName = "MDW_" .. stackName .. "_Tab_" .. safeName(memberName)
   -- Clear any stale button of the same name (e.g. a torn-out tab dropped back in)
-  pcall(function() deleteLabel(btnName) end)
-  for i = #mdw.elements, 1, -1 do
-    if mdw.elements[i] and mdw.elements[i].name == btnName then table.remove(mdw.elements, i) break end
-  end
+  mdw.deleteElementByName(btnName)
   local btn = mdw.trackElement(Geyser.Label:new({
     name = btnName,
     x = 0, y = 0, width = 60, height = mdw.config.tabBarHeight,
@@ -272,35 +271,18 @@ function mdw.removeFromStack(stackName, memberName)
     mdw.echo("removeFromStack: no stack '" .. tostring(stackName) .. "' (see mdw.Stack.list())")
     return
   end
-  local member = mdw.widgets[memberName]
-
-  local idx
-  for i, m in ipairs(stack.members) do
-    if m == memberName then idx = i break end
-  end
-  if not idx then
+  if not stack.tabsByName[memberName] then
     mdw.echo("removeFromStack: '" .. tostring(memberName) .. "' is not in '" .. tostring(stackName) .. "'")
     return
   end
 
-  local tabObj = stack.tabObjects[idx]
-  table.remove(stack.members, idx)
-  table.remove(stack.tabObjects, idx)
-  stack.tabsByName[memberName] = nil
-
-  if tabObj and tabObj.button then
-    pcall(function() tabObj.button:hide() end)
-    pcall(function() if tabObj.button.name then deleteLabel(tabObj.button.name) end end)
-    for i = #mdw.elements, 1, -1 do
-      if mdw.elements[i] == tabObj.button then table.remove(mdw.elements, i) break end
-    end
-  end
+  -- Read the saved standalone slot before detachMember clears _preStackSlot.
+  local member = mdw.widgets[memberName]
+  local saved = member and member._preStackSlot
+  mdw.detachMember(stack, memberName)
 
   if member then
-    member.stackId = nil
-    mdw.removeHeadless(member)
-    local saved = member._preStackSlot
-    member._preStackSlot = nil
+    -- Restore the saved standalone slot, or dock below the stack if unknown.
     if saved and saved.docked then
       member.docked = saved.docked
       member.row = saved.row
@@ -315,10 +297,6 @@ function mdw.removeFromStack(stackName, memberName)
       mdw.dockWidgetClass(member, stack.docked)
     end
     if member.container then member.container:show() end
-  end
-
-  if memberName == stack.activeMember then
-    stack.activeMember = stack.members[idx] or stack.members[#stack.members]
   end
 
   if #stack.members == 0 then
@@ -338,23 +316,12 @@ function mdw.selectStackTab(stack, memberName)
   mdw.layoutStack(stack)
 end
 
---- Destroy an (empty) stack and free its elements.
+--- Destroy an (empty) stack and free its elements (container last, as parent).
 function mdw.destroyStack(stack)
-  local owned = { stack.tabBar, stack.bottomResizeHandle }
-  for _, t in ipairs(stack.tabObjects or {}) do owned[#owned + 1] = t.button end
-  owned[#owned + 1] = stack.container
-
-  local toRemove = {}
-  for _, el in ipairs(owned) do
-    if el then
-      toRemove[el] = true
-      pcall(function() if el.hide then el:hide() end end)
-      pcall(function() if el.name then deleteLabel(el.name) end end)
-    end
-  end
-  for i = #mdw.elements, 1, -1 do
-    if toRemove[mdw.elements[i]] then table.remove(mdw.elements, i) end
-  end
+  for _, t in ipairs(stack.tabObjects or {}) do mdw.deleteElement(t.button) end
+  mdw.deleteElement(stack.tabBar)
+  mdw.deleteElement(stack.bottomResizeHandle)
+  mdw.deleteElement(stack.container)
 
   local side = stack.docked
   mdw.widgets[stack.name] = nil
@@ -604,25 +571,21 @@ function mdw.updateTabGhost(stack, tabObj, event)
   end
 end
 
---- Detach a member from a stack: remove its tab, restore its own chrome.
+--- Detach a member from a stack: remove its tab + restore its own chrome. Pure
+-- model/chrome removal - the CALLER repositions the member and relayouts the
+-- stack, so the member is never laid out at a stale slot mid-detach. Clears
+-- _preStackSlot (callers that need it, like removeFromStack, read it first).
 function mdw.detachMember(stack, memberName)
   local idx
   for i, m in ipairs(stack.members) do
     if m == memberName then idx = i break end
   end
-  local tabObj = idx and stack.tabObjects[idx]
-  if idx then
-    table.remove(stack.members, idx)
-    table.remove(stack.tabObjects, idx)
-  end
+  if not idx then return end
+  local tabObj = stack.tabObjects[idx]
+  table.remove(stack.members, idx)
+  table.remove(stack.tabObjects, idx)
   stack.tabsByName[memberName] = nil
-  if tabObj and tabObj.button then
-    pcall(function() tabObj.button:hide() end)
-    pcall(function() if tabObj.button.name then deleteLabel(tabObj.button.name) end end)
-    for i = #mdw.elements, 1, -1 do
-      if mdw.elements[i] == tabObj.button then table.remove(mdw.elements, i) break end
-    end
-  end
+  if tabObj then mdw.deleteElement(tabObj.button) end
   local member = mdw.widgets[memberName]
   if member then
     member.stackId = nil
@@ -632,18 +595,13 @@ function mdw.detachMember(stack, memberName)
   if memberName == stack.activeMember then
     stack.activeMember = stack.members[idx] or stack.members[#stack.members]
   end
-  if #stack.members > 0 then mdw.layoutStack(stack) end
 end
 
 --- Run (deferred) on tear-out release: delete the ghost, then detach the member
 -- and place it where the cursor was (float / dock / merge into another group).
 function mdw.dropTabGhost(d)
   if d.ghost then
-    pcall(function() d.ghost:hide() end)
-    pcall(function() if d.ghost.name then deleteLabel(d.ghost.name) end end)
-    for i = #mdw.elements, 1, -1 do
-      if mdw.elements[i] == d.ghost then table.remove(mdw.elements, i) break end
-    end
+    mdw.deleteElement(d.ghost)
     d.ghost = nil
   end
 
@@ -697,9 +655,16 @@ function mdw.dropTabGhost(d)
     mdw.hideResizeHandles(member)
   end
 
+  -- detachMember no longer relayouts the source stack, so do it here: destroy it
+  -- if now empty, relay it if it floats (a docked source is covered by the
+  -- reorganizeDock calls below).
   local s2 = mdw.widgets[d.stackName]
-  if s2 and s2.isStack and #s2.members == 0 then
-    mdw.destroyStack(s2)
+  if s2 and s2.isStack then
+    if #s2.members == 0 then
+      mdw.destroyStack(s2)
+    elseif not s2.docked then
+      mdw.layoutStack(s2)
+    end
   end
   mdw.reorganizeDock("left")
   mdw.reorganizeDock("right")

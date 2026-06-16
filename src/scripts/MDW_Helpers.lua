@@ -723,6 +723,37 @@ function mdw.trackElement(element)
 	return element
 end
 
+--- Hide, delete, and untrack a single tracked UI element.
+-- Why: the hide + deleteLabel + splice-from-mdw.elements dance was repeated in
+-- every teardown path; centralising it keeps element cleanup consistent. Safe on
+-- partially-built or already-deleted elements (pcall-guarded; non-label types are
+-- at least hidden and untracked).
+function mdw.deleteElement(element)
+	if not element then return end
+	pcall(function() if element.hide then element:hide() end end)
+	pcall(function() if element.name then deleteLabel(element.name) end end)
+	for i = #mdw.elements, 1, -1 do
+		if mdw.elements[i] == element then
+			table.remove(mdw.elements, i)
+			break
+		end
+	end
+end
+
+--- Delete a tracked element by name, for when the live object is no longer at
+-- hand (e.g. clearing a stale leftover before recreating one with the same name).
+function mdw.deleteElementByName(name)
+	if not name then return end
+	pcall(function() deleteLabel(name) end)
+	for i = #mdw.elements, 1, -1 do
+		local el = mdw.elements[i]
+		if el and el.name == name then
+			table.remove(mdw.elements, i)
+			break
+		end
+	end
+end
+
 --- Register a named event handler for cleanup.
 -- Why: Named handlers can accumulate if not properly cleaned up on
 -- package reinstall, causing duplicate event processing.
@@ -931,21 +962,9 @@ function mdw.destroyWidgetClass(widget)
 	end
 	owned[#owned + 1] = widget.container
 
-	-- Build a lookup so we can splice each destroyed element out of mdw.elements.
-	-- Mirrors destroyAllElements: hide + deleteLabel under pcall (Mudlet has no
-	-- universal delete, so non-label types are at least hidden and untracked).
-	local toRemove = {}
+	-- Hide, delete, and untrack each owned element (container is last, as parent).
 	for _, element in ipairs(owned) do
-		if element then
-			toRemove[element] = true
-			pcall(function() if element.hide then element:hide() end end)
-			pcall(function() if element.name then deleteLabel(element.name) end end)
-		end
-	end
-	for i = #mdw.elements, 1, -1 do
-		if toRemove[mdw.elements[i]] then
-			table.remove(mdw.elements, i)
-		end
+		mdw.deleteElement(element)
 	end
 
 	if mdw.rebuildWidgetsMenu then
