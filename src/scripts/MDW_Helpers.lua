@@ -243,8 +243,34 @@ function mdw.buildStyles()
     border-bottom: 1px solid %s;
   ]], cssWidget, cssTabBorder)
 
-	-- Active tab: a fine accent underline, no heavy filled block.
-	mdw.styles.tabActive = string.format([[
+	-- Group (widget) tabs: a rounded tab shape, subtle highlight when active, NO
+	-- underline and NO vertical dividers.
+	mdw.styles.groupTabActive = string.format([[
+    background-color: %s;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    qproperty-alignment: 'AlignCenter';
+    font-family: '%s';
+    font-size: %dpx;
+    padding-left: %dpx;
+    padding-right: %dpx;
+  ]], cfg.tabActiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+
+	mdw.styles.groupTabInactive = string.format([[
+    background-color: transparent;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    qproperty-alignment: 'AlignCenter';
+    font-family: '%s';
+    font-size: %dpx;
+    padding-left: %dpx;
+    padding-right: %dpx;
+  ]], cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+
+	-- Channel (tabbed-widget) tabs: a fine accent underline when active, NO fill
+	-- and NO dividers between them. A transparent underline keeps inactive tabs
+	-- the same height as the active one.
+	mdw.styles.channelTabActive = string.format([[
     background-color: transparent;
     border-bottom: 2px solid %s;
     qproperty-alignment: 'AlignCenter';
@@ -254,18 +280,15 @@ function mdw.buildStyles()
     padding-right: %dpx;
   ]], cssAccent, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
 
-	-- Inactive tab: transparent with a faint right divider; a transparent underline
-	-- keeps its height matching the active tab's.
-	mdw.styles.tabInactive = string.format([[
+	mdw.styles.channelTabInactive = string.format([[
     background-color: transparent;
     border-bottom: 2px solid transparent;
-    border-right: 1px solid %s;
     qproperty-alignment: 'AlignCenter';
     font-family: '%s';
     font-size: %dpx;
     padding-left: %dpx;
     padding-right: %dpx;
-  ]], cssTabBorder, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+  ]], cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
 
 	-- The source tab while its ghost is being dragged: looks emptied out.
 	mdw.styles.tabDragging = string.format([[

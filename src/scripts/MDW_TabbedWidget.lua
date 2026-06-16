@@ -464,16 +464,19 @@ end
 -- selectTab, refreshTabBar, commitTabDragStart, and creation.
 ---------------------------------------------------------------------------
 
-function mdw.applyTabActiveStyle(tabObj)
+-- kind: "group" (widget/stack tabs) or "channel" (tabbed-widget tabs, the default).
+function mdw.applyTabActiveStyle(tabObj, kind)
 	local cfg = mdw.config
-	tabObj.button:setStyleSheet(mdw.styles.tabActive)
+	local style = (kind == "group") and mdw.styles.groupTabActive or mdw.styles.channelTabActive
+	tabObj.button:setStyleSheet(style)
 	tabObj.button:setFontSize(cfg.tabFontSize)
 	tabObj.button:decho("<" .. cfg.tabActiveTextColor .. ">" .. tabObj.name)
 end
 
-function mdw.applyTabInactiveStyle(tabObj)
+function mdw.applyTabInactiveStyle(tabObj, kind)
 	local cfg = mdw.config
-	tabObj.button:setStyleSheet(mdw.styles.tabInactive)
+	local style = (kind == "group") and mdw.styles.groupTabInactive or mdw.styles.channelTabInactive
+	tabObj.button:setStyleSheet(style)
 	tabObj.button:setFontSize(cfg.tabFontSize)
 	tabObj.button:decho("<" .. cfg.tabInactiveTextColor .. ">" .. tabObj.name)
 end

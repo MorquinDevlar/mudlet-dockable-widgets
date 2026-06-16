@@ -40,9 +40,9 @@ function mdw.refreshStackTabBar(stack)
     tabObj.button:move(x, 0)
     tabObj.button:resize(w, cfg.tabBarHeight)
     if tabObj.memberName == stack.activeMember then
-      mdw.applyTabActiveStyle(tabObj)
+      mdw.applyTabActiveStyle(tabObj, "group")
     else
-      mdw.applyTabInactiveStyle(tabObj)
+      mdw.applyTabInactiveStyle(tabObj, "group")
     end
     tabObj.button:setCursor(mudlet.cursor.PointingHand)
     x = x + w
