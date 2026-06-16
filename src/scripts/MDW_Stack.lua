@@ -559,6 +559,16 @@ function mdw.beginTabGhost(stack, tabObj)
   local d = mdw.stackTabDrag
   if not d then return end
   d.ghost = mdw.createTabGhost(tabObj.name)
+  -- Anchor the ghost to the tab's current screen position (the container's
+  -- move-frame x/y plus the tab's left-packed offset), then move it by the
+  -- cursor delta (like the widget drag) - avoids any event-vs-move frame offset.
+  local tabRelX = 0
+  for _, t in ipairs(stack.tabObjects) do
+    if t == tabObj then break end
+    tabRelX = tabRelX + mdw.stackTabWidth(t.name)
+  end
+  d.ghostAnchorX = stack.container:get_x() + tabRelX
+  d.ghostAnchorY = stack.container:get_y()
   if mdw.styles.tabDragging then
     tabObj.button:setStyleSheet(mdw.styles.tabDragging)
     tabObj.button:setFontSize(mdw.config.tabFontSize)
@@ -566,18 +576,24 @@ function mdw.beginTabGhost(stack, tabObj)
   end
 end
 
---- Move the ghost to the cursor and update the drop indicator from the cursor.
+--- Move the ghost and update the drop indicator. Everything works in the
+-- move-frame (anchor + cursor delta), NOT raw event coords, because widget
+-- positions are in the move-frame and the two frames can differ by a constant.
 function mdw.updateTabGhost(stack, tabObj, event)
   local d = mdw.stackTabDrag
   if not d then return end
-  d.lastX = event.globalX
-  d.lastY = event.globalY
+  local gx = (d.ghostAnchorX or 0) + (event.globalX - d.startX)
+  local gy = (d.ghostAnchorY or 0) + (event.globalY - d.startY)
+  local cx = gx + mdw.stackTabWidth(tabObj.name) / 2
+  local cy = gy + mdw.config.tabBarHeight / 2
+  d.lastX = cx
+  d.lastY = cy
   local member = mdw.widgets[d.memberName]
   if member then
-    mdw.updateDropIndicator(member, event.globalX, event.globalY)
+    mdw.updateDropIndicator(member, cx, cy)
   end
   if d.ghost then
-    d.ghost:move(event.globalX - 12, event.globalY + 8)
+    d.ghost:move(gx, gy)
     d.ghost:raise()
   end
 end
