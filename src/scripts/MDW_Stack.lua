@@ -164,7 +164,10 @@ function mdw.setupStackDrag(stack)
   local stackName = stack.name
   setLabelClickCallback(barName, function(event)
     local s = mdw.widgets[stackName]
-    if s then mdw.startDrag(s, event) end
+    -- The tab bar moves the group only while it floats; a docked group is
+    -- positioned by the dock (and only its tabs are draggable, to avoid the
+    -- whole-group "grp_" drag the user disliked).
+    if s and not s.docked then mdw.startDrag(s, event) end
   end)
   setLabelMoveCallback(barName, function(event)
     local s = mdw.widgets[stackName]
@@ -239,7 +242,9 @@ function mdw.createStack(name, opts)
   stack.bottomResizeHandle:hide()
 
   mdw.widgets[name] = stack
-  -- The tab bar is NOT a whole-group drag handle: only the tabs are draggable.
+  -- The tab bar moves the group while floating (gated to !docked inside); docked
+  -- groups are moved only by dragging their tabs.
+  mdw.setupStackDrag(stack)
   mdw.setupDockedResizeHandle(stack)
   -- Floating groups get the same edge/corner resize borders that widgets have.
   if mdw.createResizeBorders then mdw.createResizeBorders(stack) end

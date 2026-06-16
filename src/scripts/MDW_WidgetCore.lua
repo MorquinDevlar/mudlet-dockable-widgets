@@ -794,7 +794,14 @@ function mdw.handleDragMove(widget, event)
 			return
 		end
 		mdw.drag.hasMoved = true
-		mdw.drag.ghost = mdw.createDragGhost(widget.title or widget.name)
+		-- For a group, label the ghost with its active member, not the internal
+		-- "grp_<name>" stack name.
+		local ghostTitle = widget.title or widget.name
+		if widget.isStack and widget.activeMember then
+			local m = mdw.widgets[widget.activeMember]
+			ghostTitle = (m and (m.title or m.name)) or ghostTitle
+		end
+		mdw.drag.ghost = mdw.createDragGhost(ghostTitle)
 	end
 
 	-- Move the ghost (anchor + cursor delta); the real widget does not move.
