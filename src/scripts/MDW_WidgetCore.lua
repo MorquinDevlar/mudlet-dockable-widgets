@@ -2310,39 +2310,38 @@ function mdw.updateResizeBorders(widget)
 	local y = widget.container:get_y()
 	local w = widget.container:get_width()
 	local h = widget.container:get_height()
-	local bw = cfg.resizeBorderWidth
 	local hw = cfg.resizeHitWidth
 	local cs = cfg.resizeCornerSize
 
-	-- Edges: hw-wide hit target, visible 2px border on widget-facing side
-	widget.resizeLeft:move(x - hw, y - bw)
-	widget.resizeLeft:resize(hw, h + bw * 2)
+	-- Edges: hw-wide hit target, inset by cs so they stop short of the corners
+	widget.resizeLeft:move(x - hw, y + cs)
+	widget.resizeLeft:resize(hw, math.max(0, h - 2 * cs))
 
-	widget.resizeRight:move(x + w, y - bw)
-	widget.resizeRight:resize(hw, h + bw * 2)
+	widget.resizeRight:move(x + w, y + cs)
+	widget.resizeRight:resize(hw, math.max(0, h - 2 * cs))
 
-	widget.resizeBottom:move(x - bw, y + h)
-	widget.resizeBottom:resize(w + bw * 2, hw)
+	widget.resizeBottom:move(x + cs, y + h)
+	widget.resizeBottom:resize(math.max(0, w - 2 * cs), hw)
 
-	widget.resizeTop:move(x - bw, y - hw)
-	widget.resizeTop:resize(w + bw * 2, hw)
+	widget.resizeTop:move(x + cs, y - hw)
+	widget.resizeTop:resize(math.max(0, w - 2 * cs), hw)
 
-	-- Corners: cs x cs squares overlapping the ends of adjacent edges
+	-- Corners: cs x cs at each widget corner; the hover bracket sits on the lines
 	if widget.resizeTopLeft then
-		widget.resizeTopLeft:move(x - hw, y - hw)
-		widget.resizeTopLeft:resize(hw + cs, hw + cs)
+		widget.resizeTopLeft:move(x, y)
+		widget.resizeTopLeft:resize(cs, cs)
 	end
 	if widget.resizeTopRight then
-		widget.resizeTopRight:move(x + w - cs, y - hw)
-		widget.resizeTopRight:resize(hw + cs, hw + cs)
+		widget.resizeTopRight:move(x + w - cs, y)
+		widget.resizeTopRight:resize(cs, cs)
 	end
 	if widget.resizeBottomLeft then
-		widget.resizeBottomLeft:move(x - hw, y + h - cs)
-		widget.resizeBottomLeft:resize(hw + cs, hw + cs)
+		widget.resizeBottomLeft:move(x, y + h - cs)
+		widget.resizeBottomLeft:resize(cs, cs)
 	end
 	if widget.resizeBottomRight then
 		widget.resizeBottomRight:move(x + w - cs, y + h - cs)
-		widget.resizeBottomRight:resize(hw + cs, hw + cs)
+		widget.resizeBottomRight:resize(cs, cs)
 	end
 end
 
