@@ -372,13 +372,12 @@ function mdw.createResizeBorders(widget)
 
 	-- Corner resize handles
 	local cs = cfg.resizeCornerSize
-	local cornerStyle = [[QLabel { background-color: transparent; } QLabel:hover { background-color: transparent; }]]
 
 	widget.resizeTopLeft = mdw.trackElement(Geyser.Label:new({
 		name = baseName .. "_ResizeCornerTL",
 		x = 0, y = 0, width = cs, height = cs,
 	}))
-	widget.resizeTopLeft:setStyleSheet(cornerStyle)
+	widget.resizeTopLeft:setStyleSheet(mdw.styles.resizeCornerTL)
 	pcall(function() widget.resizeTopLeft:setCursor(8) end)
 	widget.resizeTopLeft:hide()
 	mdw.setupResizeBorder(widget, widget.resizeTopLeft, "topLeft")
@@ -387,7 +386,7 @@ function mdw.createResizeBorders(widget)
 		name = baseName .. "_ResizeCornerTR",
 		x = 0, y = 0, width = cs, height = cs,
 	}))
-	widget.resizeTopRight:setStyleSheet(cornerStyle)
+	widget.resizeTopRight:setStyleSheet(mdw.styles.resizeCornerTR)
 	pcall(function() widget.resizeTopRight:setCursor(7) end)
 	widget.resizeTopRight:hide()
 	mdw.setupResizeBorder(widget, widget.resizeTopRight, "topRight")
@@ -396,7 +395,7 @@ function mdw.createResizeBorders(widget)
 		name = baseName .. "_ResizeCornerBL",
 		x = 0, y = 0, width = cs, height = cs,
 	}))
-	widget.resizeBottomLeft:setStyleSheet(cornerStyle)
+	widget.resizeBottomLeft:setStyleSheet(mdw.styles.resizeCornerBL)
 	pcall(function() widget.resizeBottomLeft:setCursor(7) end)
 	widget.resizeBottomLeft:hide()
 	mdw.setupResizeBorder(widget, widget.resizeBottomLeft, "bottomLeft")
@@ -405,7 +404,7 @@ function mdw.createResizeBorders(widget)
 		name = baseName .. "_ResizeCornerBR",
 		x = 0, y = 0, width = cs, height = cs,
 	}))
-	widget.resizeBottomRight:setStyleSheet(cornerStyle)
+	widget.resizeBottomRight:setStyleSheet(mdw.styles.resizeCornerBR)
 	pcall(function() widget.resizeBottomRight:setCursor(8) end)
 	widget.resizeBottomRight:hide()
 	mdw.setupResizeBorder(widget, widget.resizeBottomRight, "bottomRight")

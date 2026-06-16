@@ -131,6 +131,25 @@ function mdw.buildStyles()
     QLabel:hover { background-color: transparent; border-top: %dpx solid %s; }
   ]], bw, cssSplitter, bw, cssSplitterHover)
 
+	-- Corner brackets: hover-only L of the two edges meeting at that corner, so a
+	-- diagonal-resize corner gets visible feedback (the edges already highlight).
+	mdw.styles.resizeCornerTL = string.format([[
+    QLabel { background-color: transparent; }
+    QLabel:hover { background-color: transparent; border-top: %dpx solid %s; border-left: %dpx solid %s; }
+  ]], bw, cssSplitterHover, bw, cssSplitterHover)
+	mdw.styles.resizeCornerTR = string.format([[
+    QLabel { background-color: transparent; }
+    QLabel:hover { background-color: transparent; border-top: %dpx solid %s; border-right: %dpx solid %s; }
+  ]], bw, cssSplitterHover, bw, cssSplitterHover)
+	mdw.styles.resizeCornerBL = string.format([[
+    QLabel { background-color: transparent; }
+    QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; border-left: %dpx solid %s; }
+  ]], bw, cssSplitterHover, bw, cssSplitterHover)
+	mdw.styles.resizeCornerBR = string.format([[
+    QLabel { background-color: transparent; }
+    QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; border-right: %dpx solid %s; }
+  ]], bw, cssSplitterHover, bw, cssSplitterHover)
+
 	local titlePadLeft = cfg.titleButtonPadding + cfg.titleButtonSize + (cfg.titleButtonGap or 4)
 	local titlePadRight = cfg.closeButtonPadding + cfg.titleButtonSize
 	mdw.styles.titleBar = string.format([[
@@ -1424,6 +1443,10 @@ function mdw.applyThemeStyles()
 			if widget.resizeRight then widget.resizeRight:setStyleSheet(mdw.styles.resizeRight) end
 			if widget.resizeTop then widget.resizeTop:setStyleSheet(mdw.styles.resizeTop) end
 			if widget.resizeBottom then widget.resizeBottom:setStyleSheet(mdw.styles.resizeBottom) end
+			if widget.resizeTopLeft then widget.resizeTopLeft:setStyleSheet(mdw.styles.resizeCornerTL) end
+			if widget.resizeTopRight then widget.resizeTopRight:setStyleSheet(mdw.styles.resizeCornerTR) end
+			if widget.resizeBottomLeft then widget.resizeBottomLeft:setStyleSheet(mdw.styles.resizeCornerBL) end
+			if widget.resizeBottomRight then widget.resizeBottomRight:setStyleSheet(mdw.styles.resizeCornerBR) end
 		end
 
 		-- Tab styles
