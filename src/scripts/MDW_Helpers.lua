@@ -271,14 +271,14 @@ function mdw.buildStyles()
 	-- and NO dividers between them. A transparent underline keeps inactive tabs
 	-- the same height as the active one.
 	mdw.styles.channelTabActive = string.format([[
-    background-color: rgba(255,255,255,0.07);
+    background-color: %s;
     border-bottom: 1px solid %s;
     qproperty-alignment: 'AlignCenter';
     font-family: '%s';
     font-size: %dpx;
     padding-left: %dpx;
     padding-right: %dpx;
-  ]], cssAccent, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+  ]], cfg.tabActiveBackground, cssAccent, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
 
 	mdw.styles.channelTabInactive = string.format([[
     background-color: transparent;
