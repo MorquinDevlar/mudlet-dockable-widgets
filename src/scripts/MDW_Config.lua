@@ -90,7 +90,6 @@ mdw.config = {
 	-- Drop zone percentages (0.0-1.0): Control where drops trigger different behaviors
 	verticalInsertZone = 0.1, -- Top/bottom 10% of row triggers vertical insert
 	sideBySideZone = 0.2,  -- Top/bottom 20% disallows side-by-side placement
-	dropEdgeFraction = 0.28, -- Outer fraction of a target widget that docks to that edge
 	dropEndBandHeight = 48, -- Height of the "dock at end of side" preview band (px)
 
 	-- Canonical color definitions (RGB tuples, theme-aware)

@@ -955,15 +955,14 @@ function mdw.detectDropPosition(side, pointX, pointY, excludeWidget)
 			if pointY <= ty + barH then
 				return "tab", ri, 0, w
 			end
-			-- Body below the tab bar: nearest edge splits, the centre merges.
+			-- Body below the tab bar: the nearest edge splits (no centre merge - the
+			-- tab bar is the only merge zone).
 			local bh = math.max(1, th - barH)
 			local fx = (pointX - tx) / tw
 			local fy = (pointY - (ty + barH)) / bh
 			local dl, dr, dt, db = fx, 1 - fx, fy, 1 - fy
 			local nearest = math.min(dl, dr, dt, db)
-			if nearest > cfg.dropEdgeFraction then
-				return "tab", ri, 0, w
-			elseif nearest == dl then
+			if nearest == dl then
 				return "left", ri, 0, w
 			elseif nearest == dr then
 				return "right", ri, w.rowPosition or 0, w
