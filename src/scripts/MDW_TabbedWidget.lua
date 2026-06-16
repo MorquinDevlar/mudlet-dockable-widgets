@@ -568,12 +568,14 @@ end
 --- Reposition all tab buttons to canonical positions and restore styles.
 function mdw.refreshTabBar(tw)
 	local cfg = mdw.config
+	-- Headless (inside a group): the tab bar sits at y=0, not below a title bar.
+	local titleH = tw._headless and 0 or cfg.titleHeight
 	local numTabs = #tw.tabObjects
 	local tabBarWidth = tw.tabBar:get_width()
 	local tabWidth = tabBarWidth / numTabs
 
 	for i, tabObj in ipairs(tw.tabObjects) do
-		tabObj.button:move((i - 1) * tabWidth, cfg.titleHeight)
+		tabObj.button:move((i - 1) * tabWidth, titleH)
 		tabObj.button:resize(tabWidth, cfg.tabBarHeight)
 
 		if i == tw.activeTabIndex then
