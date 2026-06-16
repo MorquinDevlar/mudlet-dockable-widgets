@@ -818,8 +818,12 @@ function mdw.handleDragMove(widget, event)
 		-- The whole widget just follows the cursor and stays floating. The header
 		-- bar never triggers docking (no drop detection); only dragging a TAB onto
 		-- a sidebar docks it. So moving a floating widget over a dock won't snap it.
-		local newX = math.max(0, mdw.drag.liveStartX + dx)
-		local newY = math.max(cfg.headerHeight + cfg.separatorHeight, mdw.drag.liveStartY + dy)
+		-- Keep it fully inside the main window (no dragging off-screen).
+		local winW, winH = getMainWindowSize()
+		local w, h = widget.container:get_width(), widget.container:get_height()
+		local minY = cfg.headerHeight + cfg.separatorHeight
+		local newX = mdw.clamp(mdw.drag.liveStartX + dx, 0, math.max(0, winW - w))
+		local newY = mdw.clamp(mdw.drag.liveStartY + dy, minY, math.max(minY, winH - h))
 		widget.container:move(newX, newY)
 		if widget.isStack and mdw.resizeStackContent then mdw.resizeStackContent(widget) end
 		mdw.updateResizeBorders(widget)
