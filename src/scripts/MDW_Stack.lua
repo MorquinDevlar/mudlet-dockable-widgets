@@ -652,6 +652,9 @@ function mdw.dropTabGhost(d)
     end
   else
     mdw.dockWidgetWithPosition(member, side, dropType, rowIndex, positionInRow, target)
+    -- The torn-out tab's container may have been hidden by the stack (an inactive
+    -- tab); docking positions it but never re-shows it, so show it here.
+    if member.container then member.container:show() end
     mdw.hideResizeHandles(member)
   end
 
