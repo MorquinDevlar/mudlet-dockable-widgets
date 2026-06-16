@@ -738,7 +738,9 @@ function mdw.dropTabGhost(d)
     member.rowPosition = nil
     member.subRow = nil
     if member.container then
-      member.container:move(math.max(0, (d.lastX or 100) - 30), math.max(0, (d.lastY or 100) - 10))
+      local cx, cy = mdw.clampToWindow((d.lastX or 100) - 30, (d.lastY or 100) - 10,
+        member.container:get_width(), member.container:get_height())
+      member.container:move(cx, cy)
     end
     local hs = mdw.wrapInHomeStack(member)
     if hs then

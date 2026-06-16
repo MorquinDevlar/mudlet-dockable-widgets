@@ -667,6 +667,15 @@ function mdw.barTabCommit(ctx, tabObj, event)
 	ctx.refresh()
 end
 
+--- Clamp a floating widget's top-left so a w x h widget stays fully inside the
+-- main window (below the header). Returns the clamped x, y.
+function mdw.clampToWindow(x, y, w, h)
+	local winW, winH = getMainWindowSize()
+	local minY = mdw.config.headerHeight + mdw.config.separatorHeight
+	return mdw.clamp(x or 0, 0, math.max(0, winW - (w or 0))),
+		mdw.clamp(y or minY, minY, math.max(minY, winH - (h or 0)))
+end
+
 --- Clear all transient drag state (called when a drag ends or is cancelled).
 function mdw.resetDrag()
 	local d = mdw.drag
@@ -710,7 +719,6 @@ end
 --- Place a dragged widget at the resolved drop: merge as a tab, dock at the
 -- detected zone, or float where the ghost was released. Shared by endDrag.
 function mdw.placeWidgetAtDrop(widget, intent, x, y)
-	local cfg = mdw.config
 	local side = intent.insertSide
 	local dropType = intent.dropType
 
@@ -750,8 +758,9 @@ function mdw.placeWidgetAtDrop(widget, intent, x, y)
 	mdw.updateDockButtonVisibility(widget)
 	if widget.container then
 		if x and y then
-			widget.container:move(math.max(0, x - 30),
-				math.max(cfg.headerHeight + cfg.separatorHeight, y - 10))
+			local cx, cy = mdw.clampToWindow(x - 30, y - 10,
+				widget.container:get_width(), widget.container:get_height())
+			widget.container:move(cx, cy)
 		end
 		widget.container:show()
 		-- A floating stack's members are siblings; re-place them under the moved container.
@@ -819,11 +828,9 @@ function mdw.handleDragMove(widget, event)
 		-- bar never triggers docking (no drop detection); only dragging a TAB onto
 		-- a sidebar docks it. So moving a floating widget over a dock won't snap it.
 		-- Keep it fully inside the main window (no dragging off-screen).
-		local winW, winH = getMainWindowSize()
-		local w, h = widget.container:get_width(), widget.container:get_height()
-		local minY = cfg.headerHeight + cfg.separatorHeight
-		local newX = mdw.clamp(mdw.drag.liveStartX + dx, 0, math.max(0, winW - w))
-		local newY = mdw.clamp(mdw.drag.liveStartY + dy, minY, math.max(minY, winH - h))
+		local newX, newY = mdw.clampToWindow(
+			mdw.drag.liveStartX + dx, mdw.drag.liveStartY + dy,
+			widget.container:get_width(), widget.container:get_height())
 		widget.container:move(newX, newY)
 		if widget.isStack and mdw.resizeStackContent then mdw.resizeStackContent(widget) end
 		mdw.updateResizeBorders(widget)
@@ -2221,6 +2228,10 @@ function mdw.setupResizeBorder(internalWidget, border, edge)
 		if mdw.resizeDrag.active and mdw.resizeDrag.widget == widget and mdw.resizeDrag.edge == edge then
 			local deltaX = event.globalX - mdw.resizeDrag.startMouseX
 			local deltaY = event.globalY - mdw.resizeDrag.startMouseY
+			-- Cap growth so the right/bottom edges stay inside the window.
+			local winW, winH = getMainWindowSize()
+			local maxW = math.max(cfg.minFloatingWidth, winW - mdw.resizeDrag.startX)
+			local maxH = math.max(cfg.minWidgetHeight, winH - mdw.resizeDrag.startY)
 
 			if edge == "left" then
 				local newWidth = math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth - deltaX)
@@ -2229,11 +2240,11 @@ function mdw.setupResizeBorder(internalWidget, border, edge)
 				widget.container:resize(newWidth, nil)
 				mdw.resizeWidgetContent(widget, newWidth, widget.container:get_height())
 			elseif edge == "right" then
-				local newWidth = math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth + deltaX)
+				local newWidth = math.min(maxW, math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth + deltaX))
 				widget.container:resize(newWidth, nil)
 				mdw.resizeWidgetContent(widget, newWidth, widget.container:get_height())
 			elseif edge == "bottom" then
-				local newHeight = math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight + deltaY)
+				local newHeight = math.min(maxH, math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight + deltaY))
 				widget.container:resize(nil, newHeight)
 				mdw.resizeWidgetContent(widget, widget.container:get_width(), newHeight)
 			elseif edge == "top" then
@@ -2251,7 +2262,7 @@ function mdw.setupResizeBorder(internalWidget, border, edge)
 				widget.container:resize(newWidth, newHeight)
 				mdw.resizeWidgetContent(widget, newWidth, newHeight)
 			elseif edge == "topRight" then
-				local newWidth = math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth + deltaX)
+				local newWidth = math.min(maxW, math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth + deltaX))
 				local newHeight = math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight - deltaY)
 				local newY = math.max(0, mdw.resizeDrag.startY + (mdw.resizeDrag.startHeight - newHeight))
 				widget.container:move(nil, newY)
@@ -2260,13 +2271,13 @@ function mdw.setupResizeBorder(internalWidget, border, edge)
 			elseif edge == "bottomLeft" then
 				local newWidth = math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth - deltaX)
 				local newX = math.max(0, mdw.resizeDrag.startX + (mdw.resizeDrag.startWidth - newWidth))
-				local newHeight = math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight + deltaY)
+				local newHeight = math.min(maxH, math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight + deltaY))
 				widget.container:move(newX, nil)
 				widget.container:resize(newWidth, newHeight)
 				mdw.resizeWidgetContent(widget, newWidth, newHeight)
 			elseif edge == "bottomRight" then
-				local newWidth = math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth + deltaX)
-				local newHeight = math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight + deltaY)
+				local newWidth = math.min(maxW, math.max(cfg.minFloatingWidth, mdw.resizeDrag.startWidth + deltaX))
+				local newHeight = math.min(maxH, math.max(cfg.minWidgetHeight, mdw.resizeDrag.startHeight + deltaY))
 				widget.container:resize(newWidth, newHeight)
 				mdw.resizeWidgetContent(widget, newWidth, newHeight)
 			end

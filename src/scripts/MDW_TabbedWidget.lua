@@ -1011,6 +1011,9 @@ function mdw.TabbedWidget:move(x, y)
 	local g = self:_group()
 	if g then
 		if g.docked then return end
+		if mdw.clampToWindow then
+			x, y = mdw.clampToWindow(x, y, g.container:get_width(), g.container:get_height())
+		end
 		g.container:move(x, y)
 		if mdw.resizeStackContent then mdw.resizeStackContent(g) end
 		mdw.raiseWidgetElements(g)

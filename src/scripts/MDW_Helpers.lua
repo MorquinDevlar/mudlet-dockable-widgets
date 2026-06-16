@@ -983,6 +983,9 @@ function mdw.moveWidgetClass(widget, x, y)
 		return
 	end
 
+	if mdw.clampToWindow then
+		x, y = mdw.clampToWindow(x, y, widget.container:get_width(), widget.container:get_height())
+	end
 	widget.container:move(x, y)
 	mdw.updateResizeBorders(widget)
 end
