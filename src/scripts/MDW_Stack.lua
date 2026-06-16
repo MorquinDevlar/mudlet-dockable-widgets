@@ -513,25 +513,12 @@ end
 -- member stays in the stack untouched, so there is no mouse-grab handoff. The
 -- member is only detached + placed on release.
 
---- Create the ghost label (a small tab-sized box showing the member title).
-function mdw.createTabGhost(title)
-  mdw._ghostCounter = (mdw._ghostCounter or 0) + 1
-  local ghost = mdw.trackElement(Geyser.Label:new({
-    name = "MDW_TabGhost_" .. mdw._ghostCounter,
-    x = 0, y = 0, width = mdw.stackTabWidth(title), height = mdw.config.tabBarHeight,
-  }))
-  ghost:setStyleSheet(mdw.styles.tabActive)
-  ghost:setFontSize(mdw.config.tabFontSize)
-  ghost:decho("<" .. mdw.config.tabActiveTextColor .. ">" .. tostring(title))
-  return ghost
-end
-
 --- Begin a tear-out: spawn the ghost and dim the original tab. The widget does
 -- not move; only the ghost does.
 function mdw.beginTabGhost(stack, tabObj)
   local d = mdw.stackTabDrag
   if not d then return end
-  d.ghost = mdw.createTabGhost(tabObj.name)
+  d.ghost = mdw.createDragGhost(tabObj.name)
   -- Anchor the ghost to the tab's current screen position (the container's
   -- move-frame x/y plus the tab's left-packed offset), then move it by the
   -- cursor delta (like the widget drag) - avoids any event-vs-move frame offset.

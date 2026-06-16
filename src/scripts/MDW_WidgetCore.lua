@@ -571,18 +571,121 @@ end
 --- Start dragging a widget.
 -- Why: Records initial state but doesn't undock until actual movement occurs.
 -- This prevents accidental undocking on simple clicks.
+--- Create the small "ghost" box that follows the cursor during any drag (the
+-- real widget/tab stays put). Shared by widget drags and tab tear-outs.
+function mdw.createDragGhost(title)
+	mdw._ghostCounter = (mdw._ghostCounter or 0) + 1
+	local cfg = mdw.config
+	local w = (mdw.stackTabWidth and mdw.stackTabWidth(title)) or 80
+	local ghost = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_DragGhost_" .. mdw._ghostCounter,
+		x = 0, y = 0, width = w, height = cfg.tabBarHeight,
+	}))
+	ghost:setStyleSheet(mdw.styles.tabActive)
+	ghost:setFontSize(cfg.tabFontSize)
+	ghost:decho("<" .. cfg.tabActiveTextColor .. ">" .. tostring(title))
+	return ghost
+end
+
+--- Clear all transient drag state (called when a drag ends or is cancelled).
+function mdw.resetDrag()
+	local d = mdw.drag
+	d.active = false
+	d.widget = nil
+	d.hasMoved = nil
+	d.ghost = nil
+	d.ghostAnchorX = nil
+	d.ghostAnchorY = nil
+	d.ghostX = nil
+	d.ghostY = nil
+	d.startMouseX = nil
+	d.startMouseY = nil
+	d.originalDock = nil
+	d.originalRow = nil
+	d.originalRowPosition = nil
+	d.originalSubRow = nil
+	d.insertSide = nil
+	d.dropType = nil
+	d.rowIndex = nil
+	d.positionInRow = nil
+	d.targetWidget = nil
+end
+
+-- Reset the dock-only state (fill / locked width) a widget carried while docked
+-- and restore its pre-fill height, before it is re-placed somewhere new.
+local function clearDockOnlyState(widget)
+	if widget.fill and widget._preFillHeight then
+		widget.container:resize(nil, widget._preFillHeight)
+		mdw.resizeWidgetContent(widget, widget.container:get_width(), widget._preFillHeight)
+	end
+	widget.fill = false
+	widget._preFillHeight = nil
+	widget.widthLocked = false
+	widget.lockedWidth = nil
+end
+
+--- Place a dragged widget at the resolved drop: merge as a tab, dock at the
+-- detected zone, or float where the ghost was released. Shared by endDrag.
+function mdw.placeWidgetAtDrop(widget, intent, x, y)
+	local cfg = mdw.config
+	local side = intent.insertSide
+
+	-- Center of a widget/group -> merge as a tab group.
+	if side and intent.dropType == "tab" and intent.targetWidget and mdw.addToStack then
+		clearDockOnlyState(widget)
+		if intent.targetWidget.isStack then
+			mdw.addToStack(intent.targetWidget.name, widget.name)
+		else
+			mdw.groupWidgetsIntoStack({ intent.targetWidget.name, widget.name },
+				{ dock = intent.targetWidget.docked or side })
+		end
+		return
+	end
+
+	if side then
+		clearDockOnlyState(widget)
+		mdw.updateDockButtonVisibility(widget)
+		mdw.dockWidgetWithPosition(widget, side, intent.dropType, intent.rowIndex,
+			intent.positionInRow, intent.targetWidget)
+		mdw.hideResizeHandles(widget)
+		return
+	end
+
+	-- No dock zone -> float where released.
+	clearDockOnlyState(widget)
+	widget.docked = nil
+	widget.row = nil
+	widget.rowPosition = nil
+	widget.subRow = nil
+	mdw.updateDockButtonVisibility(widget)
+	if widget.container then
+		if x and y then
+			widget.container:move(math.max(0, x - 30),
+				math.max(cfg.headerHeight + cfg.separatorHeight, y - 10))
+		end
+		widget.container:show()
+		-- A floating stack's members are siblings; re-place them under the moved container.
+		if widget.isStack and mdw.resizeStackContent then mdw.resizeStackContent(widget) end
+	end
+	mdw.showResizeHandles(widget)
+	mdw.updateResizeBorders(widget)
+	mdw.raiseWidgetElements(widget)
+end
+
 function mdw.startDrag(widget, event)
 	mdw.closeAllMenus()
 
 	mdw.drag.active = true
 	mdw.drag.widget = widget
-	mdw.drag.offsetX = event.globalX - widget.container:get_x()
-	mdw.drag.offsetY = event.globalY - widget.container:get_y()
 	mdw.drag.startMouseX = event.globalX
 	mdw.drag.startMouseY = event.globalY
 	mdw.drag.hasMoved = false
+	-- Anchor the ghost to the widget's current screen position; it then moves by
+	-- the cursor delta from here (frame-offset safe). The real widget stays put.
+	mdw.drag.ghostAnchorX = widget.container:get_x()
+	mdw.drag.ghostAnchorY = widget.container:get_y()
 
-	-- Remember original dock info for cancel/restore
+	-- Remember the original slot so a pure click (no movement) changes nothing.
 	mdw.drag.originalDock = widget.docked
 	mdw.drag.originalRow = widget.row
 	mdw.drag.originalRowPosition = widget.rowPosition
@@ -594,139 +697,63 @@ end
 
 function mdw.handleDragMove(widget, event)
 	if not widget or not widget.container then return end
-
 	local cfg = mdw.config
-	local movedX = math.abs(event.globalX - mdw.drag.startMouseX)
-	local movedY = math.abs(event.globalY - mdw.drag.startMouseY)
+	local dx = event.globalX - mdw.drag.startMouseX
+	local dy = event.globalY - mdw.drag.startMouseY
 
-	-- Commit drag start once movement threshold is exceeded
-	if movedX > cfg.dragThreshold or movedY > cfg.dragThreshold then
-		mdw.commitDragStart(widget)
-	end
-
-	-- Only move if drag has been committed
-	if mdw.drag.hasMoved then
-		local newX = math.max(0, event.globalX - mdw.drag.offsetX)
-		local newY = math.max(cfg.headerHeight + cfg.separatorHeight, event.globalY - mdw.drag.offsetY)
-		widget.container:move(newX, newY)
-
-		-- Stack member containers are siblings positioned in absolute coords, so
-		-- re-place them whenever the stack container moves during a drag.
-		if widget.isStack and mdw.resizeStackContent then
-			mdw.resizeStackContent(widget)
+	-- Separate a click from a drag: only spawn the ghost past the move threshold.
+	if not mdw.drag.hasMoved then
+		if math.abs(dx) <= cfg.dragThreshold and math.abs(dy) <= cfg.dragThreshold then
+			return
 		end
-
-		if not widget.docked then
-			mdw.updateResizeBorders(widget)
-		end
-
-		mdw.updateDropIndicator(widget)
-		mdw.raiseWidgetElements(widget)
-	end
-end
-
---- Commit to a drag operation after movement threshold is exceeded.
--- Why: Separates click (no movement) from drag (movement detected).
--- Undocking and visual feedback only happen once we're sure it's a drag.
-function mdw.commitDragStart(widget)
-	if mdw.drag.hasMoved then return end
-	mdw.drag.hasMoved = true
-
-	-- Now undock the widget
-	widget.docked = nil
-	widget.row = nil
-	widget.rowPosition = nil
-	widget.subRow = nil
-
-	-- Reset dock-only state and restore pre-fill height
-	if widget.fill and widget._preFillHeight then
-		widget.container:resize(nil, widget._preFillHeight)
-		mdw.resizeWidgetContent(widget, widget.container:get_width(), widget._preFillHeight)
-	end
-	widget.fill = false
-	widget._preFillHeight = nil
-	widget.widthLocked = false
-	widget.lockedWidth = nil
-	mdw.updateDockButtonVisibility(widget)
-
-	-- Reorganize the dock we left (this handles splitters automatically)
-	if mdw.drag.originalDock then
-		mdw.reorganizeDock(mdw.drag.originalDock)
+		mdw.drag.hasMoved = true
+		mdw.drag.ghost = mdw.createDragGhost(widget.title or widget.name)
 	end
 
-	mdw.raiseWidgetElements(widget)
+	-- Move the ghost (anchor + cursor delta); the real widget does not move.
+	local gx = mdw.drag.ghostAnchorX + dx
+	local gy = mdw.drag.ghostAnchorY + dy
+	local ghostW = mdw.drag.ghost and mdw.drag.ghost:get_width() or 0
+	mdw.drag.ghostX = gx + ghostW / 2
+	mdw.drag.ghostY = gy + cfg.tabBarHeight / 2
+	if mdw.drag.ghost then mdw.drag.ghost:move(gx, gy) end
+
+	mdw.updateDropIndicator(widget, mdw.drag.ghostX, mdw.drag.ghostY)
+	if mdw.drag.ghost then mdw.drag.ghost:raise() end
 end
 
 function mdw.endDrag(widget, event)
 	if not mdw.drag.active or mdw.drag.widget ~= widget then return end
 
-	-- Capture state before clearing
-	local insertSide = mdw.drag.insertSide
-	local dropType = mdw.drag.dropType
-	local rowIndex = mdw.drag.rowIndex
-	local positionInRow = mdw.drag.positionInRow
-	local targetWidget = mdw.drag.targetWidget
-	local hasMoved = mdw.drag.hasMoved
-	local originalDock = mdw.drag.originalDock
-	local originalRow = mdw.drag.originalRow
-	local originalRowPosition = mdw.drag.originalRowPosition
-	local originalSubRow = mdw.drag.originalSubRow
+	local moved = mdw.drag.hasMoved
+	local intent = {
+		insertSide = mdw.drag.insertSide,
+		dropType = mdw.drag.dropType,
+		rowIndex = mdw.drag.rowIndex,
+		positionInRow = mdw.drag.positionInRow,
+		targetWidget = mdw.drag.targetWidget,
+	}
+	local ghostX, ghostY = mdw.drag.ghostX, mdw.drag.ghostY
+	local ghost = mdw.drag.ghost
 
-	mdw.debugEcho("ENDDRAG: widget=%s, hasMoved=%s, insertSide=%s, dropType=%s",
-		widget.name, tostring(hasMoved), tostring(insertSide), tostring(dropType))
+	mdw.debugEcho("ENDDRAG: widget=%s, moved=%s, side=%s, dropType=%s",
+		widget.name, tostring(moved), tostring(intent.insertSide), tostring(intent.dropType))
 
-	-- Clear drag state
-	mdw.drag.active = false
-	mdw.drag.widget = nil
-	mdw.drag.originalDock = nil
-	mdw.drag.originalRow = nil
-	mdw.drag.originalRowPosition = nil
-	mdw.drag.originalSubRow = nil
-	mdw.drag.insertSide = nil
-	mdw.drag.dropType = nil
-	mdw.drag.rowIndex = nil
-	mdw.drag.positionInRow = nil
-	mdw.drag.targetWidget = nil
-	mdw.drag.hasMoved = nil
-	mdw.drag.startMouseX = nil
-	mdw.drag.startMouseY = nil
-
-	widget.titleBar:setCursor(mudlet.cursor.OpenHand)
-
+	if widget.titleBar then widget.titleBar:setCursor(mudlet.cursor.OpenHand) end
 	mdw.hideDropIndicator()
 	mdw.updateDockHighlight(nil)
+	mdw.resetDrag()
+	if ghost then mdw.deleteElement(ghost) end
 
-	-- Restore original position if no movement
-	if not hasMoved then
-		if originalDock then
-			widget.docked = originalDock
-			widget.row = originalRow
-			widget.rowPosition = originalRowPosition
-			widget.subRow = originalSubRow
-		end
-		-- Still need to reorganize docks to restore splitters that were hidden during drag
-		mdw.reorganizeDock("left")
-		mdw.reorganizeDock("right")
-		return
-	end
+	-- Pure click (never crossed the threshold): the widget never moved, so there
+	-- is nothing to place or restore.
+	if not moved then return end
 
-	-- Dock or float based on drop position
-	if insertSide then
-		mdw.dockWidgetWithPosition(widget, insertSide, dropType, rowIndex, positionInRow, targetWidget)
-		mdw.hideResizeHandles(widget)
-	else
-		widget.docked = nil
-		widget.row = nil
-		widget.rowPosition = nil
-		widget.subRow = nil
-		mdw.showResizeHandles(widget)
-	end
+	mdw.placeWidgetAtDrop(widget, intent, ghostX, ghostY)
 
-	-- Always reorganize both docks to ensure splitters are properly cleaned up
-	-- This handles cases where widgets move between docks or are undocked
+	-- Reflow both sides (the widget may have moved between docks or to/from float).
 	mdw.reorganizeDock("left")
 	mdw.reorganizeDock("right")
-
 	mdw.saveLayout()
 end
 
