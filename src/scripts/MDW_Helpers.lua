@@ -237,11 +237,11 @@ function mdw.buildStyles()
   ]], cssHeader, cssTabBorder)
 
 	-- Channel (tabbed-widget) tab bar: blends with the widget content so it reads
-	-- as a sub-bar nested under the group tab bar (distinct from the group bar).
+	-- as a sub-bar nested under the group tab bar (no full divider line beneath -
+	-- only the active tab's underline marks the bar).
 	mdw.styles.channelTabBar = string.format([[
     background-color: %s;
-    border-bottom: 1px solid %s;
-  ]], cssWidget, cssTabBorder)
+  ]], cssWidget)
 
 	-- Group (widget) tabs: a rounded tab shape, subtle highlight when active, NO
 	-- underline and NO vertical dividers.
@@ -272,7 +272,7 @@ function mdw.buildStyles()
 	-- the same height as the active one.
 	mdw.styles.channelTabActive = string.format([[
     background-color: transparent;
-    border-bottom: 2px solid %s;
+    border-bottom: 1px solid %s;
     qproperty-alignment: 'AlignCenter';
     font-family: '%s';
     font-size: %dpx;
@@ -282,7 +282,7 @@ function mdw.buildStyles()
 
 	mdw.styles.channelTabInactive = string.format([[
     background-color: transparent;
-    border-bottom: 2px solid transparent;
+    border-bottom: 1px solid transparent;
     qproperty-alignment: 'AlignCenter';
     font-family: '%s';
     font-size: %dpx;
