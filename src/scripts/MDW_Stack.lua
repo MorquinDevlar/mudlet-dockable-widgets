@@ -96,8 +96,12 @@ end
 function mdw.layoutStack(stack)
   if stack.docked then
     mdw.reorganizeDock(stack.docked)
+    if mdw.hideResizeHandles then mdw.hideResizeHandles(stack) end
   else
     mdw.resizeStackContent(stack)
+    -- A floating group shows the edge/corner resize borders, like a floating widget.
+    if mdw.showResizeHandles then mdw.showResizeHandles(stack) end
+    if mdw.updateResizeBorders then mdw.updateResizeBorders(stack) end
   end
   mdw.raiseWidgetElements(stack)
 end
@@ -235,8 +239,10 @@ function mdw.createStack(name, opts)
   stack.bottomResizeHandle:hide()
 
   mdw.widgets[name] = stack
-  mdw.setupStackDrag(stack)
+  -- The tab bar is NOT a whole-group drag handle: only the tabs are draggable.
   mdw.setupDockedResizeHandle(stack)
+  -- Floating groups get the same edge/corner resize borders that widgets have.
+  if mdw.createResizeBorders then mdw.createResizeBorders(stack) end
 
   if opts.dock then
     mdw.dockWidgetClass(stack, opts.dock, opts.row)
@@ -351,6 +357,12 @@ end
 --- Destroy an (empty) stack and free its elements (container last, as parent).
 function mdw.destroyStack(stack)
   for _, t in ipairs(stack.tabObjects or {}) do mdw.deleteElement(t.button) end
+  for _, f in ipairs({
+    "resizeLeft", "resizeRight", "resizeTop", "resizeBottom",
+    "resizeTopLeft", "resizeTopRight", "resizeBottomLeft", "resizeBottomRight",
+  }) do
+    mdw.deleteElement(stack[f])
+  end
   mdw.deleteElement(stack.tabBar)
   mdw.deleteElement(stack.bottomResizeHandle)
   mdw.deleteElement(stack.container)

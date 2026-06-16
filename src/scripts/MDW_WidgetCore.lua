@@ -944,16 +944,21 @@ function mdw.detectDropPosition(side, pointX, pointY, excludeWidget)
 		return "above", 1, 0, nil
 	end
 
-	-- Target = the docked widget whose container contains the cursor point.
+	-- Target = the docked occupant (group) whose container contains the point.
 	for _, w in ipairs(docked) do
 		local tx, ty = w.container:get_x(), w.container:get_y()
 		local tw, th = w.container:get_width(), w.container:get_height()
 		if pointX >= tx and pointX <= tx + tw and pointY >= ty and pointY <= ty + th then
 			local ri = rowIndexOfWidget(rows, w)
+			local barH = cfg.tabBarHeight
+			-- Dropping on the group's tab bar adds a tab to it (merge).
+			if pointY <= ty + barH then
+				return "tab", ri, 0, w
+			end
+			-- Body below the tab bar: nearest edge splits, the centre merges.
+			local bh = math.max(1, th - barH)
 			local fx = (pointX - tx) / tw
-			local fy = (pointY - ty) / th
-			-- Fractional distance to each border; the nearest border wins, unless
-			-- the cursor is past every edge band (the center -> tab merge).
+			local fy = (pointY - (ty + barH)) / bh
 			local dl, dr, dt, db = fx, 1 - fx, fy, 1 - fy
 			local nearest = math.min(dl, dr, dt, db)
 			if nearest > cfg.dropEdgeFraction then
@@ -1242,12 +1247,19 @@ function mdw.dockWidgetWithPosition(widget, side, dropType, rowIndex, positionIn
 		mdw.resizeWidgetContent(widget, widget.container:get_width(), gapHeight)
 		widget.widthRatio = targetWidget.widthRatio
 	else
-		-- Vertical insertion (above or below)
+		-- Vertical insertion (above or below). Anchor on the target occupant's own
+		-- row when we have it - the visual rowIndex can be stale if the dock list
+		-- changed between drop-detection and placement (e.g. a tear-out destroyed
+		-- the source group), which otherwise dumps the widget below everything.
 		widget.subRow = 0
-		local targetVisualRow = rows[rowIndex]
 		local actualRowNum = 0
-		if targetVisualRow and #targetVisualRow > 0 then
-			actualRowNum = targetVisualRow[1].row or 0
+		if targetWidget and targetWidget.row ~= nil then
+			actualRowNum = targetWidget.row
+		else
+			local targetVisualRow = rows[rowIndex]
+			if targetVisualRow and #targetVisualRow > 0 then
+				actualRowNum = targetVisualRow[1].row or 0
+			end
 		end
 
 		local newRow
