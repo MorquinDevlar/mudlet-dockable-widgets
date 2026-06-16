@@ -596,10 +596,45 @@ end
 -- ctx: { tabs, originX(), barWidth(), widthOf(tabObj), y, onReorder(from,to), refresh() }
 ---------------------------------------------------------------------------
 
---- Move the dragged tab button to follow the cursor x (within the bar).
+--- Drag a tab: the dragged button follows the cursor while the other tabs shift
+-- in real time to open a gap at the live drop slot ("make room" as you drag).
 function mdw.barTabSlide(ctx, tabObj, event)
-	local w = ctx.widthOf(tabObj)
-	local relX = mdw.clamp(event.globalX - ctx.originX() - w / 2, 0, math.max(0, ctx.barWidth() - w))
+	local tabs = ctx.tabs
+	local draggedW = ctx.widthOf(tabObj)
+	local cursorRel = event.globalX - ctx.originX()
+
+	local fromIdx
+	for i, t in ipairs(tabs) do
+		if t == tabObj then fromIdx = i break end
+	end
+
+	-- Live drop index: walk the other tabs at their widths; passing a midpoint
+	-- means the tab would land after it.
+	local x = 0
+	local toIdx = 1
+	for i, t in ipairs(tabs) do
+		if i ~= fromIdx then
+			local tw = ctx.widthOf(t)
+			if cursorRel > x + tw / 2 then toIdx = toIdx + 1 end
+			x = x + tw
+		end
+	end
+
+	-- Re-lay the other tabs, leaving a gap (the dragged tab's width) at the drop
+	-- slot so they visibly move into place as the drag progresses.
+	local px = 0
+	local placed = 0
+	for i, t in ipairs(tabs) do
+		if i ~= fromIdx then
+			placed = placed + 1
+			if placed == toIdx then px = px + draggedW end
+			t.button:move(px, ctx.y)
+			px = px + ctx.widthOf(t)
+		end
+	end
+
+	-- The dragged tab follows the cursor, raised above the rest.
+	local relX = mdw.clamp(cursorRel - draggedW / 2, 0, math.max(0, ctx.barWidth() - draggedW))
 	tabObj.button:move(relX, ctx.y)
 	tabObj.button:raise()
 end
