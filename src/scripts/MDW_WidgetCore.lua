@@ -885,7 +885,23 @@ end
 -- - Top/bottom zone (configured by verticalInsertZone) triggers vertical insert
 -- - Middle zone with horizontal offset triggers side-by-side placement
 -- This dual-zone approach prevents accidental side-by-side when users intend vertical stacking.
-function mdw.detectDropPosition(side, headerX, headerY, excludeWidget, widgetLeftX, widgetRightX)
+-- Index of the row (within `rows`) that contains `target`.
+local function rowIndexOfWidget(rows, target)
+	for ri, row in ipairs(rows) do
+		for _, w in ipairs(row) do
+			if w == target then return ri end
+		end
+	end
+	return #rows
+end
+
+--- Decide where a drop lands, relative to the target widget under the cursor.
+-- The cursor point alone determines placement - which fifth of the target it is
+-- over (left / right / top / bottom / center) - so this behaves identically for
+-- a full-widget drag and a small ghost. Every returned dropType is one the
+-- placement engine (dockWidgetWithPosition) already consumes.
+-- @return dropType, rowIndex, positionInRow, targetWidget
+function mdw.detectDropPosition(side, pointX, pointY, excludeWidget)
 	local cfg = mdw.config
 	local docked = mdw.getDockedWidgets(side, excludeWidget)
 	local rows = mdw.groupWidgetsByRow(docked)
@@ -894,164 +910,108 @@ function mdw.detectDropPosition(side, headerX, headerY, excludeWidget, widgetLef
 		return "above", 1, 0, nil
 	end
 
-	local vertZone = cfg.verticalInsertZone
-	local sideBySideZone = cfg.sideBySideZone
-	local sideBySideOffset = cfg.sideBySideOffset
-
-	local yPos = cfg.headerHeight + cfg.widgetMargin
-	for rowIndex, row in ipairs(rows) do
-		local columns = mdw.groupWidgetsByColumn(row)
-		local rowHeight = 0
-		for _, col in ipairs(columns) do
-			rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
-		end
-
-		local rowTop = yPos
-		local rowBottom = yPos + rowHeight
-		local rowMidY = yPos + rowHeight / 2
-
-		if headerY >= rowTop - sideBySideOffset and headerY <= rowBottom + sideBySideOffset then
-			local topZone = rowTop + rowHeight * vertZone
-			local bottomZone = rowTop + rowHeight * (1 - vertZone)
-
-			-- Top zone - insert above
-			if headerY < topZone then
-				return "above", rowIndex, 0, nil
-				-- Bottom zone - insert below
-			elseif headerY > bottomZone then
-				return "below", rowIndex, 0, nil
-			end
-
-			-- Sub-column gap detection (checked before side-by-side)
-			if #columns > 1 then
-				-- Calculate column positions and widths
-				local numColumns = #columns
-				local dockCfg = mdw.getDockConfig(side)
-				local fullWidgetWidth = dockCfg.fullWidgetWidth
-				local dockXPos = dockCfg.xPos
-
-				local colAvailableWidth = fullWidgetWidth - (numColumns - 1) * cfg.widgetSplitterWidth
-				local hasCustomRatios = false
-				local colTotalRatio = 0
-				for _, col in ipairs(columns) do
-					if col[1].widthRatio then
-						hasCustomRatios = true
-						colTotalRatio = colTotalRatio + col[1].widthRatio
-					else
-						colTotalRatio = colTotalRatio + 1
-					end
-				end
-
-				local colXPos = dockXPos
-				for _, col in ipairs(columns) do
-					local colWidth
-					if hasCustomRatios then
-						colWidth = colAvailableWidth * ((col[1].widthRatio or 1) / colTotalRatio)
-					else
-						colWidth = colAvailableWidth / numColumns
-					end
-
-					local columnHeight = mdw.getColumnHeight(col)
-					local gapHeight = rowHeight - columnHeight
-
-					if gapHeight >= cfg.minWidgetHeight then
-						-- Check if cursor is within this column's horizontal bounds and gap area
-						local gapTop = rowTop + columnHeight
-						local gapBottom = rowTop + rowHeight
-						if headerX >= colXPos and headerX <= colXPos + colWidth
-							and headerY >= gapTop and headerY <= gapBottom then
-							return "subcolumn", rowIndex, col[1].rowPosition or 0, col[#col]
-						end
-					end
-
-					colXPos = colXPos + colWidth + cfg.widgetSplitterWidth
-				end
-			end
-
-			-- Middle zone - check for side-by-side
-			local sideBySideTopZone = rowTop + rowHeight * sideBySideZone
-			local sideBySideBottomZone = rowTop + rowHeight * (1 - sideBySideZone)
-			local inSideBySideZone = headerY >= sideBySideTopZone and headerY <= sideBySideBottomZone
-			local numInRow = #columns -- Use columns count for side-by-side detection
-
-			-- Build flat list of first widgets per column for side-by-side detection
-			local colFirstWidgets = {}
-			for _, col in ipairs(columns) do
-				colFirstWidgets[#colFirstWidgets + 1] = col[1]
-			end
-
-			for i, w in ipairs(colFirstWidgets) do
-				local wX = w.container:get_x()
-				local wW = w.container:get_width()
-				local wMidX = wX + wW / 2
-				local isFirst = (i == 1)
-				local isLast = (i == numInRow)
-
-				-- Left of first widget
-				if isFirst and headerX < wMidX and inSideBySideZone then
-					local leftEdge = widgetLeftX or headerX
-					if leftEdge <= wX then
-						return "left", rowIndex, 0, w
-					end
-				end
-
-				-- Right of last widget
-				if isLast and headerX > wMidX and inSideBySideZone then
-					local rightEdge = widgetRightX or headerX
-					if (wX + wW) - rightEdge < -sideBySideOffset then
-						return "right", rowIndex, i, w
-					end
-				end
-
-				-- Between columns
-				if not isLast and inSideBySideZone then
-					local nextW = colFirstWidgets[i + 1]
-					local nextX = nextW.container:get_x()
-					local gapMid = (wX + wW + nextX) / 2
-
-					if headerX >= wMidX and headerX <= nextX + nextW.container:get_width() / 2 then
-						if headerX < gapMid then
-							return "between", rowIndex, i, w
-						else
-							return "between", rowIndex, i, nextW
-						end
-					end
-				end
-			end
-
-			-- Center/body of a widget (not an edge) -> merge into it as a tab
-			for _, w in ipairs(row) do
-				local wx = w.container:get_x()
-				local wy = w.container:get_y()
-				local ww = w.container:get_width()
-				local wh = w.container:get_height()
-				if headerX >= wx and headerX <= wx + ww and headerY >= wy and headerY <= wy + wh then
-					return "tab", rowIndex, 0, w
-				end
-			end
-
-			-- Default to above/below based on position
-			if headerY < rowMidY then
-				return "above", rowIndex, 0, nil
+	-- Target = the docked widget whose container contains the cursor point.
+	for _, w in ipairs(docked) do
+		local tx, ty = w.container:get_x(), w.container:get_y()
+		local tw, th = w.container:get_width(), w.container:get_height()
+		if pointX >= tx and pointX <= tx + tw and pointY >= ty and pointY <= ty + th then
+			local ri = rowIndexOfWidget(rows, w)
+			local fx = (pointX - tx) / tw
+			local fy = (pointY - ty) / th
+			-- Fractional distance to each border; the nearest border wins, unless
+			-- the cursor is past every edge band (the center -> tab merge).
+			local dl, dr, dt, db = fx, 1 - fx, fy, 1 - fy
+			local nearest = math.min(dl, dr, dt, db)
+			if nearest > cfg.dropEdgeFraction then
+				return "tab", ri, 0, w
+			elseif nearest == dl then
+				return "left", ri, 0, w
+			elseif nearest == dr then
+				return "right", ri, w.rowPosition or 0, w
+			elseif nearest == dt then
+				return "above", ri, 0, w
 			else
-				return "below", rowIndex, 0, nil
+				-- Bottom edge: stack below the target inside its column when the row
+				-- has more than one column, otherwise a new full-width row below.
+				if #mdw.groupWidgetsByColumn(rows[ri]) > 1 then
+					return "subcolumn", ri, w.rowPosition or 0, w
+				end
+				return "below", ri, 0, w
 			end
 		end
-
-		-- Cursor is in the gap between rows: snap to the closer edge
-		if headerY < rowMidY then
-			return "above", rowIndex, 0, nil
-		end
-
-		yPos = rowBottom
 	end
 
+	-- Not over any widget: snap to the nearest row edge (dock at that end).
+	local yPos = cfg.headerHeight + cfg.widgetMargin
+	for ri, row in ipairs(rows) do
+		local rowHeight = 0
+		for _, col in ipairs(mdw.groupWidgetsByColumn(row)) do
+			rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
+		end
+		if pointY < yPos + rowHeight / 2 then
+			return "above", ri, 0, nil
+		end
+		yPos = yPos + rowHeight
+	end
 	return "below", #rows, 0, nil
 end
 
---- Update the drop indicator position during drag.
+--- Position the grey preview block (mdw.dropZoneOverlay) for the current drop.
+-- Covers the half (edge zones) or whole (center/tab) of the target widget, or a
+-- band at the end of the side when not dropping onto a specific widget.
+function mdw.showDropZone(side, dropType, target, excludeWidget)
+	local cfg = mdw.config
+	local overlay = mdw.dropZoneOverlay
+	if not overlay then return end
+
+	if target and target.container then
+		local tx, ty = target.container:get_x(), target.container:get_y()
+		local tw, th = target.container:get_width(), target.container:get_height()
+		if dropType == "left" then
+			overlay:move(tx, ty)
+			overlay:resize(tw / 2, th)
+		elseif dropType == "right" then
+			overlay:move(tx + tw / 2, ty)
+			overlay:resize(tw / 2, th)
+		elseif dropType == "above" then
+			overlay:move(tx, ty)
+			overlay:resize(tw, th / 2)
+		elseif dropType == "below" or dropType == "subcolumn" then
+			overlay:move(tx, ty + th / 2)
+			overlay:resize(tw, th / 2)
+		else -- "tab" / center: highlight the whole target
+			overlay:move(tx, ty)
+			overlay:resize(tw, th)
+		end
+		overlay:show()
+		overlay:raise()
+		return
+	end
+
+	-- No target widget: band at the top/bottom edge of the side's content.
+	local dockCfg = mdw.getDockConfig(side)
+	local docked = mdw.getDockedWidgets(side, excludeWidget)
+	local bandH = cfg.dropEndBandHeight
+	local y = cfg.headerHeight + cfg.widgetMargin
+	if #docked > 0 then
+		local minY, maxY = math.huge, -math.huge
+		for _, w in ipairs(docked) do
+			local wy = w.container:get_y()
+			minY = math.min(minY, wy)
+			maxY = math.max(maxY, wy + w.container:get_height())
+		end
+		y = (dropType == "above") and minY or (maxY - bandH)
+	end
+	overlay:move(dockCfg.xPos, y)
+	overlay:resize(dockCfg.fullWidgetWidth, bandH)
+	overlay:show()
+	overlay:raise()
+end
+
+--- Update the drop preview during a drag.
 -- pointX/pointY (optional): use a cursor point instead of the widget's own
--- position (for the ghost-based tab tear-out, where the widget doesn't move).
+-- position (the ghost-based drags pass the ghost centre, since the widget itself
+-- does not move).
 function mdw.updateDropIndicator(widget, pointX, pointY)
 	local cfg = mdw.config
 
@@ -1063,176 +1023,29 @@ function mdw.updateDropIndicator(widget, pointX, pointY)
 	local leftX = pointX or widgetX
 	local rightX = pointX or (widgetX + widgetW)
 
-	-- Detect dock zone
+	-- Which dock side is the point over?
 	local side = mdw.getDockZoneAtPoint(centerX, headerY)
-	if not side then
-		side = mdw.getDockZoneAtPoint(leftX, headerY)
-	end
-	if not side then
-		side = mdw.getDockZoneAtPoint(rightX, headerY)
-	end
+		or mdw.getDockZoneAtPoint(leftX, headerY)
+		or mdw.getDockZoneAtPoint(rightX, headerY)
 
 	mdw.updateDockHighlight(side)
 
 	if not side then
 		mdw.hideDropIndicator()
-		-- If we were previewing a drop (which shifts other docked widgets to
-		-- make room), undo that shift now that the cursor has left every zone.
-		-- Guard on insertSide so we only relayout on the transition, not per frame.
-		local hadPreview = mdw.drag.insertSide ~= nil
 		mdw.drag.insertSide = nil
 		mdw.drag.dropType = nil
 		mdw.drag.rowIndex = nil
 		mdw.drag.positionInRow = nil
 		mdw.drag.targetWidget = nil
-		if hadPreview then
-			mdw.reorganizeDock("left")
-			mdw.reorganizeDock("right")
-		end
 		return
 	end
 
-	local dockCfg = mdw.getDockConfig(side)
-	local fullWidgetWidth = dockCfg.fullWidgetWidth
-	local dockXPos = dockCfg.xPos
+	local dropType, rowIndex, positionInRow, targetWidget =
+		mdw.detectDropPosition(side, centerX, headerY, widget)
 
-	local dropType, rowIndex, positionInRow, targetWidget = mdw.detectDropPosition(
-		side, centerX, headerY, widget, leftX, rightX)
+	mdw.showDropZone(side, dropType, targetWidget, widget)
 
-	local docked = mdw.getDockedWidgets(side, widget)
-	local rows = mdw.groupWidgetsByRow(docked)
-
-	-- Hide all indicators
-	mdw.leftDropIndicator:hide()
-	mdw.rightDropIndicator:hide()
-	mdw.verticalDropIndicator:hide()
-
-	-- Calculate positions and show appropriate indicator
-	local yPos = cfg.headerHeight + cfg.widgetMargin
-	local indicatorSpace = cfg.dropIndicatorHeight + 4
-
-	for ri, row in ipairs(rows) do
-		local columns = mdw.groupWidgetsByColumn(row)
-		local numColumns = #columns
-
-		-- Calculate row height = max column height
-		local rowHeight = 0
-		for _, col in ipairs(columns) do
-			rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
-		end
-
-		-- Show horizontal indicator above this row
-		if dropType == "above" and ri == rowIndex then
-			local indicator = dockCfg.dropIndicator
-			indicator:move(dockXPos, yPos)
-			indicator:resize(fullWidgetWidth, cfg.dropIndicatorHeight)
-			indicator:show()
-			yPos = yPos + indicatorSpace
-		end
-
-		-- Calculate column widths
-		local availableWidth = fullWidgetWidth - (numColumns - 1) * cfg.widgetSplitterWidth
-		local totalRatio = 0
-		local hasCustomRatios = false
-
-		for _, col in ipairs(columns) do
-			if col[1].widthRatio then
-				hasCustomRatios = true
-				totalRatio = totalRatio + col[1].widthRatio
-			else
-				totalRatio = totalRatio + 1
-			end
-		end
-
-		local xPos = dockXPos
-		for ci, col in ipairs(columns) do
-			local columnWidth
-			if hasCustomRatios then
-				columnWidth = availableWidth * ((col[1].widthRatio or 1) / totalRatio)
-			else
-				columnWidth = availableWidth / numColumns
-			end
-
-			-- Show vertical indicator for side-by-side
-			if (dropType == "left" or dropType == "right" or dropType == "between") and ri == rowIndex then
-				if dropType == "left" and ci == 1 then
-					mdw.verticalDropIndicator:move(xPos - cfg.dropIndicatorHeight / 2, yPos)
-					mdw.verticalDropIndicator:resize(cfg.dropIndicatorHeight, rowHeight)
-					mdw.verticalDropIndicator:show()
-				elseif dropType == "right" and ci == positionInRow then
-					mdw.verticalDropIndicator:move(xPos + columnWidth - cfg.dropIndicatorHeight / 2, yPos)
-					mdw.verticalDropIndicator:resize(cfg.dropIndicatorHeight, rowHeight)
-					mdw.verticalDropIndicator:show()
-				elseif dropType == "between" and ci == positionInRow then
-					mdw.verticalDropIndicator:move(
-					xPos + columnWidth + cfg.widgetSplitterWidth / 2 - cfg.dropIndicatorHeight / 2, yPos)
-					mdw.verticalDropIndicator:resize(cfg.dropIndicatorHeight, rowHeight)
-					mdw.verticalDropIndicator:show()
-				end
-			end
-
-			-- Show sub-column drop indicator at the bottom of the target column
-			if dropType == "subcolumn" and ri == rowIndex and (col[1].rowPosition or 0) == positionInRow then
-				local columnHeight = mdw.getColumnHeight(col)
-				local indicator = dockCfg.dropIndicator
-				indicator:move(xPos, yPos + columnHeight - cfg.dropIndicatorHeight / 2)
-				indicator:resize(columnWidth, cfg.dropIndicatorHeight)
-				indicator:show()
-			end
-
-			-- Position each widget in the column at its own height (NOT forced to rowHeight)
-			local colYPos = yPos
-			for _, w in ipairs(col) do
-				local widgetHeight = w.container:get_height()
-				w.container:move(xPos, colYPos)
-				w.container:resize(columnWidth, widgetHeight)
-				mdw.resizeWidgetContent(w, columnWidth, widgetHeight)
-				colYPos = colYPos + widgetHeight
-			end
-
-			xPos = xPos + columnWidth + cfg.widgetSplitterWidth
-		end
-
-		-- Show horizontal indicator below this row
-		if dropType == "below" and ri == rowIndex then
-			yPos = yPos + rowHeight
-			dockCfg.dropIndicator:move(dockXPos, yPos - cfg.dropIndicatorHeight / 2)
-			dockCfg.dropIndicator:resize(fullWidgetWidth, cfg.dropIndicatorHeight)
-			dockCfg.dropIndicator:show()
-		else
-			yPos = yPos + rowHeight
-		end
-	end
-
-	-- Empty dock indicator
-	if dropType == "above" and #rows == 0 then
-		dockCfg.dropIndicator:move(dockXPos, cfg.headerHeight + cfg.widgetMargin)
-		dockCfg.dropIndicator:resize(fullWidgetWidth, cfg.dropIndicatorHeight)
-		dockCfg.dropIndicator:show()
-	end
-
-	-- Tab-merge: show a tab-sized block where the new tab will slot in (after the
-	-- target's existing tabs, or after its title-as-tab if not yet a group).
-	if dropType == "tab" and targetWidget and targetWidget.container then
-		local tabW = mdw.stackTabWidth or function() return 80 end
-		local offset = 0
-		if targetWidget.isStack and targetWidget.tabObjects then
-			for _, t in ipairs(targetWidget.tabObjects) do
-				offset = offset + tabW(t.name)
-			end
-		else
-			offset = tabW(targetWidget.title or targetWidget.name)
-		end
-		local blockW = tabW(widget.title or widget.name)
-		offset = math.min(offset, math.max(0, targetWidget.container:get_width() - blockW))
-		local ind = dockCfg.dropIndicator
-		ind:move(targetWidget.container:get_x() + offset, targetWidget.container:get_y())
-		ind:resize(blockW, cfg.tabBarHeight)
-		ind:show()
-		ind:raise()
-	end
-
-	-- Store drop position for endDrag
+	-- Store drop position for endDrag / dropTabGhost
 	mdw.drag.insertSide = side
 	mdw.drag.dropType = dropType
 	mdw.drag.rowIndex = rowIndex
@@ -1258,9 +1071,7 @@ function mdw.updateDockHighlight(side)
 end
 
 function mdw.hideDropIndicator()
-	mdw.leftDropIndicator:hide()
-	mdw.rightDropIndicator:hide()
-	mdw.verticalDropIndicator:hide()
+	if mdw.dropZoneOverlay then mdw.dropZoneOverlay:hide() end
 end
 
 function mdw.hideDropIndicators()
@@ -3529,8 +3340,7 @@ local function toggleSidebar(side)
 		dockCfg.dock:hide()
 		dockCfg.splitter:hide()
 		if dockCfg.dockHighlight then dockCfg.dockHighlight:hide() end
-		if dockCfg.dropIndicator then dockCfg.dropIndicator:hide() end
-		if mdw.verticalDropIndicator then mdw.verticalDropIndicator:hide() end
+		if mdw.dropZoneOverlay then mdw.dropZoneOverlay:hide() end
 
 		-- Destroy row splitters for this side
 		mdw.destroyRowSplittersForSide(side)

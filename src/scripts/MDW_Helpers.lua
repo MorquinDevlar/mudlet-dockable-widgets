@@ -207,8 +207,10 @@ function mdw.buildStyles()
     border: 2px solid %s;
   ]], cssMenuBg, cssMenuBorder)
 
-	mdw.styles.dropIndicator = string.format([[
-    background-color: %s;
+	-- DockView-style drop preview: a grey semi-transparent block with a themed edge.
+	mdw.styles.dropZone = string.format([[
+    background-color: rgba(180,180,180,0.30);
+    border: 2px solid %s;
   ]], mdw.rgbToCss(c.accent))
 
 	mdw.styles.dockHighlight = string.format([[
@@ -516,9 +518,7 @@ function mdw.applyZOrder()
 	if mdw.rightDockHighlight then safeRaise(mdw.rightDockHighlight) end
 
 	-- Layer 3: Drop indicators
-	if mdw.leftDropIndicator then safeRaise(mdw.leftDropIndicator) end
-	if mdw.rightDropIndicator then safeRaise(mdw.rightDropIndicator) end
-	if mdw.verticalDropIndicator then safeRaise(mdw.verticalDropIndicator) end
+	if mdw.dropZoneOverlay then safeRaise(mdw.dropZoneOverlay) end
 
 	-- Layer 4: Row splitters
 	for _, splitter in pairs(mdw.rowSplitters) do
@@ -1126,7 +1126,6 @@ function mdw.getDockConfig(side)
 			dock = mdw.leftDock,
 			dockHighlight = mdw.leftDockHighlight,
 			splitter = mdw.leftSplitter,
-			dropIndicator = mdw.leftDropIndicator,
 			width = cfg.leftDockWidth,
 			fullWidgetWidth = cfg.leftDockWidth - totalMargin - cfg.dockSplitterWidth,
 			xPos = cfg.widgetMargin,
@@ -1137,7 +1136,6 @@ function mdw.getDockConfig(side)
 			dock = mdw.rightDock,
 			dockHighlight = mdw.rightDockHighlight,
 			splitter = mdw.rightSplitter,
-			dropIndicator = mdw.rightDropIndicator,
 			width = cfg.rightDockWidth,
 			fullWidgetWidth = cfg.rightDockWidth - totalMargin - cfg.dockSplitterWidth,
 			xPos = winW - cfg.rightDockWidth + cfg.dockSplitterWidth + cfg.widgetMargin,
@@ -1239,9 +1237,7 @@ function mdw.applyThemeStyles()
 	if mdw.rightDockHighlight then mdw.rightDockHighlight:setStyleSheet(mdw.styles.dockHighlight) end
 
 	-- Drop indicators
-	if mdw.leftDropIndicator then mdw.leftDropIndicator:setStyleSheet(mdw.styles.dropIndicator) end
-	if mdw.rightDropIndicator then mdw.rightDropIndicator:setStyleSheet(mdw.styles.dropIndicator) end
-	if mdw.verticalDropIndicator then mdw.verticalDropIndicator:setStyleSheet(mdw.styles.dropIndicator) end
+	if mdw.dropZoneOverlay then mdw.dropZoneOverlay:setStyleSheet(mdw.styles.dropZone) end
 
 	-- Header pane and separator
 	if mdw.headerPane then mdw.headerPane:setStyleSheet(mdw.styles.headerPane) end

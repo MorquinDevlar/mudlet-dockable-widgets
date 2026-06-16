@@ -192,42 +192,19 @@ function mdw.capturePrompt(deleteFromMain)
 	deselect()
 end
 
-function mdw.createDropIndicators(winW)
-	local cfg = mdw.config
-
-	-- Horizontal drop indicator for left dock (vertical stacking)
-	local totalMargin = cfg.widgetMargin * 2
-	mdw.leftDropIndicator = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_LeftDropIndicator",
-		x = cfg.widgetMargin,
-		y = -100,
-		width = cfg.leftDockWidth - totalMargin - cfg.dockSplitterWidth,
-		height = cfg.dropIndicatorHeight,
-	}))
-	mdw.leftDropIndicator:setStyleSheet(mdw.styles.dropIndicator)
-	mdw.leftDropIndicator:hide()
-
-	-- Horizontal drop indicator for right dock
-	mdw.rightDropIndicator = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_RightDropIndicator",
-		x = cfg.widgetMargin,
-		y = -100,
-		width = cfg.rightDockWidth - totalMargin - cfg.dockSplitterWidth,
-		height = cfg.dropIndicatorHeight,
-	}))
-	mdw.rightDropIndicator:setStyleSheet(mdw.styles.dropIndicator)
-	mdw.rightDropIndicator:hide()
-
-	-- Vertical drop indicator for side-by-side docking
-	mdw.verticalDropIndicator = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_VerticalDropIndicator",
-		x = -100,
+function mdw.createDropIndicators(_winW)
+	-- A single grey, semi-transparent preview block (DockView-style). It is moved
+	-- and resized per frame to cover the half/whole of the target widget the drop
+	-- will land on, or a band at the end of a side when not over any widget.
+	mdw.dropZoneOverlay = mdw.trackElement(Geyser.Label:new({
+		name = "MDW_DropZoneOverlay",
+		x = -1000,
 		y = 0,
-		width = cfg.dropIndicatorHeight,
+		width = 100,
 		height = 100,
 	}))
-	mdw.verticalDropIndicator:setStyleSheet(mdw.styles.dropIndicator)
-	mdw.verticalDropIndicator:hide()
+	mdw.dropZoneOverlay:setStyleSheet(mdw.styles.dropZone)
+	mdw.dropZoneOverlay:hide()
 end
 
 function mdw.createLeftDock(sidebarHeight)
