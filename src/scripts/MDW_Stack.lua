@@ -102,6 +102,35 @@ function mdw.layoutStack(stack)
   mdw.raiseWidgetElements(stack)
 end
 
+--- Hide a whole group. Members are top-level siblings (not children of the stack
+-- container), so they must be hidden explicitly alongside the stack chrome.
+function mdw.hideStack(stack)
+  if not stack then return end
+  stack.visible = false
+  if stack.container then stack.container:hide() end
+  for _, m in ipairs(stack.members or {}) do
+    local mw = mdw.widgets[m]
+    if mw and mw.container then mw.container:hide() end
+  end
+  if stack.docked then mdw.reorganizeDock(stack.docked) end
+  if mdw.updateWidgetsMenuState then mdw.updateWidgetsMenuState() end
+end
+
+--- Show a group (optionally selecting a member's tab) and lay it out.
+function mdw.showStack(stack, memberName)
+  if not stack then return end
+  stack.visible = true
+  if stack.container then stack.container:show() end
+  if memberName and stack.tabsByName[memberName] then
+    mdw.selectStackTab(stack, memberName)
+  else
+    mdw.layoutStack(stack)
+  end
+  if stack.docked then mdw.reorganizeDock(stack.docked) end
+  mdw.raiseWidgetElements(stack)
+  if mdw.updateWidgetsMenuState then mdw.updateWidgetsMenuState() end
+end
+
 --- Make a member render without its own chrome (the stack provides it).
 function mdw.applyHeadless(member)
   member._headless = true
@@ -110,6 +139,9 @@ function mdw.applyHeadless(member)
   if member.lockButton then member.lockButton:hide() end
   if member.closeButton then member.closeButton:hide() end
   if member.bottomResizeHandle then member.bottomResizeHandle:hide() end
+  -- A floating member would still show its own resize border; the stack owns
+  -- sizing now, so hide them.
+  if mdw.hideResizeHandles then mdw.hideResizeHandles(member) end
 end
 
 --- Restore a member's own chrome after leaving a stack.
@@ -361,7 +393,8 @@ function mdw.rebuildStacksFromLayout()
     end
   end
 
-  -- Fallback: any member whose stack record was missing -> dock it standalone
+  -- Fallback: any member whose stack record was missing -> restore its slot and
+  -- re-wrap it in a fresh single-tab home group (never leave a widget bare).
   for _, widget in pairs(mdw.widgets) do
     if widget._pendingStackId then
       widget._pendingStackId = nil
@@ -377,8 +410,8 @@ function mdw.rebuildStacksFromLayout()
         widget.fill = s.fill
         widget.widthLocked = s.widthLocked
         widget.lockedWidth = s.lockedWidth
-        if mdw.updateDockButtonVisibility then mdw.updateDockButtonVisibility(widget) end
       end
+      mdw.wrapInHomeStack(widget)
     end
   end
 
@@ -398,6 +431,50 @@ function mdw.groupWidgetsIntoStack(memberNames, opts)
   local name = opts.name or ("Group" .. mdw._stackCounter)
   local stack = mdw.createStack(name, { dock = dock, row = first and first.row })
   for _, m in ipairs(memberNames) do mdw.addToStack(name, m) end
+  return stack
+end
+
+--- Wrap a widget in its own single-tab "home" group, the universal dock/float
+-- occupant. Called at widget creation and whenever a widget would otherwise end
+-- up standalone. No-op if it is already grouped or being restored into a group.
+-- The new stack inherits the widget's resolved slot so the layout is preserved.
+function mdw.wrapInHomeStack(widget)
+  if not widget or widget.isStack then return end
+  if widget.stackId or widget._pendingStackId then return end
+  local stackName = "grp_" .. widget.name
+  if mdw.widgets[stackName] then return end
+
+  -- Capture the widget's resolved slot, then vacate it so the new group becomes
+  -- the sole occupant of that spot (no transient double-occupancy).
+  local dock = widget.docked or widget.originalDock
+  local slot = {
+    docked = dock, row = widget.row, rowPosition = widget.rowPosition,
+    subRow = widget.subRow, widthRatio = widget.widthRatio, fill = widget.fill,
+    widthLocked = widget.widthLocked, lockedWidth = widget.lockedWidth,
+  }
+  local fx = widget.container and widget.container:get_x()
+  local fy = widget.container and widget.container:get_y()
+  widget.docked = nil
+  widget.row = nil
+
+  local opts = dock and { dock = dock, row = slot.row } or { x = fx, y = fy }
+  local stack = mdw.createStack(stackName, opts)
+  if not stack then
+    widget.docked = slot.docked
+    widget.row = slot.row
+    return
+  end
+  -- Carry the widget's full slot onto the group (rowPosition / fill / width ...).
+  stack.rowPosition = slot.rowPosition or 0
+  stack.subRow = slot.subRow or 0
+  stack.widthRatio = slot.widthRatio
+  stack.fill = slot.fill or false
+  stack.widthLocked = slot.widthLocked or false
+  stack.lockedWidth = slot.lockedWidth
+  -- Preset the pre-group slot so addToStack records the real standalone spot
+  -- (it only captures when _preStackSlot is unset).
+  widget._preStackSlot = slot
+  mdw.addToStack(stackName, widget.name)
   return stack
 end
 
@@ -619,42 +696,50 @@ function mdw.dropTabGhost(d)
 
   mdw.detachMember(stack, d.memberName)
 
+  -- If the source group is now empty, destroy it first so its name/slot is free
+  -- before we re-home the torn-out member (it may re-use the same "grp_" name).
+  local s2 = mdw.widgets[d.stackName]
+  if s2 and s2.isStack and #s2.members == 0 then
+    mdw.destroyStack(s2)
+    s2 = nil
+  end
+
   if not side then
-    -- Float where the cursor was released
+    -- Float: re-home the member in a fresh single-tab group at the release point.
     member.docked = nil
     member.row = nil
     member.rowPosition = nil
     member.subRow = nil
     if member.container then
       member.container:move(math.max(0, (d.lastX or 100) - 30), math.max(0, (d.lastY or 100) - 10))
-      member.container:show()
     end
-    mdw.showResizeHandles(member)
-    mdw.updateResizeBorders(member)
+    local hs = mdw.wrapInHomeStack(member)
+    if hs then
+      if hs.container then hs.container:show() end
+      mdw.raiseWidgetElements(hs)
+    end
   elseif dropType == "tab" and target and target ~= stack then
+    -- Drop into another group as a tab.
     if target.isStack then
       mdw.addToStack(target.name, d.memberName)
     else
       mdw.groupWidgetsIntoStack({ target.name, d.memberName }, { dock = target.docked or side })
     end
   else
-    mdw.dockWidgetWithPosition(member, side, dropType, rowIndex, positionInRow, target)
-    -- The torn-out tab's container may have been hidden by the stack (an inactive
-    -- tab); docking positions it but never re-shows it, so show it here.
-    if member.container then member.container:show() end
-    mdw.hideResizeHandles(member)
+    -- Dock: re-home the member in a fresh group, docked at the drop position.
+    member.docked = nil
+    member.row = nil
+    member.rowPosition = nil
+    member.subRow = nil
+    local hs = mdw.wrapInHomeStack(member)
+    if hs then
+      mdw.dockWidgetWithPosition(hs, side, dropType, rowIndex, positionInRow, target)
+    end
   end
 
-  -- detachMember no longer relayouts the source stack, so do it here: destroy it
-  -- if now empty, relay it if it floats (a docked source is covered by the
-  -- reorganizeDock calls below).
-  local s2 = mdw.widgets[d.stackName]
-  if s2 and s2.isStack then
-    if #s2.members == 0 then
-      mdw.destroyStack(s2)
-    elseif not s2.docked then
-      mdw.layoutStack(s2)
-    end
+  -- Relay a surviving floating source group (docked ones via reorganizeDock).
+  if s2 and s2.isStack and not s2.docked then
+    mdw.layoutStack(s2)
   end
   mdw.reorganizeDock("left")
   mdw.reorganizeDock("right")

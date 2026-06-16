@@ -173,6 +173,12 @@ function mdw.Widget:new(cons)
 	-- Apply saved layout if available (uses shared helper to avoid duplication)
 	mdw.applyPendingLayout(self)
 
+	-- Default every widget into its own single-tab home group (the universal
+	-- occupant). No-op when restoring into a saved group.
+	if mdw.wrapInHomeStack then
+		mdw.wrapInHomeStack(self)
+	end
+
 	-- Update widgets menu to include new widget
 	if mdw.rebuildWidgetsMenu then
 		mdw.rebuildWidgetsMenu()
@@ -255,32 +261,38 @@ end
 -- Methods for controlling widget docking state.
 ---------------------------------------------------------------------------
 
+-- The widget's home group (Stack) when grouped, else nil. Position / dock /
+-- visibility operate on the group, since the group is the real dock occupant.
+function mdw.Widget:_group()
+	return self.stackId and mdw.widgets[self.stackId] or nil
+end
+
 function mdw.Widget:dock(side, row)
-	mdw.dockWidgetClass(self, side, row)
+	mdw.dockWidgetClass(self:_group() or self, side, row)
 end
 
 function mdw.Widget:undock(x, y)
-	mdw.undockWidgetClass(self, x, y)
+	mdw.undockWidgetClass(self:_group() or self, x, y)
 end
 
 function mdw.Widget:isDocked()
-	return self.docked
+	return (self:_group() or self).docked
 end
 
 function mdw.Widget:setFill(enabled)
-	mdw.setFillClass(self, enabled)
+	mdw.setFillClass(self:_group() or self, enabled)
 end
 
 function mdw.Widget:isFill()
-	return self.fill == true
+	return (self:_group() or self).fill == true
 end
 
 function mdw.Widget:setWidthLocked(enabled)
-	mdw.setWidthLockedClass(self, enabled)
+	mdw.setWidthLockedClass(self:_group() or self, enabled)
 end
 
 function mdw.Widget:isWidthLocked()
-	return self.widthLocked == true
+	return (self:_group() or self).widthLocked == true
 end
 
 ---------------------------------------------------------------------------
@@ -289,15 +301,25 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.Widget:show()
-	mdw.showWidgetClass(self)
+	local g = self:_group()
+	if g then
+		mdw.showStack(g, self.name)
+	else
+		mdw.showWidgetClass(self)
+	end
 end
 
 function mdw.Widget:hide()
-	mdw.hideWidgetClass(self)
+	local g = self:_group()
+	if g then
+		mdw.hideStack(g)
+	else
+		mdw.hideWidgetClass(self)
+	end
 end
 
 function mdw.Widget:toggle()
-	if self.visible then
+	if self:isVisible() then
 		self:hide()
 	else
 		self:show()
@@ -305,6 +327,10 @@ function mdw.Widget:toggle()
 end
 
 function mdw.Widget:isVisible()
+	local g = self:_group()
+	if g then
+		return g.visible ~= false and g.activeMember == self.name
+	end
 	return self.visible ~= false
 end
 
@@ -316,6 +342,12 @@ end
 function mdw.Widget:setTitle(title)
 	self.title = title
 	mdw.renderWidgetTitle(self)
+	-- Keep the group's tab label in sync.
+	local g = self:_group()
+	if g and g.tabsByName and g.tabsByName[self.name] then
+		g.tabsByName[self.name].name = title
+		if mdw.refreshStackTabBar then mdw.refreshStackTabBar(g) end
+	end
 end
 
 function mdw.Widget:setTitleStyleSheet(css)
@@ -355,23 +387,33 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.Widget:resize(width, height)
-	mdw.resizeWidgetClass(self, width, height, mdw.resizeWidgetContent)
+	mdw.resizeWidgetClass(self:_group() or self, width, height, mdw.resizeWidgetContent)
 end
 
 function mdw.Widget:move(x, y)
-	mdw.moveWidgetClass(self, x, y)
+	local g = self:_group()
+	if g then
+		if g.docked then return end
+		g.container:move(x, y)
+		if mdw.resizeStackContent then mdw.resizeStackContent(g) end
+		mdw.raiseWidgetElements(g)
+	else
+		mdw.moveWidgetClass(self, x, y)
+	end
 end
 
 function mdw.Widget:getPosition()
-	return self.container:get_x(), self.container:get_y()
+	local t = self:_group() or self
+	return t.container:get_x(), t.container:get_y()
 end
 
 function mdw.Widget:getSize()
-	return self.container:get_width(), self.container:get_height()
+	local t = self:_group() or self
+	return t.container:get_width(), t.container:get_height()
 end
 
 function mdw.Widget:raise()
-	mdw.raiseWidgetElements(self)
+	mdw.raiseWidgetElements(self:_group() or self)
 	mdw.applyZOrder()
 end
 

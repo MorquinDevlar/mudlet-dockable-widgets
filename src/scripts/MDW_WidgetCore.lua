@@ -629,9 +629,16 @@ end
 function mdw.placeWidgetAtDrop(widget, intent, x, y)
 	local cfg = mdw.config
 	local side = intent.insertSide
+	local dropType = intent.dropType
 
-	-- Center of a widget/group -> merge as a tab group.
-	if side and intent.dropType == "tab" and intent.targetWidget and mdw.addToStack then
+	-- A whole group cannot nest inside another group; a center drop docks it next
+	-- to the target instead of merging.
+	if widget.isStack and dropType == "tab" then
+		dropType = "below"
+	end
+
+	-- Center of a (non-group) widget -> merge into it as a tab group.
+	if side and dropType == "tab" and intent.targetWidget and mdw.addToStack then
 		clearDockOnlyState(widget)
 		if intent.targetWidget.isStack then
 			mdw.addToStack(intent.targetWidget.name, widget.name)
@@ -645,7 +652,7 @@ function mdw.placeWidgetAtDrop(widget, intent, x, y)
 	if side then
 		clearDockOnlyState(widget)
 		mdw.updateDockButtonVisibility(widget)
-		mdw.dockWidgetWithPosition(widget, side, intent.dropType, intent.rowIndex,
+		mdw.dockWidgetWithPosition(widget, side, dropType, intent.rowIndex,
 			intent.positionInRow, intent.targetWidget)
 		mdw.hideResizeHandles(widget)
 		return
@@ -2424,8 +2431,12 @@ end
 
 function mdw.getWidgetNames()
 	local names = {}
-	for name in pairs(mdw.widgets) do
-		names[#names + 1] = name
+	for name, w in pairs(mdw.widgets) do
+		-- Groups (Stacks) are internal occupants, not user widgets - the actual
+		-- widgets are their members. Skip groups so the menu lists only widgets.
+		if not w.isStack then
+			names[#names + 1] = name
+		end
 	end
 	table.sort(names)
 	return names
@@ -3440,6 +3451,18 @@ end
 
 --- Check if a widget is currently shown on screen.
 function mdw.isWidgetShown(widget)
+	-- Grouped: shown = its group is visible (on a visible sidebar) AND this widget
+	-- is the active tab.
+	if widget.stackId then
+		local stack = mdw.widgets[widget.stackId]
+		if not stack or stack.visible == false then return false end
+		if stack.activeMember ~= widget.name then return false end
+		local side = stack.docked or stack.originalDock
+		if side == "left" then return mdw.visibility.leftSidebar end
+		if side == "right" then return mdw.visibility.rightSidebar end
+		return true
+	end
+
 	if widget.visible == false then return false end
 
 	local dockSide = widget.docked or widget.originalDock
@@ -3460,10 +3483,19 @@ function mdw.toggleWidget(widgetName)
 	local widget = mdw.widgets[widgetName]
 	if not widget then return end
 
-	-- A grouped member isn't independently hideable; "showing" it = switch to its tab
+	-- Every widget lives in a group. Toggling brings it to the front of its group
+	-- (show the group + select its tab), or hides the group if this widget is
+	-- already the visible, active tab.
 	if widget.stackId then
 		local stack = mdw.widgets[widget.stackId]
-		if stack then mdw.selectStackTab(stack, widgetName) end
+		if not stack then return end
+		local shownActive = stack.visible ~= false and stack.activeMember == widgetName
+		if shownActive then
+			mdw.hideStack(stack)
+		else
+			mdw.showStack(stack, widgetName)
+		end
+		mdw.saveLayout()
 		return
 	end
 
