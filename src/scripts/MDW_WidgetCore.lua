@@ -980,7 +980,9 @@ function mdw.detectDropPosition(side, pointX, pointY, excludeWidget)
 		end
 	end
 
-	-- Not over any widget: snap to the nearest row edge (dock at that end).
+	-- Not over any widget: snap to the nearest row edge. Return a target widget
+	-- from that row so placement anchors on its actual row (the visual rowIndex
+	-- can be stale if the dock list shrank between detection and placement).
 	local yPos = cfg.headerHeight + cfg.widgetMargin
 	for ri, row in ipairs(rows) do
 		local rowHeight = 0
@@ -988,11 +990,12 @@ function mdw.detectDropPosition(side, pointX, pointY, excludeWidget)
 			rowHeight = math.max(rowHeight, mdw.getColumnHeight(col))
 		end
 		if pointY < yPos + rowHeight / 2 then
-			return "above", ri, 0, nil
+			return "above", ri, 0, row[1]
 		end
 		yPos = yPos + rowHeight
 	end
-	return "below", #rows, 0, nil
+	local lastRow = rows[#rows]
+	return "below", #rows, 0, lastRow and lastRow[1] or nil
 end
 
 --- Position the grey preview block (mdw.dropZoneOverlay) for the current drop.
@@ -1006,7 +1009,22 @@ function mdw.showDropZone(side, dropType, target, excludeWidget)
 	if target and target.container then
 		local tx, ty = target.container:get_x(), target.container:get_y()
 		local tw, th = target.container:get_width(), target.container:get_height()
-		if dropType == "left" then
+		if dropType == "tab" then
+			-- A merge: show a grey TAB where the new tab will slot in (after the
+			-- target's existing tabs), not the grey area block.
+			local tabW = mdw.stackTabWidth or function() return 80 end
+			local offset = 0
+			if target.isStack and target.tabObjects then
+				for _, t in ipairs(target.tabObjects) do offset = offset + tabW(t.name) end
+			else
+				offset = tabW(target.title or target.name)
+			end
+			local dragName = (excludeWidget and (excludeWidget.title or excludeWidget.name)) or "Tab"
+			local blockW = tabW(dragName)
+			offset = math.min(offset, math.max(0, tw - blockW))
+			overlay:move(tx + offset, ty)
+			overlay:resize(blockW, cfg.tabBarHeight)
+		elseif dropType == "left" then
 			overlay:move(tx, ty)
 			overlay:resize(tw / 2, th)
 		elseif dropType == "right" then
@@ -1015,12 +1033,9 @@ function mdw.showDropZone(side, dropType, target, excludeWidget)
 		elseif dropType == "above" then
 			overlay:move(tx, ty)
 			overlay:resize(tw, th / 2)
-		elseif dropType == "below" or dropType == "subcolumn" then
+		else -- "below" / "subcolumn"
 			overlay:move(tx, ty + th / 2)
 			overlay:resize(tw, th / 2)
-		else -- "tab" / center: highlight the whole target
-			overlay:move(tx, ty)
-			overlay:resize(tw, th)
 		end
 		overlay:show()
 		overlay:raise()
@@ -1256,7 +1271,8 @@ function mdw.dockWidgetWithPosition(widget, side, dropType, rowIndex, positionIn
 		if targetWidget and targetWidget.row ~= nil then
 			actualRowNum = targetWidget.row
 		else
-			local targetVisualRow = rows[rowIndex]
+			-- Fall back to the last row if the visual index is stale (out of range).
+			local targetVisualRow = rows[rowIndex] or rows[#rows]
 			if targetVisualRow and #targetVisualRow > 0 then
 				actualRowNum = targetVisualRow[1].row or 0
 			end

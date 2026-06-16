@@ -506,6 +506,9 @@ function mdw.setupStackTabDrag(stack, tabObj)
     mdw.stackTabDrag = {
       stackName = stackName, memberName = memberName,
       startX = event.globalX, startY = event.globalY, mode = nil,
+      -- Where on the tab the press landed (label-local), so the drop-detection
+      -- point can track the real cursor instead of the ghost's centre.
+      clickLocalX = event.x, clickLocalY = event.y,
     }
   end)
 
@@ -633,8 +636,10 @@ function mdw.updateTabGhost(stack, tabObj, event)
   if not d then return end
   local gx = (d.ghostAnchorX or 0) + (event.globalX - d.startX)
   local gy = (d.ghostAnchorY or 0) + (event.globalY - d.startY)
-  local cx = gx + mdw.stackTabWidth(tabObj.name) / 2
-  local cy = gy + mdw.config.tabBarHeight / 2
+  -- Detection point = the actual cursor in the move-frame (ghost top-left + where
+  -- on the tab it was grabbed), so the thin tab-bar merge zone is reliably hit.
+  local cx = gx + (d.clickLocalX or mdw.stackTabWidth(tabObj.name) / 2)
+  local cy = gy + (d.clickLocalY or mdw.config.tabBarHeight / 2)
   d.lastX = cx
   d.lastY = cy
   local member = mdw.widgets[d.memberName]
