@@ -511,6 +511,9 @@ function mdw.setupTabDrag(tabbedWidget, tabObj)
 	setLabelClickCallback(labelName, function(event)
 		local tw = mdw.widgets[widgetName]
 		if not (tw and tw.tabsByName[tabName]) then return end
+		-- Select on mouse-down so a click OR a drag both activate this tab (the
+		-- dragged tab is then genuinely selected, which is why it's highlighted).
+		tw:selectTab(tabName)
 		mdw.tabDrag = {
 			tabbedWidget = tw,
 			tabObj = tw.tabsByName[tabName],
@@ -529,11 +532,6 @@ function mdw.setupTabDrag(tabbedWidget, tabObj)
 			if math.abs(event.globalX - d.startMouseX) <= mdw.config.dragThreshold then return end
 			d.hasMoved = true
 			d.tabObj.button:setCursor(mudlet.cursor.ClosedHand)
-			-- Show the dragged tab as selected while moving; dim the real active
-			-- one. refreshTabBar (on release) restores the actual selection.
-			local active = d.tabbedWidget.tabObjects[d.tabbedWidget.activeTabIndex]
-			if active and active ~= d.tabObj then mdw.applyTabInactiveStyle(active, "channel") end
-			mdw.applyTabActiveStyle(d.tabObj, "channel")
 		end
 		mdw.barTabSlide(d.ctx, d.tabObj, event)
 	end)
@@ -542,10 +540,8 @@ function mdw.setupTabDrag(tabbedWidget, tabObj)
 		local d = mdw.tabDrag
 		mdw.tabDrag = nil
 		if not d or not d.tabObj or d.tabObj.name ~= tabName then return end
-		if not d.hasMoved then
-			d.tabbedWidget:selectTab(d.tabObj.name)
-			return
-		end
+		-- A plain click already selected the tab on mouse-down; nothing more to do.
+		if not d.hasMoved then return end
 		d.tabObj.button:setCursor(mudlet.cursor.PointingHand)
 		mdw.barTabCommit(d.ctx, d.tabObj, event)
 	end)
