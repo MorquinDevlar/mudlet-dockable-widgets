@@ -402,6 +402,15 @@ function mdw.rebuildStacksFromLayout()
         stack.fill = saved.fill or false
         stack.widthLocked = saved.widthLocked or false
         stack.lockedWidth = saved.lockedWidth
+        -- Restore the saved size - the resized height especially (a docked group's
+        -- width is re-derived by the dock). Fill groups keep it as pre-fill height.
+        if saved.height then
+          if saved.fill then
+            stack._preFillHeight = saved.height
+          else
+            stack.container:resize(saved.width or stack.container:get_width(), saved.height)
+          end
+        end
         for _, memberName in ipairs(saved.members or {}) do
           local member = mdw.widgets[memberName]
           if member and member._pendingStackId == name then
