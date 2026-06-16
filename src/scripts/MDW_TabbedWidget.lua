@@ -288,7 +288,7 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 		width = actualWidth,
 		height = cfg.tabBarHeight,
 	}, widget.container))
-	widget.tabBar:setStyleSheet(mdw.styles.tabBar)
+	widget.tabBar:setStyleSheet(mdw.styles.channelTabBar)
 
 	-- Create tabs
 	local numTabs = #tabbedWidget.tabs

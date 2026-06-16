@@ -227,37 +227,67 @@ function mdw.buildStyles()
     QLabel:hover { background-color: %s; }
   ]], cssSplitter, cssSplitterHover)
 
+	local cssAccent = mdw.rgbToCss(c.accent)
+	local cssTabBorder = mdw.rgbToCss(c.controlBorder)
+
+	-- Group (stack) tab bar: the group-header tone with a fine divider beneath it.
 	mdw.styles.tabBar = string.format([[
     background-color: %s;
-  ]], cssHeader)
+    border-bottom: 1px solid %s;
+  ]], cssHeader, cssTabBorder)
 
+	-- Channel (tabbed-widget) tab bar: blends with the widget content so it reads
+	-- as a sub-bar nested under the group tab bar (distinct from the group bar).
+	mdw.styles.channelTabBar = string.format([[
+    background-color: %s;
+    border-bottom: 1px solid %s;
+  ]], cssWidget, cssTabBorder)
+
+	-- Active tab: a fine accent underline, no heavy filled block.
 	mdw.styles.tabActive = string.format([[
-    background-color: %s;
+    background-color: transparent;
+    border-bottom: 2px solid %s;
     qproperty-alignment: 'AlignCenter';
     font-family: '%s';
     font-size: %dpx;
     padding-left: %dpx;
     padding-right: %dpx;
-  ]], cfg.tabActiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+  ]], cssAccent, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
 
+	-- Inactive tab: transparent with a faint right divider; a transparent underline
+	-- keeps its height matching the active tab's.
 	mdw.styles.tabInactive = string.format([[
-    background-color: %s;
+    background-color: transparent;
+    border-bottom: 2px solid transparent;
+    border-right: 1px solid %s;
     qproperty-alignment: 'AlignCenter';
     font-family: '%s';
     font-size: %dpx;
     padding-left: %dpx;
     padding-right: %dpx;
-  ]], cfg.tabInactiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+  ]], cssTabBorder, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
 
+	-- The source tab while its ghost is being dragged: looks emptied out.
 	mdw.styles.tabDragging = string.format([[
-    background-color: %s;
+    background-color: transparent;
+    border-bottom: 2px solid transparent;
     qproperty-alignment: 'AlignCenter';
     font-family: '%s';
     font-size: %dpx;
     padding-left: %dpx;
     padding-right: %dpx;
-    opacity: 0.6;
-  ]], cfg.tabActiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+  ]], cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+
+	-- Drag ghost: a solid floating tab box (the active tab is transparent now).
+	mdw.styles.tabGhost = string.format([[
+    background-color: %s;
+    border: 1px solid %s;
+    qproperty-alignment: 'AlignCenter';
+    font-family: '%s';
+    font-size: %dpx;
+    padding-left: %dpx;
+    padding-right: %dpx;
+  ]], cfg.tabActiveBackground, cssAccent, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
 
 	mdw.styles.controlButton = string.format([[
     QLabel {
@@ -1372,7 +1402,7 @@ function mdw.applyThemeStyles()
 
 		-- Tab styles
 		if widget.isTabbed then
-			if widget.tabBar then widget.tabBar:setStyleSheet(mdw.styles.tabBar) end
+			if widget.tabBar then widget.tabBar:setStyleSheet(mdw.styles.channelTabBar) end
 			for idx, tabObj in ipairs(widget.tabObjects or {}) do
 				if idx == widget.activeTabIndex then
 					mdw.applyTabActiveStyle(tabObj)

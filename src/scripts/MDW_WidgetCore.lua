@@ -581,7 +581,7 @@ function mdw.createDragGhost(title)
 		name = "MDW_DragGhost_" .. mdw._ghostCounter,
 		x = 0, y = 0, width = w, height = cfg.tabBarHeight,
 	}))
-	ghost:setStyleSheet(mdw.styles.tabActive)
+	ghost:setStyleSheet(mdw.styles.tabGhost)
 	ghost:setFontSize(cfg.tabFontSize)
 	ghost:decho("<" .. cfg.tabActiveTextColor .. ">" .. tostring(title))
 	return ghost
