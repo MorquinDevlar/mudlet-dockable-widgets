@@ -96,8 +96,9 @@ function mdw.resizeStackContent(stack, targetWidth, targetHeight)
   end
 
   if stack.bottomResizeHandle then
-    stack.bottomResizeHandle:move(0, ch - cfg.widgetSplitterHeight)
-    stack.bottomResizeHandle:resize(cw, cfg.widgetSplitterHeight)
+    local handleHeight = cfg.widgetSplitterHeight + cfg.resizeHandleHitPad
+    stack.bottomResizeHandle:move(0, ch - handleHeight)
+    stack.bottomResizeHandle:resize(cw, handleHeight)
   end
 end
 
@@ -121,6 +122,9 @@ function mdw.hideStack(stack)
   if not stack then return end
   stack.visible = false
   if stack.container then stack.container:hide() end
+  -- A floating group shows its own resize borders; hide them too (reorganizeDock
+  -- only handles docked groups), or they linger after the group is hidden.
+  if mdw.hideResizeHandles then mdw.hideResizeHandles(stack) end
   for _, m in ipairs(stack.members or {}) do
     local mw = mdw.widgets[m]
     if mw and mw.container then mw.container:hide() end
@@ -238,15 +242,19 @@ function mdw.createStack(name, opts)
   -- code (which sets the title-bar cursor) works on a stack unchanged.
   stack.titleBar = stack.tabBar
 
-  -- Bottom resize handle (named so setupDockedResizeHandle wires it up unchanged)
+  -- Bottom resize handle (named so setupDockedResizeHandle wires it up unchanged).
+  -- Transparent with only a thin line at the bottom: the tall label is the grab
+  -- area (splitter + hit pad), raised above the member content so its full height
+  -- is grabbable while the visible divider stays widgetSplitterHeight thin.
+  local handleHeight = cfg.widgetSplitterHeight + cfg.resizeHandleHitPad
   stack.bottomResizeHandle = mdw.trackElement(Geyser.Label:new({
     name = "MDW_" .. name .. "_BottomResize",
-    x = 0, y = h - cfg.widgetSplitterHeight, width = w, height = cfg.widgetSplitterHeight,
+    x = 0, y = h - handleHeight, width = w, height = handleHeight,
   }, stack.container))
   stack.bottomResizeHandle:setStyleSheet(string.format([[
-    QLabel { background-color: %s; }
-    QLabel:hover { background-color: %s; }
-  ]], cfg.resizeBorderColor, cfg.splitterHoverColor))
+    QLabel { background-color: transparent; border-bottom: %dpx solid %s; }
+    QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; }
+  ]], cfg.widgetSplitterHeight, cfg.resizeBorderColor, cfg.widgetSplitterHeight, cfg.splitterHoverColor))
   stack.bottomResizeHandle:setCursor(mudlet.cursor.ResizeVertical)
   stack.bottomResizeHandle:hide()
 
@@ -377,6 +385,9 @@ function mdw.destroyStack(stack)
   }) do
     mdw.deleteElement(stack[f])
   end
+  -- Belt-and-suspenders: also drop the border labels by name, in case a reused
+  -- name left an orphaned label the field references above no longer point at.
+  if mdw.clearResizeBorderLabels then mdw.clearResizeBorderLabels("MDW_" .. stack.name) end
   mdw.deleteElement(stack.tabBar)
   mdw.deleteElement(stack.bottomResizeHandle)
   mdw.deleteElement(stack.container)

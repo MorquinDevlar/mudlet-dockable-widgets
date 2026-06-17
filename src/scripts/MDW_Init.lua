@@ -851,15 +851,11 @@ end
 --- Handle window resize events.
 -- Why: Updates dock and widget positions to match new window dimensions.
 function mdw.onWindowResize()
-	local winW, winH = getMainWindowSize()
+	local _, winH = getMainWindowSize()
 	local cfg = mdw.config
 	local sidebarHeight = winH - cfg.headerHeight
 
-	-- Keep the admin gear anchored to the far right of the header
-	if mdw.adminButton then
-		local gearSize = cfg.headerHeight - cfg.separatorHeight
-		mdw.adminButton:move(winW - gearSize - cfg.menuPaddingLeft, 0)
-	end
+	-- The admin gear is left-anchored (fixed x), so it needs no resize reposition.
 
 	-- Update left dock
 	if mdw.leftDock then

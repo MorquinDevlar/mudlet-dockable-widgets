@@ -324,12 +324,31 @@ function mdw.updateCloseButtonIcon(widget)
 	end
 end
 
+-- Suffixes of the eight resize-border labels owned by a floating widget/stack,
+-- relative to its "MDW_<name>" base. Listed once so creation, deletion, and
+-- stale-orphan cleanup stay in sync.
+mdw.resizeBorderSuffixes = {
+	"_ResizeLeft", "_ResizeRight", "_ResizeBottom", "_ResizeTop",
+	"_ResizeCornerTL", "_ResizeCornerTR", "_ResizeCornerBL", "_ResizeCornerBR",
+}
+
+--- Delete any leftover resize-border labels for a base name. Why: when a
+-- destroyed widget/stack's name is later reused, recreating a same-named label
+-- can leave the old one orphaned - visible but referenced by nothing, so
+-- nothing can hide it. Clearing by name guarantees a single label per name.
+function mdw.clearResizeBorderLabels(baseName)
+	for _, suffix in ipairs(mdw.resizeBorderSuffixes) do
+		mdw.deleteElementByName(baseName .. suffix)
+	end
+end
+
 --- Create resize borders for a widget (used in floating mode).
 -- Why: Floating widgets need resize handles so users can adjust dimensions.
 -- Borders are absolute-positioned labels that track the widget's position.
 function mdw.createResizeBorders(widget)
 	local cfg = mdw.config
 	local baseName = "MDW_" .. widget.name
+	mdw.clearResizeBorderLabels(baseName)
 	local hw = cfg.resizeHitWidth
 
 	-- Edge borders (hw-wide hit target, 2px visible border on widget-facing side)
@@ -1415,6 +1434,10 @@ function mdw.dockWidgetWithPosition(widget, side, dropType, rowIndex, positionIn
 		widget.rowPosition = 0
 	end
 
+	-- Now docked: hide the float resize borders. A re-homed widget can arrive
+	-- here still floating with its borders shown (wrapInHomeStack -> layoutStack),
+	-- which would otherwise be left orphaned at its old position.
+	mdw.hideResizeHandles(widget)
 	mdw.reorganizeDock(side)
 end
 
@@ -1455,6 +1478,13 @@ function mdw.reorganizeDock(side)
 	local cfg = mdw.config
 	local dockCfg = mdw.getDockConfig(side)
 	local docked = mdw.getDockedWidgets(side, nil)
+
+	-- Invariant: a docked widget never shows float resize borders. Enforce it here
+	-- (every dock change funnels through reorganizeDock) so it holds no matter which
+	-- dock path ran - no individual dock site has to remember to hide them.
+	for _, w in ipairs(docked) do
+		mdw.hideFloatResizeBorders(w)
+	end
 
 	-- FIRST: Destroy all existing splitters for this side (prevents orphans)
 	mdw.destroyRowSplittersForSide(side)
@@ -1793,13 +1823,16 @@ function mdw.createRowSplitter(side, rowIndex, leftPosition, leftWidget, rightWi
 		name = splitterName,
 		x = x,
 		y = y,
-		width = cfg.widgetSplitterWidth,
+		width = cfg.widgetSplitterWidth + cfg.resizeHandleHitPad,
 		height = height,
 	})
+	-- Transparent with only a thin line at the gap (border-left); the wider label is
+	-- the grab area, extending into the right widget. Raised above docked widgets in
+	-- applyZOrder so the overlapping part is grabbable (mirrors the bottom handle).
 	splitter:setStyleSheet(string.format([[
-    QLabel { background-color: %s; }
-    QLabel:hover { background-color: %s; }
-  ]], cfg.resizeBorderColor, cfg.splitterHoverColor))
+    QLabel { background-color: transparent; border-left: %dpx solid %s; }
+    QLabel:hover { background-color: transparent; border-left: %dpx solid %s; }
+  ]], cfg.widgetSplitterWidth, cfg.resizeBorderColor, cfg.widgetSplitterWidth, cfg.splitterHoverColor))
 	splitter:setCursor(mudlet.cursor.ResizeHorizontal)
 
 	-- Store splitter with metadata
@@ -1924,7 +1957,7 @@ function mdw.updateRowSplitterPositions(side, rows)
 				local leftWidget = leftCol[1]
 				local xPos = leftWidget.container:get_x() + leftWidget.container:get_width()
 				splitter:move(xPos, rowY)
-				splitter:resize(cfg.widgetSplitterWidth, rowHeight)
+				splitter:resize(cfg.widgetSplitterWidth + cfg.resizeHandleHitPad, rowHeight)
 			end
 		end
 	end
@@ -2379,9 +2412,13 @@ function mdw.showResizeHandles(widget)
 	mdw.applyZOrder()
 end
 
-function mdw.hideResizeHandles(widget)
+--- Hide only the floating resize-border labels (edges + corners), leaving the
+-- docked bottom handle and container sizing alone. Why: the invariant "a docked
+-- widget never shows float borders" is enforced centrally in reorganizeDock, so
+-- it holds regardless of which dock path ran or in what order - no dock site has
+-- to remember to hide them itself.
+function mdw.hideFloatResizeBorders(widget)
 	if not widget then return end
-
 	if widget.resizeLeft then widget.resizeLeft:hide() end
 	if widget.resizeRight then widget.resizeRight:hide() end
 	if widget.resizeBottom then widget.resizeBottom:hide() end
@@ -2390,6 +2427,12 @@ function mdw.hideResizeHandles(widget)
 	if widget.resizeTopRight then widget.resizeTopRight:hide() end
 	if widget.resizeBottomLeft then widget.resizeBottomLeft:hide() end
 	if widget.resizeBottomRight then widget.resizeBottomRight:hide() end
+end
+
+function mdw.hideResizeHandles(widget)
+	if not widget then return end
+
+	mdw.hideFloatResizeBorders(widget)
 
 	-- Show docked bottom resize handle when docked
 	if widget.bottomResizeHandle and widget.docked then
@@ -2435,6 +2478,7 @@ end
 function mdw.createHeaderMenus()
 	local cfg = mdw.config
 	local height = cfg.headerHeight - cfg.separatorHeight
+	local gearSize = height
 	local charWidth = math.ceil(cfg.headerMenuFontSize * 0.65)
 
 	local buttonDefs = {
@@ -2444,7 +2488,8 @@ function mdw.createHeaderMenus()
 		{var = "themeButton",    name = "MDW_ThemeButton",     text = "Theme",     toggle = "toggleThemeMenu"},
 	}
 
-	local x = cfg.menuPaddingLeft
+	-- The gear sits at the far left; the text menus follow after it.
+	local x = cfg.menuPaddingLeft + gearSize + cfg.menuPaddingLeft
 	mdw.headerButtonX = {}
 
 	for _, def in ipairs(buttonDefs) do
@@ -2471,12 +2516,10 @@ function mdw.createHeaderMenus()
 		x = x + btnWidth
 	end
 
-	-- Admin gear button, anchored to the far right of the header
-	local winW = getMainWindowSize()
-	local gearSize = height
+	-- Admin gear button, anchored to the far left of the header
 	mdw.adminButton = mdw.trackElement(Geyser.Label:new({
 		name = "MDW_AdminButton",
-		x = winW - gearSize - cfg.menuPaddingLeft,
+		x = cfg.menuPaddingLeft,
 		y = 0,
 		width = gearSize, height = height,
 	}, mdw.headerPane))
@@ -3091,15 +3134,14 @@ function mdw.destroyAdminMenuElements()
 	end
 end
 
---- Build (or rebuild) the admin dropdown, right-aligned under the gear.
+--- Build (or rebuild) the admin dropdown, left-aligned under the gear.
 function mdw.rebuildAdminMenu()
 	mdw.destroyAdminMenuElements()
 
 	local cfg = mdw.config
-	local winW = getMainWindowSize()
 	local menuWidth = cfg.menuWidth
-	-- Right-align under the gear so the menu always stays on-screen
-	local menuX = winW - cfg.menuPaddingLeft - menuWidth
+	-- Left-align under the gear (which sits at the far left of the header)
+	local menuX = cfg.menuPaddingLeft
 	local menuY = cfg.headerHeight - cfg.menuOverlap
 	local menuHeight = cfg.menuItemHeight + cfg.menuPadding * 2
 
