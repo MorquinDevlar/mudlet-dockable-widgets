@@ -96,8 +96,9 @@ function mdw.resizeStackContent(stack, targetWidth, targetHeight)
   end
 
   if stack.bottomResizeHandle then
-    stack.bottomResizeHandle:move(0, ch - cfg.widgetSplitterHeight)
-    stack.bottomResizeHandle:resize(cw, cfg.widgetSplitterHeight)
+    local handleHeight = cfg.widgetSplitterHeight + cfg.resizeHandleHitPad
+    stack.bottomResizeHandle:move(0, ch - handleHeight)
+    stack.bottomResizeHandle:resize(cw, handleHeight)
   end
 end
 
@@ -241,15 +242,19 @@ function mdw.createStack(name, opts)
   -- code (which sets the title-bar cursor) works on a stack unchanged.
   stack.titleBar = stack.tabBar
 
-  -- Bottom resize handle (named so setupDockedResizeHandle wires it up unchanged)
+  -- Bottom resize handle (named so setupDockedResizeHandle wires it up unchanged).
+  -- Transparent with only a thin line at the bottom: the tall label is the grab
+  -- area (splitter + hit pad), raised above the member content so its full height
+  -- is grabbable while the visible divider stays widgetSplitterHeight thin.
+  local handleHeight = cfg.widgetSplitterHeight + cfg.resizeHandleHitPad
   stack.bottomResizeHandle = mdw.trackElement(Geyser.Label:new({
     name = "MDW_" .. name .. "_BottomResize",
-    x = 0, y = h - cfg.widgetSplitterHeight, width = w, height = cfg.widgetSplitterHeight,
+    x = 0, y = h - handleHeight, width = w, height = handleHeight,
   }, stack.container))
   stack.bottomResizeHandle:setStyleSheet(string.format([[
-    QLabel { background-color: %s; }
-    QLabel:hover { background-color: %s; }
-  ]], cfg.resizeBorderColor, cfg.splitterHoverColor))
+    QLabel { background-color: transparent; border-bottom: %dpx solid %s; }
+    QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; }
+  ]], cfg.widgetSplitterHeight, cfg.resizeBorderColor, cfg.widgetSplitterHeight, cfg.splitterHoverColor))
   stack.bottomResizeHandle:setCursor(mudlet.cursor.ResizeVertical)
   stack.bottomResizeHandle:hide()
 

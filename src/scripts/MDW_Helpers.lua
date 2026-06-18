@@ -603,16 +603,17 @@ function mdw.applyZOrder()
 	-- Layer 3: Drop indicators
 	if mdw.dropZoneOverlay then safeRaise(mdw.dropZoneOverlay) end
 
-	-- Layer 4: Row splitters
-	for _, splitter in pairs(mdw.rowSplitters) do
-		safeRaise(splitter)
-	end
-
-	-- Layer 5: Docked widgets (stack members are raised by their stack, not here)
+	-- Layer 4: Docked widgets (stack members are raised by their stack, not here)
 	for _, widget in pairs(mdw.widgets) do
 		if widget.docked and not widget.stackId and not (mdw.drag.active and mdw.drag.widget == widget) then
 			mdw.raiseWidgetElements(widget)
 		end
+	end
+
+	-- Layer 5: Row splitters - above docked widgets so their widened hit area, which
+	-- overlaps the neighbouring widget, is actually grabbable (else the widget covers it).
+	for _, splitter in pairs(mdw.rowSplitters) do
+		safeRaise(splitter)
 	end
 
 	-- Layer 6: Floating widgets (skip drag widget and stack members)
