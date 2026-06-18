@@ -45,7 +45,7 @@ mdw.config = {
 	resizeBorderWidth = 2, -- Visual width of floating widget resize borders
 	resizeHitWidth = 8,    -- Click target width for resize borders (extends outward)
 	resizeCornerSize = 20, -- How far corner grab zones extend along each adjacent edge
-	resizeHandleHitPad = 8, -- Extra hit area above bottom resize handle (px)
+	resizeHandleHitPad = 4, -- Extra hit area above bottom resize handle (px)
 
 	-- Layout: Header and prompt bar
 	headerHeight = 30,    -- Height of top header bar

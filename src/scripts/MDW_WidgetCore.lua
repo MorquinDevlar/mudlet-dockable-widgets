@@ -1823,16 +1823,13 @@ function mdw.createRowSplitter(side, rowIndex, leftPosition, leftWidget, rightWi
 		name = splitterName,
 		x = x,
 		y = y,
-		width = cfg.widgetSplitterWidth + cfg.resizeHandleHitPad,
+		width = cfg.widgetSplitterWidth,
 		height = height,
 	})
-	-- Transparent with only a thin line at the gap (border-left); the wider label is
-	-- the grab area, extending into the right widget. Raised above docked widgets in
-	-- applyZOrder so the overlapping part is grabbable (mirrors the bottom handle).
 	splitter:setStyleSheet(string.format([[
-    QLabel { background-color: transparent; border-left: %dpx solid %s; }
-    QLabel:hover { background-color: transparent; border-left: %dpx solid %s; }
-  ]], cfg.widgetSplitterWidth, cfg.resizeBorderColor, cfg.widgetSplitterWidth, cfg.splitterHoverColor))
+    QLabel { background-color: %s; }
+    QLabel:hover { background-color: %s; }
+  ]], cfg.resizeBorderColor, cfg.splitterHoverColor))
 	splitter:setCursor(mudlet.cursor.ResizeHorizontal)
 
 	-- Store splitter with metadata
@@ -1957,7 +1954,7 @@ function mdw.updateRowSplitterPositions(side, rows)
 				local leftWidget = leftCol[1]
 				local xPos = leftWidget.container:get_x() + leftWidget.container:get_width()
 				splitter:move(xPos, rowY)
-				splitter:resize(cfg.widgetSplitterWidth + cfg.resizeHandleHitPad, rowHeight)
+				splitter:resize(cfg.widgetSplitterWidth, rowHeight)
 			end
 		end
 	end
