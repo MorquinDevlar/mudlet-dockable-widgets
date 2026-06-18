@@ -1297,10 +1297,14 @@ function mdw.applyThemeStyles()
 	-- During preview, show splitters in their hover/accent color
 	local splitterStyle = mdw.styles.splitter
 	local separatorStyle = mdw.styles.resizableSeparator
+	-- Row splitters are transparent with only a thin border line (matching
+	-- createRowSplitter), so the widened grab area never paints a solid band.
+	-- Accent line during preview, splitter color otherwise.
+	local rowSplitterLine = preview and cfg.splitterHoverColor or cfg.resizeBorderColor
 	local rowSplitterStyle = string.format([[
-      QLabel { background-color: %s; }
-      QLabel:hover { background-color: %s; }
-    ]], cfg.resizeBorderColor, cfg.splitterHoverColor)
+      QLabel { background-color: transparent; border-left: %dpx solid %s; }
+      QLabel:hover { background-color: transparent; border-left: %dpx solid %s; }
+    ]], cfg.widgetSplitterWidth, rowSplitterLine, cfg.widgetSplitterWidth, cfg.splitterHoverColor)
 	if preview then
 		local accentSolid = string.format([[
       QLabel { background-color: %s; }
@@ -1308,7 +1312,6 @@ function mdw.applyThemeStyles()
     ]], cfg.splitterHoverColor, cfg.splitterHoverColor)
 		splitterStyle = accentSolid
 		separatorStyle = accentSolid
-		rowSplitterStyle = accentSolid
 	end
 
 	-- Dock backgrounds
@@ -1421,21 +1424,15 @@ function mdw.applyThemeStyles()
 		mdw.updateLockButtonText(widget)
 		mdw.updateCloseButtonIcon(widget)
 
-		-- Bottom resize handle
+		-- Bottom resize handle: transparent with a thin border line for every kind
+		-- (stack, tabbed, plain), matching the creation style so the widened grab
+		-- area never paints a solid band.
 		if widget.bottomResizeHandle then
 			local baseColor = preview and cfg.splitterHoverColor or cfg.resizeBorderColor
-			if widget.isTabbed or widget.isStack then
-				widget.bottomResizeHandle:setStyleSheet(string.format([[
-          QLabel { background-color: %s; }
-          QLabel:hover { background-color: %s; }
-        ]], baseColor, cfg.splitterHoverColor))
-			else
-				widget.bottomResizeHandle:setStyleSheet(string.format([[
-          QLabel { background-color: transparent; border-bottom: %dpx solid %s; }
-          QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; }
-        ]], cfg.widgetSplitterHeight, baseColor,
-					cfg.widgetSplitterHeight, cfg.splitterHoverColor))
-			end
+			widget.bottomResizeHandle:setStyleSheet(string.format([[
+        QLabel { background-color: transparent; border-bottom: %dpx solid %s; }
+        QLabel:hover { background-color: transparent; border-bottom: %dpx solid %s; }
+      ]], cfg.widgetSplitterHeight, baseColor, cfg.widgetSplitterHeight, cfg.splitterHoverColor))
 		end
 
 		-- Floating resize edges
