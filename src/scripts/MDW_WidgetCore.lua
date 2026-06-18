@@ -1510,6 +1510,32 @@ function mdw.reorganizeDock(side)
 	local _, winH = getMainWindowSize()
 	local lastRowIdx = #rows
 
+	-- Auto-fill: the bottom widget of each column in the last row stretches to the
+	-- sidebar bottom (web-client behavior). The fill flag is driven entirely from
+	-- bottom-position here - the manual fill button is not surfaced in the grouped
+	-- model - and a widget that stops being the bottom restores its natural height.
+	local autoFill = {}
+	if rows[lastRowIdx] then
+		for _, col in ipairs(mdw.groupWidgetsByColumn(rows[lastRowIdx])) do
+			local bottom = col[#col]
+			if bottom then autoFill[bottom] = true end
+		end
+	end
+	for _, w in ipairs(docked) do
+		if autoFill[w] then
+			-- Capture the natural height once, before the layout stretches it.
+			if not w._preFillHeight then w._preFillHeight = w.container:get_height() end
+			w.fill = true
+		elseif w.fill then
+			if w._preFillHeight then
+				w.container:resize(nil, w._preFillHeight)
+				mdw.resizeWidgetContent(w, w.container:get_width(), w._preFillHeight)
+				w._preFillHeight = nil
+			end
+			w.fill = false
+		end
+	end
+
 	-- Reset fill/lock eligibility for all docked widgets
 	for _, w in ipairs(docked) do
 		w._canFill = false
@@ -2642,7 +2668,7 @@ end
 --- Create the Widgets dropdown menu.
 function mdw.createWidgetsDropdown()
 	local cfg = mdw.config
-	local menuWidth = cfg.menuWidth
+	local menuWidth = mdw.computeWidgetsMenuWidth()
 	local menuX = mdw.headerButtonX.widgetsButton
 	local menuY = cfg.headerHeight - cfg.menuOverlap        -- Overlap top border with header button's bottom border
 	local items = mdw.getWidgetNames()
@@ -2667,9 +2693,29 @@ function mdw.createWidgetsDropdown()
 end
 
 --- Add a single widget menu item.
+--- Display label for a widget in the Widgets menu: its title (which can contain
+-- spaces) when set, otherwise its identifier name. Matches the tab label, which
+-- uses the same title, so a widget reads the same everywhere.
+function mdw.widgetMenuLabel(widgetName)
+	local w = mdw.widgets[widgetName]
+	return (w and w.title) or widgetName
+end
+
+--- Width for the Widgets menu: wide enough for the longest "[x] <title>" so
+-- spaced titles are not clipped, but never narrower than the default menu width.
+function mdw.computeWidgetsMenuWidth()
+	local cfg = mdw.config
+	local charWidth = math.ceil(cfg.headerMenuFontSize * 0.65)
+	local maxLen = 0
+	for _, widgetName in ipairs(mdw.getWidgetNames()) do
+		maxLen = math.max(maxLen, 4 + #mdw.widgetMenuLabel(widgetName))
+	end
+	return math.max(cfg.menuWidth, cfg.menuPaddingLeft * 2 + maxLen * charWidth)
+end
+
 function mdw.addWidgetMenuItem(widgetName, index)
 	local cfg = mdw.config
-	local menuWidth = cfg.menuWidth
+	local menuWidth = mdw.computeWidgetsMenuWidth()
 	local menuX = mdw.headerButtonX.widgetsButton
 	local menuY = cfg.headerHeight - cfg.menuOverlap
 
@@ -2689,7 +2735,7 @@ function mdw.addWidgetMenuItem(widgetName, index)
 
 	local widget = mdw.widgets[widgetName]
 	local isShown = widget and mdw.isWidgetShown(widget)
-	mdw.updateMenuItemText(menuItem, widgetName, isShown)
+	mdw.updateMenuItemText(menuItem, mdw.widgetMenuLabel(widgetName), isShown)
 	menuItem:setCursor(mudlet.cursor.PointingHand)
 	menuItem:hide()
 
@@ -2700,12 +2746,12 @@ function mdw.addWidgetMenuItem(widgetName, index)
 	setLabelOnEnter("MDW_WidgetsMenu_" .. widgetName, function()
 		local w = mdw.widgets[wName]
 		local shown = w and mdw.isWidgetShown(w)
-		mdw.updateMenuItemText(menuItem, wName, shown, true)
+		mdw.updateMenuItemText(menuItem, mdw.widgetMenuLabel(wName), shown, true)
 	end)
 	setLabelOnLeave("MDW_WidgetsMenu_" .. widgetName, function()
 		local w = mdw.widgets[wName]
 		local shown = w and mdw.isWidgetShown(w)
-		mdw.updateMenuItemText(menuItem, wName, shown, false)
+		mdw.updateMenuItemText(menuItem, mdw.widgetMenuLabel(wName), shown, false)
 	end)
 
 	mdw.widgetsMenuItems[widgetName] = { label = menuItem, text = widgetName }
@@ -2740,7 +2786,7 @@ function mdw.rebuildWidgetsMenu()
 
 	-- Recreate the menu
 	local cfg = mdw.config
-	local menuWidth = cfg.menuWidth
+	local menuWidth = mdw.computeWidgetsMenuWidth()
 	local menuX = mdw.headerButtonX.widgetsButton
 	local menuY = cfg.headerHeight - cfg.menuOverlap
 	local items = mdw.getWidgetNames()
@@ -3012,13 +3058,18 @@ function mdw.rebuildThemeMenu()
 	mdw.themeMenuBg:setStyleSheet(mdw.styles.menuBackground)
 
 	mdw._hoveredTheme = nil
+	-- Size each item to its text ("[x] " + name) instead of the full menu width, so
+	-- hovering (and the live preview it triggers) responds to the word, not the
+	-- whole row. The full-width background stays as the dropdown box.
+	local charWidth = math.ceil(cfg.headerMenuFontSize * 0.65)
 	for i, themeName in ipairs(themes) do
 		local itemY = menuY + cfg.menuPadding + (i - 1) * cfg.menuItemHeight
+		local itemWidth = cfg.menuPaddingLeft * 2 + (4 + #capitalizeThemeName(themeName)) * charWidth
 
 		local item = Geyser.Label:new({
 			name = "MDW_ThemeMenu_" .. themeName .. "_" .. uid,
 			x = menuX, y = itemY,
-			width = menuWidth, height = cfg.menuItemHeight,
+			width = itemWidth, height = cfg.menuItemHeight,
 		})
 		item:setStyleSheet(mdw.styles.menuItem)
 		item:setFontSize(cfg.headerMenuFontSize)
@@ -3038,6 +3089,9 @@ function mdw.rebuildThemeMenu()
 		end)
 		setLabelOnLeave(item.name, function()
 			mdw._hoveredTheme = nil
+			-- Revert the preview to the committed theme as soon as the mouse leaves
+			-- the name (not only on click-away).
+			mdw.clearThemePreview()
 			mdw.updateThemeMenuText()
 		end)
 	end
@@ -3082,12 +3136,7 @@ end
 function mdw.hideThemeMenu()
 	mdw._hoveredTheme = nil
 	-- Revert any active preview back to the committed theme
-	if mdw._previewTheme then
-		mdw._previewTheme = nil
-		mdw._themePreviewActive = false
-		mdw.buildStyles()
-		mdw.applyThemeStyles()
-	end
+	mdw.clearThemePreview()
 	if mdw.themeMenuBg then mdw.themeMenuBg:hide() end
 	for _, label in ipairs(mdw.themeMenuLabels or {}) do
 		label:hide()
@@ -3755,7 +3804,7 @@ function mdw.toggleWidget(widgetName)
 
 	local item = mdw.widgetsMenuItems[widgetName]
 	if item then
-		mdw.updateMenuItemText(item.label, item.text, not isCurrentlyShown)
+		mdw.updateMenuItemText(item.label, mdw.widgetMenuLabel(widgetName), not isCurrentlyShown)
 	end
 
 	if mdw.visibility.leftSidebar then mdw.reorganizeDock("left") end
@@ -3794,7 +3843,7 @@ function mdw.updateWidgetsMenuState()
 		local widget = mdw.widgets[widgetName]
 		if widget then
 			local isShown = mdw.isWidgetShown(widget)
-			mdw.updateMenuItemText(item.label, item.text, isShown)
+			mdw.updateMenuItemText(item.label, mdw.widgetMenuLabel(widgetName), isShown)
 		end
 	end
 end

@@ -1286,6 +1286,16 @@ function mdw.previewTheme(themeName)
 	mdw.applyThemeStyles()
 end
 
+--- Revert an active theme preview back to the committed theme. No-op if no
+-- preview is active. Used when the mouse leaves a theme item and on menu close.
+function mdw.clearThemePreview()
+	if not mdw._previewTheme then return end
+	mdw._previewTheme = nil
+	mdw._themePreviewActive = false
+	mdw.buildStyles()
+	mdw.applyThemeStyles()
+end
+
 --- Re-apply all styles to existing UI elements after a theme change.
 -- Lightweight alternative to teardown+setup - updates in place.
 -- During preview (mdw._themePreviewActive), splitters show their accent
