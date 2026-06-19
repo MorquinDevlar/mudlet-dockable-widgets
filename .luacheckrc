@@ -39,6 +39,7 @@ read_globals = {
   "setBorderLeft",
   "setBorderRight",
   "setBorderTop",
+  "enableClickthrough",
   "setFgColor",
   "setFontSize",
   "setLabelClickCallback",

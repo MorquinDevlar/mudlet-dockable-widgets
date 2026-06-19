@@ -279,13 +279,13 @@ function mdw.createStack(name, opts)
     x = 0, y = 0, width = cfg.tabCloseWidth, height = cfg.tabBarHeight,
   }, stack.container))
   if mdw.styles.tabClose then stack.tabClose:setStyleSheet(mdw.styles.tabClose) end
-  stack.tabClose:setCursor(mudlet.cursor.PointingHand)
   stack.tabClose:setToolTip("Close")
   stack.tabClose:hide()
-  setLabelClickCallback("MDW_" .. name .. "_TabClose", function()
-    local s = mdw.widgets[name]
-    if s and s.activeMember then mdw.closeStackMember(s, s.activeMember) end
-  end)
+  -- Visual only: clicks pass through to the tab button beneath, which detects a
+  -- press in this close zone (see setupStackTabDrag). This keeps the whole tab -
+  -- including under the x - draggable for tear-out, instead of the label eating
+  -- the press and closing on mousedown.
+  pcall(function() enableClickthrough("MDW_" .. name .. "_TabClose") end)
 
   mdw.widgets[name] = stack
   -- The tab bar moves the group while floating (gated to !docked inside); docked
@@ -616,7 +616,17 @@ function mdw.setupStackTabDrag(stack, tabObj)
     local s = mdw.widgets[stackName]
 
     if d.mode == nil then
-      if s then mdw.selectStackTab(s, memberName) end
+      -- A pure click (no drag). On the active tab's reserved close zone (where the
+      -- x sits) it closes the member; anywhere else it selects the tab.
+      if s then
+        local closeW = mdw.config.tabCloseWidth or 0
+        local btnW = mdw.stackTabWidth(tabObj.name) - (mdw.config.tabGap or 0)
+        if memberName == s.activeMember and closeW > 0 and (d.clickLocalX or 0) >= btnW - closeW then
+          mdw.closeStackMember(s, memberName)
+        else
+          mdw.selectStackTab(s, memberName)
+        end
+      end
     elseif d.mode == "reorder" then
       if s then mdw.commitStackTabReorder(s, tabObj, event) end
     elseif d.mode == "tearout" then
