@@ -119,7 +119,6 @@ function mdw.Widget:new(cons)
 	self.resizeBottomLeft = widget.resizeBottomLeft
 	self.resizeBottomRight = widget.resizeBottomRight
 	self.bottomResizeHandle = widget.bottomResizeHandle
-	self.fillButton = widget.fillButton
 	self.lockButton = widget.lockButton
 	self.closeButton = widget.closeButton
 
@@ -277,14 +276,6 @@ end
 
 function mdw.Widget:isDocked()
 	return (self:_group() or self).docked
-end
-
-function mdw.Widget:setFill(enabled)
-	mdw.setFillClass(self:_group() or self, enabled)
-end
-
-function mdw.Widget:isFill()
-	return (self:_group() or self).fill == true
 end
 
 function mdw.Widget:setWidthLocked(enabled)

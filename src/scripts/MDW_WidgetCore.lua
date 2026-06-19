@@ -166,17 +166,8 @@ function mdw.createTitleBarButtons(widget)
 	local cw = widget.container:get_width()
 	local btnS = cfg.titleButtonSize
 	local btnH = cfg.titleHeight
-	local pad = cfg.titleButtonPadding
 	local closePad = cfg.closeButtonPadding
 	local btnY = math.floor((btnH - btnS) / 2)
-
-	-- Fill toggle (far left, with padding from edge)
-	widget.fillButton = mdw.trackElement(Geyser.Label:new({
-		name = baseName .. "_FillBtn",
-		x = pad, y = btnY, width = btnS, height = btnS,
-	}, widget.container))
-	widget.fillButton:setCursor(mudlet.cursor.PointingHand)
-	widget.fillButton:setToolTip("Auto fill down")
 
 	-- Lock toggle (positioned by renderWidgetTitle, next to title text)
 	widget.lockButton = mdw.trackElement(Geyser.Label:new({
@@ -194,7 +185,6 @@ function mdw.createTitleBarButtons(widget)
 	widget.closeButton:setCursor(mudlet.cursor.PointingHand)
 
 	mdw.setupTitleBarButtonCallbacks(widget)
-	mdw.updateFillButtonText(widget)
 	mdw.updateLockButtonText(widget)
 	mdw.updateCloseButtonIcon(widget)
 end
@@ -203,13 +193,8 @@ end
 function mdw.repositionTitleBarButtons(widget, containerWidth)
 	local cfg = mdw.config
 	local btnS = cfg.titleButtonSize
-	local pad = cfg.titleButtonPadding
 	local closePad = cfg.closeButtonPadding
 	local btnY = math.floor((cfg.titleHeight - btnS) / 2)
-	if widget.fillButton then
-		widget.fillButton:move(pad, btnY)
-		widget.fillButton:resize(btnS, btnS)
-	end
 	-- Lock button is repositioned by renderWidgetTitle (next to title text)
 	if widget.closeButton then
 		widget.closeButton:move(containerWidth - btnS - closePad, btnY)
@@ -220,13 +205,6 @@ end
 --- Set up click callbacks for title bar buttons.
 function mdw.setupTitleBarButtonCallbacks(widget)
 	local widgetName = widget.name
-
-	setLabelClickCallback("MDW_" .. widgetName .. "_FillBtn", function()
-		local w = mdw.widgets[widgetName]
-		if not w then return end
-		if mdw.closeAllMenus then mdw.closeAllMenus() end
-		mdw.toggleFill(w)
-	end)
 
 	setLabelClickCallback("MDW_" .. widgetName .. "_LockBtn", function()
 		local w = mdw.widgets[widgetName]
@@ -243,29 +221,6 @@ function mdw.setupTitleBarButtonCallbacks(widget)
 	end)
 end
 
---- Toggle fill mode for a docked widget.
-function mdw.toggleFill(widget)
-	if not widget.docked then return end
-	-- Only allow fill on the bottom-most widget (_canFill set by reorganizeDock)
-	if not widget.fill and not widget._canFill then return end
-	if not widget.fill then
-		-- Save current height before filling
-		widget._preFillHeight = widget.container:get_height()
-		widget.fill = true
-	else
-		-- Restore original height
-		widget.fill = false
-		if widget._preFillHeight then
-			widget.container:resize(nil, widget._preFillHeight)
-			mdw.resizeWidgetContent(widget, widget.container:get_width(), widget._preFillHeight)
-			widget._preFillHeight = nil
-		end
-	end
-	mdw.updateFillButtonText(widget)
-	mdw.reorganizeDock(widget.docked)
-	mdw.saveLayout()
-end
-
 --- Toggle width lock for a docked widget.
 function mdw.toggleWidthLock(widget)
 	if not widget.docked then return end
@@ -278,21 +233,6 @@ function mdw.toggleWidthLock(widget)
 	end
 	mdw.updateLockButtonText(widget)
 	mdw.saveLayout()
-end
-
---- Update fill button icon based on state.
-function mdw.updateFillButtonText(widget)
-	if not widget.fillButton then return end
-	local iconName = widget.fill and "fill-active" or "fill-inactive"
-	local path = mdw.getIconPath(iconName)
-	if Geyser.Label.setSvgTint then
-		widget.fillButton:setBackgroundImage(path)
-		widget.fillButton:setSvgTint(mdw.config.titleButtonTint)
-	else
-		widget.fillButton:setStyleSheet(string.format(
-			[[QLabel { background-color: transparent; border: none; border-image: url(%s); }]],
-			path))
-	end
 end
 
 --- Update lock button icon based on state.
@@ -1538,7 +1478,6 @@ function mdw.reorganizeDock(side)
 
 	-- Reset fill/lock eligibility for all docked widgets
 	for _, w in ipairs(docked) do
-		w._canFill = false
 		w._canLock = false
 	end
 
@@ -1761,12 +1700,6 @@ function mdw.reorganizeDock(side)
 				end
 			end
 
-			-- Mark last widget in each column of the last row as fill-eligible
-			local lastInCol = col[#col]
-			if rowIdx == lastRowIdx then
-				lastInCol._canFill = true
-			end
-
 			-- Lock is only useful in side-by-side (multi-column) rows
 			if numColumns > 1 then
 				for _, w in ipairs(col) do
@@ -1774,25 +1707,8 @@ function mdw.reorganizeDock(side)
 				end
 			end
 
-			-- Update fill/lock button visibility for all widgets in this column
+			-- Update lock button visibility for all widgets in this column
 			for _, w in ipairs(col) do
-				if w.fillButton then
-					if w._canFill then
-						w.fillButton:show()
-						mdw.updateFillButtonText(w)
-					else
-						-- Auto-disable fill if widget lost eligibility
-						if w.fill then
-							w.fill = false
-							if w._preFillHeight then
-								w.container:resize(nil, w._preFillHeight)
-								mdw.resizeWidgetContent(w, w.container:get_width(), w._preFillHeight)
-								w._preFillHeight = nil
-							end
-						end
-						w.fillButton:hide()
-					end
-				end
 				if w.lockButton then
 					if w._canLock then
 						w.lockButton:show()

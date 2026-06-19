@@ -142,7 +142,6 @@ function mdw.TabbedWidget:new(cons)
 	self.resizeBottomLeft = internalWidget.resizeBottomLeft
 	self.resizeBottomRight = internalWidget.resizeBottomRight
 	self.bottomResizeHandle = internalWidget.bottomResizeHandle
-	self.fillButton = internalWidget.fillButton
 	self.lockButton = internalWidget.lockButton
 	self.closeButton = internalWidget.closeButton
 
@@ -880,14 +879,6 @@ end
 
 function mdw.TabbedWidget:isDocked()
 	return (self:_group() or self).docked
-end
-
-function mdw.TabbedWidget:setFill(enabled)
-	mdw.setFillClass(self:_group() or self, enabled)
-end
-
-function mdw.TabbedWidget:isFill()
-	return (self:_group() or self).fill == true
 end
 
 function mdw.TabbedWidget:setWidthLocked(enabled)

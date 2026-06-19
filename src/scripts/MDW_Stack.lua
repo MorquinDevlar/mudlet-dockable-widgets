@@ -152,7 +152,6 @@ end
 function mdw.applyHeadless(member)
   member._headless = true
   if member.titleBar then member.titleBar:hide() end
-  if member.fillButton then member.fillButton:hide() end
   if member.lockButton then member.lockButton:hide() end
   if member.closeButton then member.closeButton:hide() end
   if member.bottomResizeHandle then member.bottomResizeHandle:hide() end

@@ -539,7 +539,6 @@ function mdw.raiseWidgetElements(widget)
 	safeRaise(widget.container)
 	if widget.contentBg then safeRaise(widget.contentBg) end
 	if widget.titleBar then safeRaise(widget.titleBar) end
-	if widget.fillButton then safeRaise(widget.fillButton) end
 	if widget.lockButton then safeRaise(widget.lockButton) end
 	if widget.closeButton then safeRaise(widget.closeButton) end
 
@@ -1037,7 +1036,7 @@ function mdw.destroyWidgetClass(widget)
 	-- Gather every element this widget owns. Container is deleted last (parent).
 	local owned = {
 		widget.titleBar, widget.content, widget.contentBg, widget.tabBar,
-		widget.fillButton, widget.lockButton, widget.closeButton,
+		widget.lockButton, widget.closeButton,
 		widget.mapper, widget._mapperElement,
 		widget.bottomResizeHandle,
 		widget.resizeLeft, widget.resizeRight, widget.resizeTop, widget.resizeBottom,
@@ -1062,34 +1061,12 @@ end
 --- Show/hide dock-only buttons (FILL, LOCK) based on dock state.
 function mdw.updateDockButtonVisibility(widget)
 	if widget.docked then
-		if widget.fillButton then
-			widget.fillButton:show()
-			mdw.updateFillButtonText(widget)
-		end
 		if widget.lockButton then
 			widget.lockButton:show()
 			mdw.updateLockButtonText(widget)
 		end
 	else
-		if widget.fillButton then widget.fillButton:hide() end
 		if widget.lockButton then widget.lockButton:hide() end
-	end
-end
-
---- Set fill state for a widget (shared by Widget and TabbedWidget).
-function mdw.setFillClass(widget, enabled)
-	if enabled and not widget.fill then
-		widget._preFillHeight = widget.container:get_height()
-	elseif not enabled and widget.fill and widget._preFillHeight then
-		widget.container:resize(nil, widget._preFillHeight)
-		mdw.resizeWidgetContent(widget, widget.container:get_width(), widget._preFillHeight)
-		widget._preFillHeight = nil
-	end
-	widget.fill = enabled
-	mdw.updateFillButtonText(widget)
-	if widget.docked then
-		mdw.reorganizeDock(widget.docked)
-		mdw.saveLayout()
 	end
 end
 
@@ -1430,7 +1407,6 @@ function mdw.applyThemeStyles()
 		end
 
 		-- Title bar button tints
-		mdw.updateFillButtonText(widget)
 		mdw.updateLockButtonText(widget)
 		mdw.updateCloseButtonIcon(widget)
 
