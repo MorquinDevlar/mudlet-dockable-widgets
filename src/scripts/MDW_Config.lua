@@ -57,6 +57,7 @@ mdw.config = {
 	tabBarHeight = 22, -- Height of tab button bar
 	tabPadding = 5, -- Horizontal padding inside tab buttons
 	tabGap = 4, -- Gap between group (Stack) tabs so they read as separate tabs
+	tabCloseWidth = 16, -- Reserved width for the close (x) shown on the active group tab
 
 	-- Layout: Menus
 	menuItemHeight = 28,     -- Height of dropdown menu items

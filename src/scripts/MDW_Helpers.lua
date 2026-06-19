@@ -284,7 +284,8 @@ function mdw.buildStyles()
     font-size: %dpx;
     padding-left: %dpx;
     padding-right: %dpx;
-  ]], cfg.tabActiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+  ]], cfg.tabActiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding,
+    cfg.tabPadding + (cfg.tabCloseWidth or 0))
 
 	mdw.styles.groupTabInactive = string.format([[
     background-color: %s;
@@ -295,7 +296,15 @@ function mdw.buildStyles()
     font-size: %dpx;
     padding-left: %dpx;
     padding-right: %dpx;
-  ]], cfg.tabGroupInactiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding, cfg.tabPadding)
+  ]], cfg.tabGroupInactiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding,
+    cfg.tabPadding + (cfg.tabCloseWidth or 0))
+
+	-- Close (x) shown on the active group tab; subtle accent highlight on hover.
+	mdw.styles.tabClose = string.format([[
+    QLabel { background-color: transparent; qproperty-alignment: 'AlignCenter';
+      font-family: '%s'; font-size: %dpx; border-top-right-radius: 5px; }
+    QLabel:hover { background-color: %s; }
+  ]], cfg.fontFamily, cfg.tabFontSize, mdw.rgbToRgba(c.accent, 0.35))
 
 	-- Channel (tabbed-widget) tabs: a fine accent underline when active, NO fill
 	-- and NO dividers between them. A transparent underline keeps inactive tabs
@@ -551,6 +560,8 @@ function mdw.raiseWidgetElements(widget)
 		for _, tabObj in ipairs(widget.tabObjects or {}) do
 			if tabObj.button then safeRaise(tabObj.button) end
 		end
+		-- The close (x) sits above the active tab button.
+		if widget.tabClose then safeRaise(widget.tabClose) end
 	elseif widget.isTabbed then
 		if widget.tabBar then safeRaise(widget.tabBar) end
 		for _, tabObj in ipairs(widget.tabObjects or {}) do
@@ -1379,6 +1390,7 @@ function mdw.applyThemeStyles()
 		-- Title bar (a stack has no real title bar - restyle its tab bar + tabs)
 		if widget.isStack then
 			if widget.tabBar then widget.tabBar:setStyleSheet(mdw.styles.tabBar) end
+			if widget.tabClose and mdw.styles.tabClose then widget.tabClose:setStyleSheet(mdw.styles.tabClose) end
 			if mdw.refreshStackTabBar then mdw.refreshStackTabBar(widget) end
 		else
 			widget.titleBar:setStyleSheet(mdw.styles.titleBar)

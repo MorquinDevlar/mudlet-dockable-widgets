@@ -26,7 +26,10 @@ end
 function mdw.stackTabWidth(title)
   local cfg = mdw.config
   local charWidth = math.ceil(cfg.tabFontSize * 0.65)
+  -- Reserve a right-hand zone for the active tab's close (x); the group tab styles
+  -- add matching right padding so the title keeps its position and the x sits clear.
   return cfg.tabPadding * 2 + #tostring(title) * charWidth + 8 + (cfg.tabGap or 0)
+    + (cfg.tabCloseWidth or 0)
 end
 
 ---------------------------------------------------------------------------
@@ -38,17 +41,32 @@ function mdw.refreshStackTabBar(stack)
   local cfg = mdw.config
   local x = 0
   local gap = cfg.tabGap or 0
+  local closeW = cfg.tabCloseWidth or 0
+  local activeRight = nil
   for _, tabObj in ipairs(stack.tabObjects) do
     local w = mdw.stackTabWidth(tabObj.name)
     tabObj.button:move(x, 0)
     tabObj.button:resize(w - gap, cfg.tabBarHeight)
     if tabObj.memberName == stack.activeMember then
       mdw.applyTabActiveStyle(tabObj, "group")
+      activeRight = x + (w - gap)
     else
       mdw.applyTabInactiveStyle(tabObj, "group")
     end
     tabObj.button:setCursor(mudlet.cursor.PointingHand)
     x = x + w
+  end
+  -- Park the close (x) in the active tab's reserved right zone, above the button.
+  if stack.tabClose then
+    if activeRight and closeW > 0 then
+      stack.tabClose:move(activeRight - closeW, 0)
+      stack.tabClose:resize(closeW, cfg.tabBarHeight)
+      stack.tabClose:decho("<" .. cfg.tabActiveTextColor .. ">×")
+      stack.tabClose:show()
+      stack.tabClose:raise()
+    else
+      stack.tabClose:hide()
+    end
   end
 end
 
@@ -257,6 +275,21 @@ function mdw.createStack(name, opts)
   stack.bottomResizeHandle:setCursor(mudlet.cursor.ResizeVertical)
   stack.bottomResizeHandle:hide()
 
+  -- Close (x): shown on the active tab only (positioned by refreshStackTabBar),
+  -- closes that member (siblings stay; an emptied group is destroyed).
+  stack.tabClose = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_" .. name .. "_TabClose",
+    x = 0, y = 0, width = cfg.tabCloseWidth, height = cfg.tabBarHeight,
+  }, stack.container))
+  if mdw.styles.tabClose then stack.tabClose:setStyleSheet(mdw.styles.tabClose) end
+  stack.tabClose:setCursor(mudlet.cursor.PointingHand)
+  stack.tabClose:setToolTip("Close")
+  stack.tabClose:hide()
+  setLabelClickCallback("MDW_" .. name .. "_TabClose", function()
+    local s = mdw.widgets[name]
+    if s and s.activeMember then mdw.closeStackMember(s, s.activeMember) end
+  end)
+
   mdw.widgets[name] = stack
   -- The tab bar moves the group while floating (gated to !docked inside); docked
   -- groups are moved only by dragging their tabs.
@@ -387,6 +420,7 @@ function mdw.destroyStack(stack)
   -- Belt-and-suspenders: also drop the border labels by name, in case a reused
   -- name left an orphaned label the field references above no longer point at.
   if mdw.clearResizeBorderLabels then mdw.clearResizeBorderLabels("MDW_" .. stack.name) end
+  mdw.deleteElement(stack.tabClose)
   mdw.deleteElement(stack.tabBar)
   mdw.deleteElement(stack.bottomResizeHandle)
   mdw.deleteElement(stack.container)
@@ -708,6 +742,31 @@ function mdw.detachMember(stack, memberName)
   if memberName == stack.activeMember then
     stack.activeMember = stack.members[idx] or stack.members[#stack.members]
   end
+end
+
+--- Close a member from its group (the tab's x). The member leaves the group and
+-- is hidden - re-showable from the Widgets menu, returning to the group's side.
+-- Siblings stay; a group emptied by the close is destroyed.
+function mdw.closeStackMember(stack, memberName)
+  local member = mdw.widgets[memberName]
+  if not stack or not member then return end
+  local side = stack.docked
+  mdw.detachMember(stack, memberName)
+  member.originalDock = side
+  member.docked = nil
+  member.row = nil
+  member.rowPosition = nil
+  member.subRow = nil
+  member.visible = false
+  if member.container then member.container:hide() end
+  if mdw.hideResizeHandles then mdw.hideResizeHandles(member) end
+  if #stack.members == 0 then
+    mdw.destroyStack(stack)
+  else
+    mdw.layoutStack(stack)
+  end
+  if mdw.updateWidgetsMenuState then mdw.updateWidgetsMenuState() end
+  mdw.saveLayout()
 end
 
 --- Run (deferred) on tear-out release: delete the ghost, then detach the member

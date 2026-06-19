@@ -3660,9 +3660,10 @@ function mdw.toggleWidget(widgetName)
 	local widget = mdw.widgets[widgetName]
 	if not widget then return end
 
-	-- A widget should never be bare. If one escaped its group, re-wrap and show
-	-- it (recovery), then stop.
+	-- A widget should never be bare. If one escaped its group (or was closed from a
+	-- tab), re-wrap and show it (recovery), then stop.
 	if not widget.isStack and not widget.stackId and mdw.wrapInHomeStack then
+		widget.visible = true
 		mdw.wrapInHomeStack(widget)
 		if widget.stackId then
 			local g = mdw.widgets[widget.stackId]
