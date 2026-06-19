@@ -598,12 +598,6 @@ function mdw.resetDrag()
 	d.active = false
 	d.widget = nil
 	d.hasMoved = nil
-	d.ghost = nil
-	d.ghostAnchorX = nil
-	d.ghostAnchorY = nil
-	d.ghostX = nil
-	d.ghostY = nil
-	d.live = nil
 	d.liveStartX = nil
 	d.liveStartY = nil
 	d.startMouseX = nil
@@ -691,10 +685,6 @@ function mdw.startDrag(widget, event)
 	mdw.drag.startMouseX = event.globalX
 	mdw.drag.startMouseY = event.globalY
 	mdw.drag.hasMoved = false
-	-- Anchor the ghost to the widget's current screen position; it then moves by
-	-- the cursor delta from here (frame-offset safe). The real widget stays put.
-	mdw.drag.ghostAnchorX = widget.container:get_x()
-	mdw.drag.ghostAnchorY = widget.container:get_y()
 
 	-- Remember the original slot so a pure click (no movement) changes nothing.
 	mdw.drag.originalDock = widget.docked
@@ -712,54 +702,28 @@ function mdw.handleDragMove(widget, event)
 	local dx = event.globalX - mdw.drag.startMouseX
 	local dy = event.globalY - mdw.drag.startMouseY
 
-	-- Past the move threshold, start the drag. A FLOATING widget moves bodily
-	-- (the whole thing follows the cursor); a docked one shows just a title-box
-	-- ghost (the docked path is unused while every widget is grouped, since docked
-	-- tab bars are not drag handles - docked widgets move by tearing out a tab).
+	-- Past the move threshold, start the drag. The dragged occupant is always a
+	-- floating group (a docked group's tab bar is not a drag handle - docked widgets
+	-- move by tearing out a tab), so it moves bodily and stays floating.
 	if not mdw.drag.hasMoved then
 		if math.abs(dx) <= cfg.dragThreshold and math.abs(dy) <= cfg.dragThreshold then
 			return
 		end
 		mdw.drag.hasMoved = true
-		if not widget.docked then
-			mdw.drag.live = true
-			mdw.drag.liveStartX = widget.container:get_x()
-			mdw.drag.liveStartY = widget.container:get_y()
-		else
-			local ghostTitle = widget.title or widget.name
-			if widget.isStack and widget.activeMember then
-				local m = mdw.widgets[widget.activeMember]
-				ghostTitle = (m and (m.title or m.name)) or ghostTitle
-			end
-			mdw.drag.ghost = mdw.createDragGhost(ghostTitle)
-		end
+		mdw.drag.liveStartX = widget.container:get_x()
+		mdw.drag.liveStartY = widget.container:get_y()
 	end
 
-	if mdw.drag.live then
-		-- The whole widget just follows the cursor and stays floating. The header
-		-- bar never triggers docking (no drop detection); only dragging a TAB onto
-		-- a sidebar docks it. So moving a floating widget over a dock won't snap it.
-		-- Keep it fully inside the main window (no dragging off-screen).
-		local newX, newY = mdw.clampToWindow(
-			mdw.drag.liveStartX + dx, mdw.drag.liveStartY + dy,
-			widget.container:get_width(), widget.container:get_height())
-		widget.container:move(newX, newY)
-		if widget.isStack and mdw.resizeStackContent then mdw.resizeStackContent(widget) end
-		mdw.updateResizeBorders(widget)
-		mdw.raiseWidgetElements(widget)
-		return
-	end
-
-	-- Move the ghost (anchor + cursor delta); the real widget does not move.
-	local gx = mdw.drag.ghostAnchorX + dx
-	local gy = mdw.drag.ghostAnchorY + dy
-	local ghostW = mdw.drag.ghost and mdw.drag.ghost:get_width() or 0
-	mdw.drag.ghostX = gx + ghostW / 2
-	mdw.drag.ghostY = gy + cfg.tabBarHeight / 2
-	if mdw.drag.ghost then mdw.drag.ghost:move(gx, gy) end
-
-	mdw.updateDropIndicator(widget, mdw.drag.ghostX, mdw.drag.ghostY)
-	if mdw.drag.ghost then mdw.drag.ghost:raise() end
+	-- The whole widget follows the cursor and stays floating. The header bar never
+	-- triggers docking (no drop detection); only dragging a TAB onto a sidebar docks
+	-- it. Keep it fully inside the main window (no dragging off-screen).
+	local newX, newY = mdw.clampToWindow(
+		mdw.drag.liveStartX + dx, mdw.drag.liveStartY + dy,
+		widget.container:get_width(), widget.container:get_height())
+	widget.container:move(newX, newY)
+	if widget.isStack and mdw.resizeStackContent then mdw.resizeStackContent(widget) end
+	mdw.updateResizeBorders(widget)
+	mdw.raiseWidgetElements(widget)
 end
 
 function mdw.endDrag(widget, event)
@@ -773,9 +737,6 @@ function mdw.endDrag(widget, event)
 		positionInRow = mdw.drag.positionInRow,
 		targetWidget = mdw.drag.targetWidget,
 	}
-	local ghostX, ghostY = mdw.drag.ghostX, mdw.drag.ghostY
-	local ghost = mdw.drag.ghost
-
 	mdw.debugEcho("ENDDRAG: widget=%s, moved=%s, side=%s, dropType=%s",
 		widget.name, tostring(moved), tostring(intent.insertSide), tostring(intent.dropType))
 
@@ -783,13 +744,14 @@ function mdw.endDrag(widget, event)
 	mdw.hideDropIndicator()
 	mdw.updateDockHighlight(nil)
 	mdw.resetDrag()
-	if ghost then mdw.deleteElement(ghost) end
 
 	-- Pure click (never crossed the threshold): the widget never moved, so there
 	-- is nothing to place or restore.
 	if not moved then return end
 
-	mdw.placeWidgetAtDrop(widget, intent, ghostX, ghostY)
+	-- A whole-widget (header) drag is always a live float move - the widget already
+	-- followed the cursor, so it floats in place (no ghost drop coordinates).
+	mdw.placeWidgetAtDrop(widget, intent)
 
 	-- Reflow both sides (the widget may have moved between docks or to/from float).
 	mdw.reorganizeDock("left")
