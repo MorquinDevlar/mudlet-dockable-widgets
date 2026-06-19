@@ -640,6 +640,22 @@ function mdw.setupStackTabDrag(stack, tabObj)
       tempTimer(0, function() mdw.dropTabGhost(d) end)
     end
   end)
+
+  -- Light up the active tab's close (x) while the cursor is over the tab. The x
+  -- label is click-through (so the tab stays draggable), so it cannot sense hover
+  -- itself - the tab button drives the highlight.
+  setLabelOnEnter(btnName, function()
+    local s = mdw.widgets[stackName]
+    if s and s.tabClose and memberName == s.activeMember and mdw.styles.tabCloseHover then
+      s.tabClose:setStyleSheet(mdw.styles.tabCloseHover)
+    end
+  end)
+  setLabelOnLeave(btnName, function()
+    local s = mdw.widgets[stackName]
+    if s and s.tabClose and mdw.styles.tabClose then
+      s.tabClose:setStyleSheet(mdw.styles.tabClose)
+    end
+  end)
 end
 
 --- Build the shared-reorder context for a stack's (variable-width, left-packed) tab bar.

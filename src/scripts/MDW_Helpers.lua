@@ -299,12 +299,16 @@ function mdw.buildStyles()
   ]], cfg.tabGroupInactiveBackground, cfg.fontFamily, cfg.tabFontSize, cfg.tabPadding,
     cfg.tabPadding + (cfg.tabCloseWidth or 0))
 
-	-- Close (x) shown on the active group tab; subtle accent highlight on hover.
-	mdw.styles.tabClose = string.format([[
-    QLabel { background-color: transparent; qproperty-alignment: 'AlignCenter';
+	-- Close (x) shown on the active group tab. It is click-through (so the tab
+	-- beneath stays draggable), which means its own :hover never fires - the tab
+	-- button swaps in tabCloseHover while the cursor is over the active tab.
+	local tabCloseBase = [[
+    QLabel { background-color: %s; qproperty-alignment: 'AlignCenter';
       font-family: '%s'; font-size: %dpx; border-top-right-radius: 5px; }
-    QLabel:hover { background-color: %s; }
-  ]], cfg.fontFamily, cfg.tabFontSize, mdw.rgbToRgba(c.accent, 0.35))
+  ]]
+	mdw.styles.tabClose = string.format(tabCloseBase, "transparent", cfg.fontFamily, cfg.tabFontSize)
+	mdw.styles.tabCloseHover = string.format(tabCloseBase, mdw.rgbToRgba(c.accent, 0.35),
+		cfg.fontFamily, cfg.tabFontSize)
 
 	-- Channel (tabbed-widget) tabs: a fine accent underline when active, NO fill
 	-- and NO dividers between them. A transparent underline keeps inactive tabs
