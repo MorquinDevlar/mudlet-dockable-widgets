@@ -492,9 +492,7 @@ function mdw.renderWidgetTitle(widget)
 	local gap = cfg.titleButtonGap or 4
 	local leftPad = cfg.titleButtonPadding + btnS + gap
 	local rightPad = cfg.closeButtonPadding + btnS
-	-- Reserve space for lock icon next to title
-	local lockSpace = btnS + gap
-	local availWidth = cw - leftPad - rightPad - lockSpace
+	local availWidth = cw - leftPad - rightPad
 	-- Estimate character width for monospace font (~60% of font size)
 	local charWidth = cfg.widgetHeaderFontSize * 0.6
 	local maxChars = math.floor(availWidth / charWidth)
@@ -504,15 +502,6 @@ function mdw.renderWidgetTitle(widget)
 	end
 	widget.titleBar:decho("<" .. cfg.headerTextColor .. ">" .. title)
 
-	-- Position lock icon to the left of the centered title text
-	if widget.lockButton then
-		local titlePixelWidth = #title * charWidth
-		local contentWidth = cw - leftPad - rightPad
-		local titleStartX = leftPad + (contentWidth - titlePixelWidth) / 2
-		local btnY = math.floor((cfg.titleHeight - btnS) / 2)
-		local lockX = math.max(leftPad, titleStartX - lockSpace)
-		widget.lockButton:move(lockX, btnY)
-	end
 end
 
 --- Show appropriate content for a widget (mapper or default content).
@@ -548,7 +537,6 @@ function mdw.raiseWidgetElements(widget)
 	safeRaise(widget.container)
 	if widget.contentBg then safeRaise(widget.contentBg) end
 	if widget.titleBar then safeRaise(widget.titleBar) end
-	if widget.lockButton then safeRaise(widget.lockButton) end
 	if widget.closeButton then safeRaise(widget.closeButton) end
 
 	if widget.isStack then
@@ -921,7 +909,6 @@ function mdw.dockWidgetClass(widget, side, row)
 	end
 
 	mdw.hideResizeHandles(widget)
-	mdw.updateDockButtonVisibility(widget)
 	mdw.reorganizeDock(side)
 end
 
@@ -941,9 +928,6 @@ function mdw.undockWidgetClass(widget, x, y)
 	end
 	widget.fill = false
 	widget._preFillHeight = nil
-	widget.widthLocked = false
-	widget.lockedWidth = nil
-	mdw.updateDockButtonVisibility(widget)
 
 	if x and y then
 		widget.container:move(x, y)
@@ -977,7 +961,6 @@ function mdw.showWidgetClass(widget, showContentFunc)
 		mdw.showResizeHandles(widget)
 	end
 
-	mdw.updateDockButtonVisibility(widget)
 
 	if mdw.updateWidgetsMenuState then
 		mdw.updateWidgetsMenuState()
@@ -1047,7 +1030,7 @@ function mdw.destroyWidgetClass(widget)
 	-- Gather every element this widget owns. Container is deleted last (parent).
 	local owned = {
 		widget.titleBar, widget.content, widget.contentBg, widget.tabBar,
-		widget.lockButton, widget.closeButton,
+		widget.closeButton,
 		widget.mapper, widget._mapperElement,
 		widget.bottomResizeHandle,
 		widget.resizeLeft, widget.resizeRight, widget.resizeTop, widget.resizeBottom,
@@ -1067,30 +1050,6 @@ function mdw.destroyWidgetClass(widget)
 	if mdw.rebuildWidgetsMenu then
 		mdw.rebuildWidgetsMenu()
 	end
-end
-
---- Show/hide dock-only buttons (FILL, LOCK) based on dock state.
-function mdw.updateDockButtonVisibility(widget)
-	if widget.docked then
-		if widget.lockButton then
-			widget.lockButton:show()
-			mdw.updateLockButtonText(widget)
-		end
-	else
-		if widget.lockButton then widget.lockButton:hide() end
-	end
-end
-
---- Set width lock state for a widget (shared by Widget and TabbedWidget).
-function mdw.setWidthLockedClass(widget, enabled)
-	widget.widthLocked = enabled
-	if enabled then
-		widget.lockedWidth = widget.container:get_width()
-	else
-		widget.lockedWidth = nil
-	end
-	mdw.updateLockButtonText(widget)
-	mdw.saveLayout()
 end
 
 --- Apply pending layout to a widget during creation.
@@ -1141,11 +1100,8 @@ function mdw.applyPendingLayout(widget)
 			if widget.fill then
 				widget._preFillHeight = saved.height
 			end
-			widget.widthLocked = saved.widthLocked or false
-			widget.lockedWidth = saved.lockedWidth
 			widget.docked = saved.dock
 			mdw.hideResizeHandles(widget)
-			mdw.updateDockButtonVisibility(widget)
 			mdw.reorganizeDock(saved.dock)
 		else
 			-- Sidebar is hidden, remember the dock and hide the widget
@@ -1158,8 +1114,6 @@ function mdw.applyPendingLayout(widget)
 			if widget.fill then
 				widget._preFillHeight = saved.height
 			end
-			widget.widthLocked = saved.widthLocked or false
-			widget.lockedWidth = saved.lockedWidth
 			widget.docked = nil
 			widget:hide()
 		end
@@ -1419,7 +1373,6 @@ function mdw.applyThemeStyles()
 		end
 
 		-- Title bar button tints
-		mdw.updateLockButtonText(widget)
 		mdw.updateCloseButtonIcon(widget)
 
 		-- Bottom resize handle: transparent with a thin border line for every kind

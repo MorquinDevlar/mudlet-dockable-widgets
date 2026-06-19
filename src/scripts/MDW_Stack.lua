@@ -170,7 +170,6 @@ end
 function mdw.applyHeadless(member)
   member._headless = true
   if member.titleBar then member.titleBar:hide() end
-  if member.lockButton then member.lockButton:hide() end
   if member.closeButton then member.closeButton:hide() end
   if member.bottomResizeHandle then member.bottomResizeHandle:hide() end
   -- A floating member would still show its own resize border; the stack owns
@@ -182,7 +181,6 @@ end
 function mdw.removeHeadless(member)
   member._headless = nil
   if member.titleBar then member.titleBar:show() end
-  if mdw.updateDockButtonVisibility then mdw.updateDockButtonVisibility(member) end
 end
 
 ---------------------------------------------------------------------------
@@ -233,7 +231,7 @@ function mdw.createStack(name, opts)
     activeMember = nil,
     -- slot fields the layout engine reads
     docked = nil, row = nil, rowPosition = 0, subRow = 0,
-    widthRatio = nil, fill = false, widthLocked = false, lockedWidth = nil,
+    widthRatio = nil, fill = false,
     visible = true, fontAdjust = 0,
   }
 
@@ -326,7 +324,6 @@ function mdw.addToStack(stackName, memberName, index)
     member._preStackSlot = {
       docked = member.docked, row = member.row, rowPosition = member.rowPosition,
       subRow = member.subRow, widthRatio = member.widthRatio, fill = member.fill,
-      widthLocked = member.widthLocked, lockedWidth = member.lockedWidth,
     }
   end
   member.stackId = stackName
@@ -382,9 +379,6 @@ function mdw.removeFromStack(stackName, memberName)
       member.subRow = saved.subRow
       member.widthRatio = saved.widthRatio
       member.fill = saved.fill
-      member.widthLocked = saved.widthLocked
-      member.lockedWidth = saved.lockedWidth
-      if mdw.updateDockButtonVisibility then mdw.updateDockButtonVisibility(member) end
     elseif stack.docked then
       mdw.dockWidgetClass(member, stack.docked)
     end
@@ -447,8 +441,6 @@ function mdw.rebuildStacksFromLayout()
         stack.subRow = saved.subRow or 0
         stack.widthRatio = saved.widthRatio
         stack.fill = saved.fill or false
-        stack.widthLocked = saved.widthLocked or false
-        stack.lockedWidth = saved.lockedWidth
         -- Restore the saved size - the resized height especially (a docked group's
         -- width is re-derived by the dock). Fill groups keep it as pre-fill height.
         if saved.height then
@@ -487,8 +479,6 @@ function mdw.rebuildStacksFromLayout()
         widget.subRow = s.subRow
         widget.widthRatio = s.widthRatio
         widget.fill = s.fill
-        widget.widthLocked = s.widthLocked
-        widget.lockedWidth = s.lockedWidth
       end
       mdw.wrapInHomeStack(widget)
     end
@@ -541,7 +531,6 @@ function mdw.wrapInHomeStack(widget)
   local slot = {
     docked = dock, row = widget.row, rowPosition = widget.rowPosition,
     subRow = widget.subRow, widthRatio = widget.widthRatio, fill = widget.fill,
-    widthLocked = widget.widthLocked, lockedWidth = widget.lockedWidth,
   }
   local fx = widget.container and widget.container:get_x()
   local fy = widget.container and widget.container:get_y()
@@ -560,8 +549,6 @@ function mdw.wrapInHomeStack(widget)
   stack.subRow = slot.subRow or 0
   stack.widthRatio = slot.widthRatio
   stack.fill = slot.fill or false
-  stack.widthLocked = slot.widthLocked or false
-  stack.lockedWidth = slot.lockedWidth
   -- Preset the pre-group slot so addToStack records the real standalone spot
   -- (it only captures when _preStackSlot is unset).
   widget._preStackSlot = slot

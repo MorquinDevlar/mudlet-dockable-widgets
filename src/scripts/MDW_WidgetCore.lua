@@ -169,14 +169,6 @@ function mdw.createTitleBarButtons(widget)
 	local closePad = cfg.closeButtonPadding
 	local btnY = math.floor((btnH - btnS) / 2)
 
-	-- Lock toggle (positioned by renderWidgetTitle, next to title text)
-	widget.lockButton = mdw.trackElement(Geyser.Label:new({
-		name = baseName .. "_LockBtn",
-		x = 0, y = btnY, width = btnS, height = btnS,
-	}, widget.container))
-	widget.lockButton:setCursor(mudlet.cursor.PointingHand)
-	widget.lockButton:setToolTip("Locks widget width")
-
 	-- Close button (far right, with padding from edge)
 	widget.closeButton = mdw.trackElement(Geyser.Label:new({
 		name = baseName .. "_CloseBtn",
@@ -185,7 +177,6 @@ function mdw.createTitleBarButtons(widget)
 	widget.closeButton:setCursor(mudlet.cursor.PointingHand)
 
 	mdw.setupTitleBarButtonCallbacks(widget)
-	mdw.updateLockButtonText(widget)
 	mdw.updateCloseButtonIcon(widget)
 end
 
@@ -206,48 +197,12 @@ end
 function mdw.setupTitleBarButtonCallbacks(widget)
 	local widgetName = widget.name
 
-	setLabelClickCallback("MDW_" .. widgetName .. "_LockBtn", function()
-		local w = mdw.widgets[widgetName]
-		if not w then return end
-		if mdw.closeAllMenus then mdw.closeAllMenus() end
-		mdw.toggleWidthLock(w)
-	end)
-
 	setLabelClickCallback("MDW_" .. widgetName .. "_CloseBtn", function()
 		local w = mdw.widgets[widgetName]
 		if not w then return end
 		if mdw.closeAllMenus then mdw.closeAllMenus() end
 		mdw.toggleWidget(widgetName)
 	end)
-end
-
---- Toggle width lock for a docked widget.
-function mdw.toggleWidthLock(widget)
-	if not widget.docked then return end
-	if not widget.widthLocked and not widget._canLock then return end
-	widget.widthLocked = not widget.widthLocked
-	if widget.widthLocked then
-		widget.lockedWidth = widget.container:get_width()
-	else
-		widget.lockedWidth = nil
-	end
-	mdw.updateLockButtonText(widget)
-	mdw.saveLayout()
-end
-
---- Update lock button icon based on state.
-function mdw.updateLockButtonText(widget)
-	if not widget.lockButton then return end
-	local iconName = widget.widthLocked and "lock-active" or "lock-inactive"
-	local path = mdw.getIconPath(iconName)
-	if Geyser.Label.setSvgTint then
-		widget.lockButton:setBackgroundImage(path)
-		widget.lockButton:setSvgTint(mdw.config.titleButtonTint)
-	else
-		widget.lockButton:setStyleSheet(string.format(
-			[[QLabel { background-color: transparent; border: none; border-image: url(%s); }]],
-			path))
-	end
 end
 
 --- Update close button icon.
@@ -673,8 +628,6 @@ local function clearDockOnlyState(widget)
 	end
 	widget.fill = false
 	widget._preFillHeight = nil
-	widget.widthLocked = false
-	widget.lockedWidth = nil
 end
 
 --- Place a dragged widget at the resolved drop: merge as a tab, dock at the
@@ -703,7 +656,6 @@ function mdw.placeWidgetAtDrop(widget, intent, x, y)
 
 	if side then
 		clearDockOnlyState(widget)
-		mdw.updateDockButtonVisibility(widget)
 		mdw.dockWidgetWithPosition(widget, side, dropType, intent.rowIndex,
 			intent.positionInRow, intent.targetWidget)
 		mdw.hideResizeHandles(widget)
@@ -716,7 +668,6 @@ function mdw.placeWidgetAtDrop(widget, intent, x, y)
 	widget.row = nil
 	widget.rowPosition = nil
 	widget.subRow = nil
-	mdw.updateDockButtonVisibility(widget)
 	if widget.container then
 		if x and y then
 			local cx, cy = mdw.clampToWindow(x - 30, y - 10,
@@ -1259,7 +1210,6 @@ function mdw.dockWidgetWithPosition(widget, side, dropType, rowIndex, positionIn
 
 	widget.docked = side
 	widget.widthRatio = nil
-	mdw.updateDockButtonVisibility(widget)
 
 	local docked = mdw.getDockedWidgets(side, widget)
 	local rows = mdw.groupWidgetsByRow(docked)
@@ -1476,10 +1426,6 @@ function mdw.reorganizeDock(side)
 		end
 	end
 
-	-- Reset fill/lock eligibility for all docked widgets
-	for _, w in ipairs(docked) do
-		w._canLock = false
-	end
 
 	local yPos = cfg.headerHeight + cfg.widgetMargin
 	local dockIndex = 1
@@ -1545,24 +1491,6 @@ function mdw.reorganizeDock(side)
 			end
 		end
 
-		-- Calculate lock-aware column widths
-		local lockedTotal = 0
-		local unlockedCols = {}
-		local hasLocked = false
-		local hasUnlocked = false
-		for _, col in ipairs(columns) do
-			local first = col[1]
-			if first.widthLocked and first.lockedWidth then
-				hasLocked = true
-				lockedTotal = lockedTotal + first.lockedWidth
-			else
-				hasUnlocked = true
-				unlockedCols[#unlockedCols + 1] = col
-			end
-		end
-		-- Only apply lock logic when mixed (some locked, some not)
-		local useLockLayout = hasLocked and hasUnlocked and lockedTotal < availableWidth
-
 		-- Calculate row height = max column height across all columns
 		-- Fill rows get an equal share of the remaining vertical budget
 		local rowHeight = 0
@@ -1593,19 +1521,7 @@ function mdw.reorganizeDock(side)
 		for ci, col in ipairs(columns) do
 			local first = col[1]
 			local w
-			if useLockLayout then
-				if first.widthLocked and first.lockedWidth then
-					w = first.lockedWidth
-				else
-					-- Distribute remaining space among unlocked columns by ratio
-					local remaining = availableWidth - lockedTotal
-					local unlockedRatio = 0
-					for _, uc in ipairs(unlockedCols) do
-						unlockedRatio = unlockedRatio + (uc[1].widthRatio or 1)
-					end
-					w = remaining * ((first.widthRatio or 1) / unlockedRatio)
-				end
-			elseif hasCustomRatios then
+			if hasCustomRatios then
 				w = availableWidth * ((first.widthRatio or 1) / totalRatio)
 			else
 				w = availableWidth / numColumns
@@ -1697,30 +1613,6 @@ function mdw.reorganizeDock(side)
 
 					dockIndex = dockIndex + 1
 					colYPos = colYPos + widgetHeight
-				end
-			end
-
-			-- Lock is only useful in side-by-side (multi-column) rows
-			if numColumns > 1 then
-				for _, w in ipairs(col) do
-					w._canLock = true
-				end
-			end
-
-			-- Update lock button visibility for all widgets in this column
-			for _, w in ipairs(col) do
-				if w.lockButton then
-					if w._canLock then
-						w.lockButton:show()
-						mdw.updateLockButtonText(w)
-					else
-						-- Auto-disable lock if no longer side-by-side
-						if w.widthLocked then
-							w.widthLocked = false
-							w.lockedWidth = nil
-						end
-						w.lockButton:hide()
-					end
 				end
 			end
 
@@ -1824,20 +1716,11 @@ function mdw.setupRowSplitterCallbacks(splitter, key)
 		local s = mdw.rowSplitters[key]
 		if not s then return end
 		if mdw.verticalWidgetSplitterDrag.active and mdw.verticalWidgetSplitterDrag.splitter == s then
-			local leftWidget = mdw.verticalWidgetSplitterDrag.leftWidget
-			local rightWidget = mdw.verticalWidgetSplitterDrag.rightWidget
 			mdw.verticalWidgetSplitterDrag.active = false
 			mdw.verticalWidgetSplitterDrag.splitter = nil
 			mdw.verticalWidgetSplitterDrag.leftWidget = nil
 			mdw.verticalWidgetSplitterDrag.rightWidget = nil
 			mdw.verticalWidgetSplitterDrag.side = nil
-			-- Update locked widths after manual splitter drag
-			if leftWidget and leftWidget.widthLocked then
-				leftWidget.lockedWidth = leftWidget.container:get_width()
-			end
-			if rightWidget and rightWidget.widthLocked then
-				rightWidget.lockedWidth = rightWidget.container:get_width()
-			end
 			mdw.saveLayout()
 		end
 	end)

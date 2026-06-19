@@ -500,8 +500,6 @@ function mdw.saveLayout()
 			subRow = widget.subRow or 0,
 			widthRatio = widget.widthRatio,
 			fill = widget.fill or false,
-			widthLocked = widget.widthLocked or false,
-			lockedWidth = widget.lockedWidth,
 			fontAdjust = widget.fontAdjust or 0,
 			x = widget.container:get_x(),
 			y = widget.container:get_y(),

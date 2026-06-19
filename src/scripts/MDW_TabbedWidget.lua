@@ -65,7 +65,6 @@ mdw.TabbedWidget.defaults = {
 	activeTab = nil, -- Initially active tab name (defaults to first)
 	overflow = "wrap", -- "wrap", "ellipsis", or "hidden"
 	fill = false,    -- Whether widget fills remaining dock column height
-	widthLocked = false, -- Whether widget's column width is locked
 	fontAdjust = 0,  -- Offset from contentFontSize for this widget
 }
 
@@ -98,8 +97,6 @@ function mdw.TabbedWidget:new(cons)
 	self.onClose = cons.onClose
 	self.onTabChange = cons.onTabChange
 	self.fill = cons.fill or false
-	self.widthLocked = cons.widthLocked or false
-	self.lockedWidth = nil
 	self.fontAdjust = cons.fontAdjust or 0
 
 	-- Tab state
@@ -142,7 +139,6 @@ function mdw.TabbedWidget:new(cons)
 	self.resizeBottomLeft = internalWidget.resizeBottomLeft
 	self.resizeBottomRight = internalWidget.resizeBottomRight
 	self.bottomResizeHandle = internalWidget.bottomResizeHandle
-	self.lockButton = internalWidget.lockButton
 	self.closeButton = internalWidget.closeButton
 
 	-- State properties (accessed by internal functions via mdw.widgets iteration)
@@ -879,14 +875,6 @@ end
 
 function mdw.TabbedWidget:isDocked()
 	return (self:_group() or self).docked
-end
-
-function mdw.TabbedWidget:setWidthLocked(enabled)
-	mdw.setWidthLockedClass(self:_group() or self, enabled)
-end
-
-function mdw.TabbedWidget:isWidthLocked()
-	return (self:_group() or self).widthLocked == true
 end
 
 ---------------------------------------------------------------------------
