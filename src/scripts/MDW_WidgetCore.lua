@@ -139,7 +139,6 @@ function mdw.createWidget(name, title, x, y)
 	mdw.createResizeBorders(widget)
 
 	-- Create title bar buttons (FILL, LOCK, Close)
-	mdw.createTitleBarButtons(widget)
 
 	-- Render title (after buttons so truncation accounts for button space)
 	mdw.renderWidgetTitle(widget)
@@ -158,65 +157,6 @@ end
 function mdw.getIconPath(iconName)
 	local ext = Geyser.Label.setSvgTint and ".svg" or ".png"
 	return getMudletHomeDir() .. "/" .. mdw.packageName .. "/" .. iconName .. ext
-end
-
-function mdw.createTitleBarButtons(widget)
-	local cfg = mdw.config
-	local baseName = "MDW_" .. widget.name
-	local cw = widget.container:get_width()
-	local btnS = cfg.titleButtonSize
-	local btnH = cfg.titleHeight
-	local closePad = cfg.closeButtonPadding
-	local btnY = math.floor((btnH - btnS) / 2)
-
-	-- Close button (far right, with padding from edge)
-	widget.closeButton = mdw.trackElement(Geyser.Label:new({
-		name = baseName .. "_CloseBtn",
-		x = cw - btnS - closePad, y = btnY, width = btnS, height = btnS,
-	}, widget.container))
-	widget.closeButton:setCursor(mudlet.cursor.PointingHand)
-
-	mdw.setupTitleBarButtonCallbacks(widget)
-	mdw.updateCloseButtonIcon(widget)
-end
-
---- Reposition title bar buttons after a container resize.
-function mdw.repositionTitleBarButtons(widget, containerWidth)
-	local cfg = mdw.config
-	local btnS = cfg.titleButtonSize
-	local closePad = cfg.closeButtonPadding
-	local btnY = math.floor((cfg.titleHeight - btnS) / 2)
-	-- Lock button is repositioned by renderWidgetTitle (next to title text)
-	if widget.closeButton then
-		widget.closeButton:move(containerWidth - btnS - closePad, btnY)
-		widget.closeButton:resize(btnS, btnS)
-	end
-end
-
---- Set up click callbacks for title bar buttons.
-function mdw.setupTitleBarButtonCallbacks(widget)
-	local widgetName = widget.name
-
-	setLabelClickCallback("MDW_" .. widgetName .. "_CloseBtn", function()
-		local w = mdw.widgets[widgetName]
-		if not w then return end
-		if mdw.closeAllMenus then mdw.closeAllMenus() end
-		mdw.toggleWidget(widgetName)
-	end)
-end
-
---- Update close button icon.
-function mdw.updateCloseButtonIcon(widget)
-	if not widget.closeButton then return end
-	local path = mdw.getIconPath("close")
-	if Geyser.Label.setSvgTint then
-		widget.closeButton:setBackgroundImage(path)
-		widget.closeButton:setSvgTint(mdw.config.titleButtonTint)
-	else
-		widget.closeButton:setStyleSheet(string.format(
-			[[QLabel { background-color: transparent; border: none; border-image: url(%s); }]],
-			path))
-	end
 end
 
 -- Suffixes of the eight resize-border labels owned by a floating widget/stack,
@@ -362,7 +302,6 @@ function mdw.resizeWidgetContent(widget, targetWidth, targetHeight)
 	else
 		widget.titleBar:move(0, 0)
 		widget.titleBar:resize(cw, cfg.titleHeight)
-		mdw.repositionTitleBarButtons(widget, cw)
 		mdw.renderWidgetTitle(widget)
 	end
 

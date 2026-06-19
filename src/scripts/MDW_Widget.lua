@@ -116,7 +116,6 @@ function mdw.Widget:new(cons)
 	self.resizeBottomLeft = widget.resizeBottomLeft
 	self.resizeBottomRight = widget.resizeBottomRight
 	self.bottomResizeHandle = widget.bottomResizeHandle
-	self.closeButton = widget.closeButton
 
 	-- State properties (accessed by internal functions via mdw.widgets iteration)
 	self.docked = nil     -- "left", "right", or nil for floating

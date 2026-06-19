@@ -537,7 +537,6 @@ function mdw.raiseWidgetElements(widget)
 	safeRaise(widget.container)
 	if widget.contentBg then safeRaise(widget.contentBg) end
 	if widget.titleBar then safeRaise(widget.titleBar) end
-	if widget.closeButton then safeRaise(widget.closeButton) end
 
 	if widget.isStack then
 		-- Members are siblings: raise the active member's full element set above the
@@ -1030,7 +1029,6 @@ function mdw.destroyWidgetClass(widget)
 	-- Gather every element this widget owns. Container is deleted last (parent).
 	local owned = {
 		widget.titleBar, widget.content, widget.contentBg, widget.tabBar,
-		widget.closeButton,
 		widget.mapper, widget._mapperElement,
 		widget.bottomResizeHandle,
 		widget.resizeLeft, widget.resizeRight, widget.resizeTop, widget.resizeBottom,
@@ -1373,7 +1371,6 @@ function mdw.applyThemeStyles()
 		end
 
 		-- Title bar button tints
-		mdw.updateCloseButtonIcon(widget)
 
 		-- Bottom resize handle: transparent with a thin border line for every kind
 		-- (stack, tabbed, plain), matching the creation style so the widened grab

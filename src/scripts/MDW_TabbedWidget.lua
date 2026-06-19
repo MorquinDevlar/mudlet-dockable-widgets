@@ -139,7 +139,6 @@ function mdw.TabbedWidget:new(cons)
 	self.resizeBottomLeft = internalWidget.resizeBottomLeft
 	self.resizeBottomRight = internalWidget.resizeBottomRight
 	self.bottomResizeHandle = internalWidget.bottomResizeHandle
-	self.closeButton = internalWidget.closeButton
 
 	-- State properties (accessed by internal functions via mdw.widgets iteration)
 	self.docked = nil     -- "left", "right", or nil for floating
@@ -357,7 +356,6 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 	widget.bottomResizeHandle:hide() -- Hidden by default, shown when docked
 
 	-- Create title bar buttons (FILL, LOCK, Close)
-	mdw.createTitleBarButtons(widget)
 
 	-- Render title (after buttons so truncation accounts for button space)
 	mdw.renderWidgetTitle(widget)
@@ -397,7 +395,6 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
 	else
 		tabbedWidget.titleBar:move(0, 0)
 		tabbedWidget.titleBar:resize(cw, cfg.titleHeight)
-		mdw.repositionTitleBarButtons(tabbedWidget, cw)
 		mdw.renderWidgetTitle(tabbedWidget)
 	end
 

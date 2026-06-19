@@ -170,7 +170,6 @@ end
 function mdw.applyHeadless(member)
   member._headless = true
   if member.titleBar then member.titleBar:hide() end
-  if member.closeButton then member.closeButton:hide() end
   if member.bottomResizeHandle then member.bottomResizeHandle:hide() end
   -- A floating member would still show its own resize border; the stack owns
   -- sizing now, so hide them.
