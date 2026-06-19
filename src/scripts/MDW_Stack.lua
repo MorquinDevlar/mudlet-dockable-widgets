@@ -593,12 +593,17 @@ function mdw.setupStackTabDrag(stack, tabObj)
     local dy = event.globalY - d.startY
     local barH = mdw.config.tabBarHeight
     local margin = mdw.config.dragThreshold
+    -- A single-tab group has nothing to reorder, so any drag past the threshold
+    -- tears it out - this is how you drag a lone docked widget straight out to
+    -- float (a sideways pull, not just a vertical one).
+    local single = #s.members <= 1
     local vPull = (d.mode == "reorder") and barH or barH / 2
-    if d.mode ~= "tearout" and math.abs(dy) > vPull then
+    if d.mode ~= "tearout" and (math.abs(dy) > vPull
+        or (single and (math.abs(dx) > margin or math.abs(dy) > margin))) then
       if d.mode == "reorder" then mdw.refreshStackTabBar(s) end
       d.mode = "tearout"
       mdw.beginTabGhost(s, tabObj)
-    elseif d.mode == nil and math.abs(dx) > margin and math.abs(dx) > math.abs(dy) then
+    elseif not single and d.mode == nil and math.abs(dx) > margin and math.abs(dx) > math.abs(dy) then
       d.mode = "reorder"
     end
 
