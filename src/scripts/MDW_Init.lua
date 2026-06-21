@@ -171,25 +171,77 @@ function mdw.clearPrompt()
 	end
 end
 
---- Capture the current line from the main window with colors and display in prompt bar.
--- Call this from a prompt trigger to capture and display the MUD prompt.
-function mdw.capturePrompt(deleteFromMain)
+--- Capture the prompt from the main window with colors and show it in the prompt bar.
+-- Call this from a prompt trigger. lineCount controls how many lines the prompt
+-- spans (defaults to mdw.config.promptLineCount). Background colors are stripped
+-- so the bar's own background shows through.
+-- @param deleteFromMain boolean Delete the captured line(s) from main (default true)
+-- @param lineCount number Number of prompt lines to capture (default config value)
+function mdw.capturePrompt(deleteFromMain, lineCount)
 	if not mdw.promptBar then return end
 	if deleteFromMain == nil then deleteFromMain = true end
 
-	selectCurrentLine()
+	local cfg = mdw.config
+	local stripBg = "<(%d+,%d+,%d+):%d+,%d+,%d+>"
+	local current = getLineNumber()
+	local first = current
 
-	-- Get text with decho formatting, strip background colors so console bg shows through
-	local text = copy2decho():gsub("<(%d+,%d+,%d+):%d+,%d+,%d+>", "<%1>")
+	if cfg.promptPattern then
+		-- Smart multi-line: include each consecutive line ABOVE the GA line only while
+		-- it matches the prompt pattern. A different game's single-line prompt, or a
+		-- disabled extra line, won't match, so nothing is swallowed. Capped so an
+		-- over-broad pattern can't walk off with the whole scrollback.
+		local probe = current - 1
+		while probe >= 0 and (current - probe) <= 5 do
+			local got = getLines(probe, probe)
+			local txt = (type(got) == "table") and got[1] or got
+			if txt and txt ~= "" and string.find(txt, cfg.promptPattern) then
+				first = probe
+				probe = probe - 1
+			else
+				break
+			end
+		end
+	else
+		-- No pattern: capture exactly lineCount lines (default 1 = the GA line only).
+		-- A count > 1 is BLIND and can swallow a line above a shorter prompt.
+		local n = math.max(1, lineCount or cfg.promptLineCount or 1)
+		first = math.max(0, current - (n - 1))
+	end
+
+	-- Single line (nothing matched / not configured): the original, proven path.
+	if first >= current then
+		selectCurrentLine()
+		mdw.promptBar:clear()
+		mdw.promptBar:decho(copy2decho():gsub(stripBg, "<%1>"))
+		if deleteFromMain then deleteLine() end
+		deselect()
+		return
+	end
+
+	-- Multiple lines: walk from the first prompt line down to the GA line, keeping
+	-- each line's colors, and join them.
+	local parts = {}
+	for line = first, current do
+		moveCursor(0, line)
+		selectCurrentLine()
+		parts[#parts + 1] = copy2decho():gsub(stripBg, "<%1>")
+	end
 
 	mdw.promptBar:clear()
-	mdw.promptBar:decho(text)
+	mdw.promptBar:decho(table.concat(parts, "\n"))
 
 	if deleteFromMain then
-		deleteLine()
+		-- Delete bottom-up so the lower line numbers stay valid as lines are removed.
+		for line = current, first, -1 do
+			moveCursor(0, line)
+			selectCurrentLine()
+			deleteLine()
+		end
 	end
 
 	deselect()
+	moveCursorEnd()
 end
 
 function mdw.createDropIndicators(_winW)
@@ -483,6 +535,8 @@ function mdw.saveLayout()
 			mainFontSize = mdw.config.mainFontSize,
 			promptFontAdjust = mdw.config.promptFontAdjust,
 			headerFontSize = mdw.config.widgetHeaderFontSize,
+			menuFontSize = mdw.config.headerMenuFontSize,
+			tabFontSize = mdw.config.tabFontSize,
 			theme = mdw.config.theme,
 			originalMainFontSize = mdw.config.originalMainFontSize,
 		},
@@ -590,6 +644,12 @@ function mdw.loadLayout()
 		mdw.config.promptFontAdjust = promptEff - mdw.config.contentFontSize
 		if layout.docks.headerFontSize then
 			mdw.config.widgetHeaderFontSize = mdw.clamp(layout.docks.headerFontSize, 8, 20)
+		end
+		if layout.docks.menuFontSize then
+			mdw.config.headerMenuFontSize = mdw.clamp(layout.docks.menuFontSize, 8, 20)
+		end
+		if layout.docks.tabFontSize then
+			mdw.config.tabFontSize = mdw.clamp(layout.docks.tabFontSize, 8, 20)
 		end
 		-- Only restore a theme that still exists; otherwise keep the default
 		if layout.docks.theme and mdw.themes[layout.docks.theme] then
@@ -736,6 +796,9 @@ function mdw.setup()
 	-- Apply z-order to ensure all elements are properly layered
 	mdw.applyZOrder()
 
+	-- Enable/disable the built-in prompt-capture trigger per config
+	mdw.applyPromptTrigger()
+
 	-- Fire event so user scripts can create additional widgets
 	raiseEvent("mdwReady")
 
@@ -759,6 +822,44 @@ end
 function mdw.registerWidgets(func)
 	mdw.userWidgets = mdw.userWidgets or {}
 	mdw.userWidgets[#mdw.userWidgets + 1] = func
+end
+
+--- Enable or disable the built-in prompt-capture trigger to match config.
+-- Why: a game/profile may capture the prompt itself (custom trigger or GMCP), in
+-- which case MDW's trigger should not also fire. Guarded - the trigger may not
+-- exist yet (e.g. called before the package's triggers are installed).
+function mdw.applyPromptTrigger()
+	local name = "MDW_PromptCapture"
+	if mdw.config.usePromptTrigger == false then
+		pcall(disableTrigger, name)
+	else
+		pcall(enableTrigger, name)
+	end
+end
+
+--- Configure MDW. Call once from your own script at load time - it runs before
+-- sysLoadEvent (which triggers setup), so your values are in place when the UI is
+-- built. Safe to call again at runtime; live-applicable settings re-apply at once.
+-- Pass any mdw.config keys. A `widgets` function is forwarded to registerWidgets;
+-- everything else is merged into mdw.config. For post-build work, hook the
+-- "mdwReady" event or pass `widgets`.
+-- @param opts table Config overrides (e.g. { usePromptTrigger = false, theme = "ruby" })
+function mdw.configure(opts)
+	if type(opts) ~= "table" then
+		error("mdw.configure expects a table of options", 2)
+	end
+	for k, v in pairs(opts) do
+		if k == "widgets" and type(v) == "function" then
+			mdw.registerWidgets(v)
+		else
+			mdw.config[k] = v
+		end
+	end
+	-- If the UI is already up, re-apply the settings that can change live.
+	if mdw.isSetUp then
+		mdw.applyPromptTrigger()
+	end
+	return mdw
 end
 
 function mdw.teardown()

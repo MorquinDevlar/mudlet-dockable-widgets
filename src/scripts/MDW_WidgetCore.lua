@@ -2548,12 +2548,26 @@ function mdw.rebuildLayoutMenu()
 	mdw.layoutMenuLabels = {}
 	mdw.layoutMenuMeta = {}
 
-	local labelWidth = cfg.layoutMenuLabelWidth
 	local gap = cfg.layoutMenuGap
 	local btnWidth = cfg.layoutMenuBtnWidth
-	local valueWidth = cfg.layoutMenuValueWidth + 6 -- extra space for +00 format
+	local valueWidth = cfg.layoutMenuValueWidth + 6 -- extra space for the value column
+	-- Size the label column to the longest row label - widget titles can be long
+	-- ("My Custom Widget"), so a fixed width would clip them or crowd the controls.
+	-- Use the real monospace char width and leave comfortable padding before the controls.
+	local charWidth = calcFontSize(cfg.headerMenuFontSize, cfg.fontFamily)
+	if not charWidth or charWidth <= 0 then charWidth = math.ceil(cfg.headerMenuFontSize * 0.65) end
+	local maxLabelLen = 0
+	for _, t in ipairs({ "Top Menu", "Widget Header", "Main Font Size", "Prompt" }) do
+		maxLabelLen = math.max(maxLabelLen, #t)
+	end
+	for _, wName in ipairs(mdw.getWidgetNames()) do
+		maxLabelLen = math.max(maxLabelLen, #mdw.widgetMenuLabel(wName))
+	end
+	local labelWidth = math.max(cfg.layoutMenuLabelWidth, math.ceil(maxLabelLen * charWidth) + 20)
 	local innerX = menuX + 10
 	local controlsX = innerX + labelWidth + gap
+	-- Full menu width = inner padding + label column + gap + (- value +) + padding.
+	local menuWidth = labelWidth + gap + 2 * btnWidth + valueWidth + 20
 
 	local labelStyle = string.format([[
     QLabel {
@@ -2633,61 +2647,54 @@ function mdw.rebuildLayoutMenu()
 		return value
 	end
 
-	-- Format signed offset value for display
-	local function formatOffset(val)
-		if val >= 0 then return "+" .. tostring(val) end
-		return tostring(val)
-	end
-
 	-- Fixed rows
 	local rowIdx = 0
 
-	-- Row 0: Header Font Size
-	createFontRow(rowIdx, "Header Font Size", tostring(cfg.widgetHeaderFontSize), "HeaderFont",
-		function() mdw.adjustHeaderFontSize(-1) end,
-		function() mdw.adjustHeaderFontSize(1) end)
+	-- Top menu bar (gear / Sidebars / Widgets / Font Size / Theme + dropdowns)
+	createFontRow(rowIdx, "Top Menu", tostring(cfg.headerMenuFontSize), "MenuFont",
+		function() mdw.adjustMenuFontSize(-1) end,
+		function() mdw.adjustMenuFontSize(1) end)
 	rowIdx = rowIdx + 1
 
-	-- Row 1: Content Font Size
-	createFontRow(rowIdx, "Content Font Size", tostring(cfg.contentFontSize), "ContentFont",
-		function() mdw.adjustContentFontSize(-1) end,
-		function() mdw.adjustContentFontSize(1) end)
+	-- Widget header tabs (the "Name x" group-tab labels)
+	createFontRow(rowIdx, "Widget Header", tostring(cfg.tabFontSize), "WHeaderFont",
+		function() mdw.adjustWidgetHeaderFontSize(-1) end,
+		function() mdw.adjustWidgetHeaderFontSize(1) end)
 	rowIdx = rowIdx + 1
 
-	-- Row 2: Main Font Size
+	-- Main Font Size (the central console - "Terminal" in the web client)
 	createFontRow(rowIdx, "Main Font Size", tostring(cfg.mainFontSize), "MainFont",
 		function() mdw.adjustMainFontSize(-1) end,
 		function() mdw.adjustMainFontSize(1) end)
 	rowIdx = rowIdx + 1
 
-	-- Row 3: Section header "Widget Font Offset"
+	-- Section header "Widget Font Size"
 	local sectionY = menuY + cfg.menuPadding + rowIdx * cfg.menuItemHeight
 	local sectionLabel = Geyser.Label:new({
 		name = "MDW_LM_SectionHeader_" .. uid,
 		x = innerX, y = sectionY,
-		width = cfg.layoutMenuWidth - 10, height = cfg.menuItemHeight,
+		width = menuWidth - 10, height = cfg.menuItemHeight,
 	})
 	sectionLabel:setStyleSheet(labelStyle)
 	sectionLabel:setFontSize(cfg.headerMenuFontSize)
-	sectionLabel:decho("<" .. cfg.headerTextColor .. ">Widget Font Offset")
+	sectionLabel:decho("<" .. cfg.headerTextColor .. ">Widget Font Size")
 	mdw.layoutMenuLabels[#mdw.layoutMenuLabels + 1] = sectionLabel
 	mdw.layoutMenuMeta[#mdw.layoutMenuMeta + 1] = {label = sectionLabel, type = "section"}
 	rowIdx = rowIdx + 1
 
-	-- Row 4: Prompt bar offset
-	createFontRow(rowIdx, "Prompt", formatOffset(cfg.promptFontAdjust), "PromptAdj",
+	-- Prompt bar (shown as its absolute effective size)
+	createFontRow(rowIdx, "Prompt", tostring(mdw.getPromptEffectiveFontSize()), "PromptAdj",
 		function() mdw.adjustPromptFontAdjust(-1) end,
 		function() mdw.adjustPromptFontAdjust(1) end)
 	rowIdx = rowIdx + 1
 
-	-- Per-widget offset rows (sorted by name)
+	-- Per-widget rows (sorted by name): each shows its fixed, absolute font size.
 	local widgetNames = mdw.getWidgetNames()
 	for _, wName in ipairs(widgetNames) do
 		local w = mdw.widgets[wName]
-		local adjust = w.fontAdjust or 0
 		-- Use the row index (unique per rebuild) for the element name so two
 		-- widget names differing only in punctuation can't collide.
-		createFontRow(rowIdx, wName, formatOffset(adjust), "WFA_" .. rowIdx,
+		createFontRow(rowIdx, mdw.widgetMenuLabel(wName), tostring(mdw.getEffectiveFontSize(w.fontAdjust)), "WFA_" .. rowIdx,
 			function() mdw.adjustWidgetFontAdjust(wName, -1) end,
 			function() mdw.adjustWidgetFontAdjust(wName, 1) end)
 		rowIdx = rowIdx + 1
@@ -2701,7 +2708,7 @@ function mdw.rebuildLayoutMenu()
 		name = "MDW_LayoutMenuBg_" .. uid,
 		x = menuX,
 		y = menuY,
-		width = cfg.layoutMenuWidth,
+		width = menuWidth,
 		height = menuHeight,
 	})
 	mdw.layoutMenuBg:setStyleSheet(mdw.styles.menuBackground)
@@ -3108,6 +3115,35 @@ function mdw.adjustHeaderFontSize(delta)
 	mdw.saveLayout()
 end
 
+--- Adjust the top menu bar font size: the gear / Sidebars / Widgets / Font Size /
+-- Theme buttons and their dropdown menus (headerMenuFontSize). The size is baked
+-- into the styles, so regenerate them and re-apply in place.
+-- @param delta number Amount to change (+1 or -1)
+function mdw.adjustMenuFontSize(delta)
+	local cfg = mdw.config
+	local newSize = mdw.clamp(cfg.headerMenuFontSize + delta, 8, 20)
+	if newSize == cfg.headerMenuFontSize then return end
+	cfg.headerMenuFontSize = newSize
+	mdw.buildStyles()
+	mdw.applyThemeStyles()
+	mdw.showLayoutMenu()
+	mdw.saveLayout()
+end
+
+--- Adjust the widget header font size: the "Name x" group-tab labels on each
+-- widget (tabFontSize, shared with tabbed-widget channel tabs).
+-- @param delta number Amount to change (+1 or -1)
+function mdw.adjustWidgetHeaderFontSize(delta)
+	local cfg = mdw.config
+	local newSize = mdw.clamp(cfg.tabFontSize + delta, 8, 20)
+	if newSize == cfg.tabFontSize then return end
+	cfg.tabFontSize = newSize
+	mdw.buildStyles()
+	mdw.applyThemeStyles()
+	mdw.showLayoutMenu()
+	mdw.saveLayout()
+end
+
 --- Update menu item text with checkbox.
 function mdw.updateMenuItemText(menuItem, text, checked, highlighted)
 	local cfg = mdw.config
@@ -3323,15 +3359,21 @@ local function toggleSidebar(side)
 		dockCfg.dock:show()
 		dockCfg.splitter:show()
 
+		-- Widgets that were owned by this sidebar do NOT snap back into it - they
+		-- return floating in the centre, like any other reveal. A widget still hidden
+		-- individually stays hidden; just clear its remembered dock.
 		for _, w in pairs(mdw.widgets) do
 			if w.originalDock == side then
-				w.docked = side
-				w.originalDock = nil
 				if w.visible ~= false then
-					w.container:show()
-					mdw.showWidgetContent(w)
+					if w.isStack and mdw.floatStackCentered then
+						mdw.floatStackCentered(w)
+					else
+						mdw.floatWidgetCentered(w)
+					end
+				else
+					w.originalDock = nil
+					w.docked = nil
 				end
-				mdw.hideResizeHandles(w)
 			end
 		end
 		mdw.reorganizeDock(side)
@@ -3349,6 +3391,19 @@ local function toggleSidebar(side)
 				w.originalDock = side
 				w.docked = nil
 				w.container:hide()
+				-- A stack's members are top-level siblings, not children of its
+				-- container, so hiding the container alone leaves their content
+				-- (consoles, and the mapper which does not hide with its Geyser
+				-- parent) visible. Hide each member explicitly.
+				if w.isStack then
+					for _, m in ipairs(w.members or {}) do
+						local mw = mdw.widgets[m]
+						if mw then
+							if mw.container then mw.container:hide() end
+							if mw.mapper then mw.mapper:hide() end
+						end
+					end
+				end
 				mdw.hideResizeHandles(w)
 			end
 		end
@@ -3417,7 +3472,9 @@ function mdw.isWidgetShown(widget)
 	if widget.stackId then
 		local stack = mdw.widgets[widget.stackId]
 		if not stack or stack.visible == false then return false end
-		if stack.activeMember ~= widget.name then return false end
+		-- Every member of a visible group counts as shown, not just the active tab -
+		-- they are all present in the group, so the menu checks each of them. (Switch
+		-- which one is visible via the tabs on the widget's header, not the menu.)
 		local side = stack.docked or stack.originalDock
 		if side == "left" then return mdw.visibility.leftSidebar end
 		if side == "right" then return mdw.visibility.rightSidebar end
@@ -3445,30 +3502,48 @@ function mdw.toggleWidget(widgetName)
 	if not widget then return end
 
 	-- A widget should never be bare. If one escaped its group (or was closed from a
-	-- tab), re-wrap and show it (recovery), then stop.
+	-- tab), re-wrap it. A revealed widget always comes back floating in the centre,
+	-- so clear any remembered dock before wrapping.
 	if not widget.isStack and not widget.stackId and mdw.wrapInHomeStack then
 		widget.visible = true
+		widget.originalDock = nil
+		widget.docked = nil
+		-- Pre-position at the float target before re-wrapping, so the new group is
+		-- created at the centre rather than flashing at its old dock spot for a
+		-- frame before floatStackCentered moves it there.
+		if widget.container and mdw.centeredFloatPos then
+			local cw, ch = widget.container:get_width(), widget.container:get_height()
+			local fx, fy = mdw.centeredFloatPos(cw, ch)
+			fx, fy = mdw.cascadeFloatPos(fx, fy, cw, ch, nil)
+			widget.container:move(fx, fy)
+		end
 		mdw.wrapInHomeStack(widget)
 		if widget.stackId then
 			local g = mdw.widgets[widget.stackId]
-			if g then mdw.showStack(g, widgetName) end
+			if g then mdw.floatStackCentered(g) end
 			if mdw.updateWidgetsMenuState then mdw.updateWidgetsMenuState() end
 			mdw.saveLayout()
 			return
 		end
 	end
 
-	-- Every widget lives in a group. Toggling brings it to the front of its group
-	-- (show the group + select its tab), or hides the group if this widget is
-	-- already the visible, active tab.
+	-- Every widget lives in a group. The menu checkbox shows/hides THIS widget:
+	-- unchecking a grouped widget removes just it (siblings stay in the group); a
+	-- sole member hides its whole group. Checking a hidden group shows it again.
+	-- (Switching which member is visible is done via the header tabs, not here.)
 	if widget.stackId then
 		local stack = mdw.widgets[widget.stackId]
 		if not stack then return end
-		local shownActive = stack.visible ~= false and stack.activeMember == widgetName
-		if shownActive then
-			mdw.hideStack(stack)
+		if stack.visible ~= false then
+			if #(stack.members or {}) > 1 then
+				mdw.closeStackMember(stack, widgetName)
+			else
+				mdw.hideStack(stack)
+			end
 		else
-			mdw.showStack(stack, widgetName)
+			-- Reveal a hidden group: bring it back floating in the centre.
+			mdw.floatStackCentered(stack)
+			mdw.selectStackTab(stack, widgetName)
 		end
 		mdw.saveLayout()
 		return
@@ -3514,24 +3589,47 @@ function mdw.toggleWidget(widgetName)
 	mdw.saveLayout()
 end
 
-function mdw.floatWidgetCentered(widget)
+--- Top-left position that centres a box of the given size in the main console
+-- area (excluding the visible sidebars, the header, and the prompt bar).
+function mdw.centeredFloatPos(boxW, boxH)
 	local cfg = mdw.config
 	local winW, winH = getMainWindowSize()
 	local leftOffset = mdw.visibility.leftSidebar and cfg.leftDockWidth or 0
 	local rightOffset = mdw.visibility.rightSidebar and cfg.rightDockWidth or 0
-
 	local mainWidth = winW - leftOffset - rightOffset
 	local mainHeight = winH - cfg.headerHeight - (mdw.visibility.promptBar and cfg.promptBarHeight or 0)
+	return leftOffset + (mainWidth - boxW) / 2, cfg.headerHeight + (mainHeight - boxH) / 2
+end
 
-	local widgetW = widget.container:get_width()
-	local widgetH = widget.container:get_height()
+--- Cascade a float position down-and-left while it would land on another floating
+-- group's title bar, so every floating widget's title stays visible. Clamped to
+-- the window so a long cascade can't run off-screen.
+function mdw.cascadeFloatPos(x, y, boxW, boxH, exclude)
+	local step = (mdw.config.tabBarHeight or 22) + 8
+	local function occupied(px, py)
+		for _, w in pairs(mdw.widgets) do
+			if w.isStack and w ~= exclude and not w.docked and w.visible ~= false and w.container then
+				if math.abs(w.container:get_x() - px) < step and math.abs(w.container:get_y() - py) < step then
+					return true
+				end
+			end
+		end
+		return false
+	end
+	local guard = 0
+	while occupied(x, y) and guard < 25 do
+		x, y, guard = x - step, y + step, guard + 1
+	end
+	return mdw.clampToWindow(x, y, boxW, boxH)
+end
 
-	local centerX = leftOffset + (mainWidth - widgetW) / 2
-	local centerY = cfg.headerHeight + (mainHeight - widgetH) / 2
-
+function mdw.floatWidgetCentered(widget)
+	local w, h = widget.container:get_width(), widget.container:get_height()
+	local x, y = mdw.centeredFloatPos(w, h)
+	x, y = mdw.cascadeFloatPos(x, y, w, h, widget)
 	widget.originalDock = widget.docked
 	widget.docked = nil
-	widget.container:move(centerX, centerY)
+	widget.container:move(x, y)
 	widget.container:show()
 	mdw.showWidgetContent(widget)
 	mdw.showResizeHandles(widget)
@@ -3561,13 +3659,14 @@ function mdw.updateAllMenuStyles()
 		end
 	end
 
-	-- Widgets menu items
+	-- Widgets menu items: re-render with the widget's title (not its identifier),
+	-- matching updateWidgetsMenuState - item.text holds the identifier key.
 	if mdw.widgetsMenuItems then
 		for widgetName, item in pairs(mdw.widgetsMenuItems) do
 			item.label:setStyleSheet(style)
 			local widget = mdw.widgets[widgetName]
 			local isShown = widget and mdw.isWidgetShown(widget)
-			mdw.updateMenuItemText(item.label, item.text, isShown)
+			mdw.updateMenuItemText(item.label, mdw.widgetMenuLabel(widgetName), isShown)
 		end
 	end
 end

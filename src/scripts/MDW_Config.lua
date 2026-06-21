@@ -51,6 +51,22 @@ mdw.config = {
 	headerHeight = 30,    -- Height of top header bar
 	promptBarHeight = 30, -- Height of bottom prompt bar
 	minPromptBarHeight = 25, -- Minimum prompt bar height when resizing
+	-- Multi-line prompt handling. Mudlet's "prompt" trigger only fires on the final
+	-- (GA) line; earlier prompt lines are indistinguishable from normal output at the
+	-- telnet level, so capturePrompt captures only the GA line by default.
+	-- promptPattern: a Lua pattern matching your prompt's EXTRA (upper) line(s). When
+	--   set, lines above the GA line are captured only while they match it - so a
+	--   disabled extra line, or another game's single-line prompt, is never swallowed.
+	--   This is the safe, GMCP-free way to handle a multi-line prompt.
+	-- promptLineCount: BLIND fallback, used only when promptPattern is nil. >1 grabs a
+	--   fixed number of lines and can swallow a line above a shorter prompt - avoid it
+	--   unless your prompt is always exactly that many lines.
+	promptPattern = nil,
+	promptLineCount = 1,
+	-- Set false to disable MDW's built-in prompt-capture trigger (MDW_PromptCapture),
+	-- e.g. when the game/profile drives the prompt bar itself via a custom trigger or
+	-- GMCP. Applied at setup and whenever changed through mdw.configure().
+	usePromptTrigger = true,
 	minMainHeight = 100,  -- Minimum main-console height preserved when resizing the prompt bar
 
 	-- Layout: Tabbed widgets

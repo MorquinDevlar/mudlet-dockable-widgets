@@ -61,6 +61,12 @@ function mdw.refreshStackTabBar(stack)
     if activeRight and closeW > 0 then
       stack.tabClose:move(activeRight - closeW, 0)
       stack.tabClose:resize(closeW, cfg.tabBarHeight)
+      -- Re-assert the stylesheet immediately before echoing. This label is
+      -- click-through, and across a package remove/reinstall its stylesheet can
+      -- come back nil; decho on a label invokes Mudlet's getLabelFormat, which
+      -- crashes when getLabelStyleSheet() is nil. Setting it here guarantees a
+      -- non-nil stylesheet at echo time.
+      if mdw.styles.tabClose then stack.tabClose:setStyleSheet(mdw.styles.tabClose) end
       stack.tabClose:decho("<" .. cfg.tabActiveTextColor .. ">×")
       stack.tabClose:show()
       stack.tabClose:raise()
@@ -164,6 +170,35 @@ function mdw.showStack(stack, memberName)
   if stack.docked then mdw.reorganizeDock(stack.docked) end
   mdw.raiseWidgetElements(stack)
   if mdw.updateWidgetsMenuState then mdw.updateWidgetsMenuState() end
+end
+
+--- Float a group in the centre of the main window (cascading down-and-left past
+-- any existing floats so titles stay visible). Used whenever a hidden widget is
+-- revealed - from the Widgets menu or by bringing a sidebar back - so revealed
+-- widgets always come back floating rather than snapping into a dock.
+function mdw.floatStackCentered(stack)
+  if not stack or not stack.container then return end
+  local fromDock = stack.docked
+  stack.docked = nil
+  stack.originalDock = nil
+  stack.visible = true
+  -- A floating group is never a fill (bottom-stretched) widget. Revert to its
+  -- natural height now, but resize ONLY - re-laying the content here would show it
+  -- at the old (still-docked) position for a frame before the move. layoutStack
+  -- below re-lays it at the new centred position instead.
+  if stack.fill and stack._preFillHeight then
+    stack.container:resize(nil, stack._preFillHeight)
+  end
+  stack.fill = false
+  stack._preFillHeight = nil
+  local w, h = stack.container:get_width(), stack.container:get_height()
+  local x, y = mdw.centeredFloatPos(w, h)
+  x, y = mdw.cascadeFloatPos(x, y, w, h, stack)
+  stack.container:move(x, y)
+  stack.container:show()
+  mdw.layoutStack(stack)
+  if fromDock then mdw.reorganizeDock(fromDock) end
+  mdw.raiseWidgetElements(stack)
 end
 
 --- Make a member render without its own chrome (the stack provides it).
@@ -278,7 +313,6 @@ function mdw.createStack(name, opts)
     name = "MDW_" .. name .. "_TabClose",
     x = 0, y = 0, width = cfg.tabCloseWidth, height = cfg.tabBarHeight,
   }, stack.container))
-  if mdw.styles.tabClose then stack.tabClose:setStyleSheet(mdw.styles.tabClose) end
   stack.tabClose:setToolTip("Close")
   stack.tabClose:hide()
   -- Visual only: clicks pass through to the tab button beneath, which detects a
@@ -286,6 +320,10 @@ function mdw.createStack(name, opts)
   -- including under the x - draggable for tear-out, instead of the label eating
   -- the press and closing on mousedown.
   pcall(function() enableClickthrough("MDW_" .. name .. "_TabClose") end)
+  -- Apply the stylesheet AFTER enableClickthrough: toggling clickthrough can drop
+  -- the label's stylesheet, and refreshStackTabBar later echoes the x glyph here -
+  -- echoing to a label with no stylesheet crashes Mudlet's getLabelFormat.
+  if mdw.styles.tabClose then stack.tabClose:setStyleSheet(mdw.styles.tabClose) end
 
   mdw.widgets[name] = stack
   -- The tab bar moves the group while floating (gated to !docked inside); docked
@@ -483,6 +521,28 @@ function mdw.rebuildStacksFromLayout()
     end
   end
 
+  -- Enforce sidebar visibility: a group restored onto an off sidebar must be
+  -- hidden (its dock remembered for re-show), not left docked and visible. Both
+  -- the stack-record path and the fallback re-wrap create groups docked, so this
+  -- single pass corrects either. Hide the container + members but keep `visible`
+  -- true - it is hidden because its sidebar is off, not individually - so toggling
+  -- the sidebar back on re-shows it.
+  for _, w in pairs(mdw.widgets) do
+    if w.isStack and w.docked and not mdw.isSidebarVisible(w.docked) then
+      w.originalDock = w.docked
+      w.docked = nil
+      if w.container then w.container:hide() end
+      for _, m in ipairs(w.members or {}) do
+        local mw = mdw.widgets[m]
+        if mw then
+          if mw.container then mw.container:hide() end
+          if mw.mapper then mw.mapper:hide() end
+        end
+      end
+      if mdw.hideResizeHandles then mdw.hideResizeHandles(w) end
+    end
+  end
+
   mdw._restoringLayout = false
   mdw.reorganizeDock("left")
   mdw.reorganizeDock("right")
@@ -559,6 +619,20 @@ end
 -- TAB DRAG: select / reorder within the bar / tear out to anywhere
 ---------------------------------------------------------------------------
 
+--- Light the active tab's close (x) only while the cursor is over its reserved
+-- zone (the right edge of the tab), not the whole tab. The x is click-through, so
+-- it cannot sense its own hover - the tab button reports the cursor's local x.
+function mdw.updateStackCloseHover(stackName, tabObj, memberName, localX)
+  local s = mdw.widgets[stackName]
+  if not s or not s.tabClose then return end
+  if memberName ~= s.activeMember then return end
+  if not (mdw.styles.tabCloseHover and mdw.styles.tabClose) then return end
+  local closeW = mdw.config.tabCloseWidth or 0
+  local btnW = mdw.stackTabWidth(tabObj.name) - (mdw.config.tabGap or 0)
+  local inZone = closeW > 0 and (localX or 0) >= btnW - closeW
+  s.tabClose:setStyleSheet(inZone and mdw.styles.tabCloseHover or mdw.styles.tabClose)
+end
+
 --- Wire a stack tab button: click selects, horizontal drag reorders within the
 -- bar, dragging down/out of the bar tears the member out as a normal widget drag
 -- (so it can be floated, re-docked, or dropped into another group).
@@ -579,7 +653,13 @@ function mdw.setupStackTabDrag(stack, tabObj)
 
   setLabelMoveCallback(btnName, function(event)
     local d = mdw.stackTabDrag
-    if not d or d.memberName ~= memberName then return end
+    if not d then
+      -- No drag in progress: this is a plain hover (labels have mouse tracking).
+      -- Light the close (x) only over its zone on the active tab, not the whole tab.
+      mdw.updateStackCloseHover(stackName, tabObj, memberName, event.x)
+      return
+    end
+    if d.memberName ~= memberName then return end
     local s = mdw.widgets[stackName]
     if not s then return end
 
@@ -641,15 +721,9 @@ function mdw.setupStackTabDrag(stack, tabObj)
     end
   end)
 
-  -- Light up the active tab's close (x) while the cursor is over the tab. The x
-  -- label is click-through (so the tab stays draggable), so it cannot sense hover
-  -- itself - the tab button drives the highlight.
-  setLabelOnEnter(btnName, function()
-    local s = mdw.widgets[stackName]
-    if s and s.tabClose and memberName == s.activeMember and mdw.styles.tabCloseHover then
-      s.tabClose:setStyleSheet(mdw.styles.tabCloseHover)
-    end
-  end)
+  -- The close (x) highlight is driven by hover POSITION in the move callback above
+  -- (it lights only over the x's zone). Clear it on leave - no move event fires
+  -- once the cursor is off the button, so the highlight would otherwise stick.
   setLabelOnLeave(btnName, function()
     local s = mdw.widgets[stackName]
     if s and s.tabClose and mdw.styles.tabClose then

@@ -295,7 +295,13 @@ end
 function mdw.Widget:hide()
 	local g = self:_group()
 	if g then
-		mdw.hideStack(g)
+		-- Hide just this widget: remove it from the group if it has siblings,
+		-- otherwise hide the whole (sole-member) group. Matches the Widgets menu.
+		if #(g.members or {}) > 1 then
+			mdw.closeStackMember(g, self.name)
+		else
+			mdw.hideStack(g)
+		end
 	else
 		mdw.hideWidgetClass(self)
 	end
@@ -310,10 +316,9 @@ function mdw.Widget:toggle()
 end
 
 function mdw.Widget:isVisible()
-	local g = self:_group()
-	if g then
-		return g.visible ~= false and g.activeMember == self.name
-	end
+	-- "Visible" = present in a visible group (every member of a shown group counts),
+	-- not just the active tab. Shares the menu's predicate so the two never disagree.
+	if mdw.isWidgetShown then return mdw.isWidgetShown(self) end
 	return self.visible ~= false
 end
 
