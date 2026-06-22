@@ -39,17 +39,6 @@
 mdw.TabbedWidget = mdw.TabbedWidget or {}
 mdw.TabbedWidget.__index = mdw.TabbedWidget
 
---- Sanitize a tab name for use in Geyser element names.
--- Why: Tab names may contain spaces or special characters that could cause
--- issues in element naming. This ensures safe element IDs.
--- NOTE: Different tab names can produce the same sanitized name (e.g.
--- "My Tab" and "My_Tab" both become "My_Tab"). Callers should ensure
--- tab names are unique after sanitization.
-local function sanitizeTabName(tabName)
-	-- Replace spaces and special characters with underscores
-	return tabName:gsub("[^%w]", "_")
-end
-
 --- Default configuration for new tabbed widgets.
 mdw.TabbedWidget.defaults = {
 	height = nil,    -- Uses mdw.config.widgetHeight if not specified
@@ -152,7 +141,7 @@ function mdw.TabbedWidget:new(cons)
 	self.overflow = cons.overflow or "wrap"
 	if self.overflow ~= "wrap" then
 		for _, tabObj in ipairs(self.tabObjects) do
-			tabObj.console:setWrap(10000)
+			tabObj.console:setWrap(mdw.NO_WRAP)
 		end
 	end
 	if #self.tabObjects > 0 then
@@ -290,7 +279,7 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 
 	for i, tabName in ipairs(tabbedWidget.tabs) do
 		local tabX = (i - 1) * tabWidth
-		local safeTabName = sanitizeTabName(tabName)
+		local safeTabName = mdw.sanitizeName(tabName)
 
 		-- Tab button
 		local tabButton = mdw.trackElement(Geyser.Label:new({
@@ -355,9 +344,7 @@ function mdw.createTabbedWidgetInternal(tabbedWidget, x, y)
 	widget.bottomResizeHandle:setCursor(mudlet.cursor.ResizeVertical)
 	widget.bottomResizeHandle:hide() -- Hidden by default, shown when docked
 
-	-- Create title bar buttons (FILL, LOCK, Close)
-
-	-- Render title (after buttons so truncation accounts for button space)
+	-- Render the widget title (truncated to fit the title bar's reserved padding)
 	mdw.renderWidgetTitle(widget)
 
 	-- Create resize borders
@@ -428,7 +415,7 @@ function mdw.resizeTabbedWidgetContent(tabbedWidget, targetWidth, targetHeight)
 		if overflow == "wrap" then
 			tabObj.console:setWrap(wrapWidth)
 		else
-			tabObj.console:setWrap(10000)
+			tabObj.console:setWrap(mdw.NO_WRAP)
 		end
 	end
 
@@ -728,16 +715,21 @@ local function bufferTabEcho(tabObj, method, text, overflow)
 	end
 end
 
+--- Emit one echo to a specific tab object: buffer for reflow, truncate in
+--- "ellipsis" mode, then call the matching console method.
+local function emitToTab(self, tabObj, method, text)
+	bufferTabEcho(tabObj, method, text, self.overflow)
+	if self.overflow == "ellipsis" and self._wrapWidth then
+		text = mdw.truncateFormatted(text, method, self._wrapWidth)
+	end
+	tabObj.console[method](tabObj.console, text)
+end
+
 --- Internal helper to call a method on the active tab's console.
 local function callOnActiveTab(self, method, text)
 	local tabObj = self.tabObjects[self.activeTabIndex]
 	if tabObj then
-		bufferTabEcho(tabObj, method, text, self.overflow)
-		local displayText = text
-		if self.overflow == "ellipsis" and self._wrapWidth then
-			displayText = mdw.truncateFormatted(text, method, self._wrapWidth)
-		end
-		tabObj.console[method](tabObj.console, displayText)
+		emitToTab(self, tabObj, method, text)
 	end
 end
 
@@ -773,28 +765,17 @@ end
 --- Internal helper to echo to a tab with "all" tab support.
 local function echoToTab(self, method, tabName, text)
 	local tabObj = self.tabsByName[tabName]
-	if tabObj then
-		bufferTabEcho(tabObj, method, text, self.overflow)
-		local displayText = text
-		if self.overflow == "ellipsis" and self._wrapWidth then
-			displayText = mdw.truncateFormatted(text, method, self._wrapWidth)
-		end
-		tabObj.console[method](tabObj.console, displayText)
-	else
+	if not tabObj then
 		mdw.debugEcho("TabbedWidget '%s': tab '%s' not found", self.name, tostring(tabName))
 		return
 	end
+	emitToTab(self, tabObj, method, text)
 
-	-- Echo to "all" tab if set and this isn't the all tab
+	-- Echo to the "all" tab too, if set and this isn't already the all tab.
 	if self.allTab and tabName ~= self.allTab then
 		local allTabObj = self.tabsByName[self.allTab]
 		if allTabObj then
-			bufferTabEcho(allTabObj, method, text, self.overflow)
-			local displayText = text
-			if self.overflow == "ellipsis" and self._wrapWidth then
-				displayText = mdw.truncateFormatted(text, method, self._wrapWidth)
-			end
-			allTabObj.console[method](allTabObj.console, displayText)
+			emitToTab(self, allTabObj, method, text)
 		end
 	end
 end

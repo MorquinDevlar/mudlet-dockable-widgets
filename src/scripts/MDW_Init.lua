@@ -626,30 +626,30 @@ function mdw.loadLayout()
 		-- out-of-range size, especially mainFontSize which hits the real console.
 		if layout.docks.contentFontSize then
 			-- New format
-			mdw.config.contentFontSize = mdw.clamp(layout.docks.contentFontSize, 8, 20)
+			mdw.config.contentFontSize = mdw.clamp(layout.docks.contentFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
 			if layout.docks.promptFontAdjust then
 				mdw.config.promptFontAdjust = layout.docks.promptFontAdjust
 			end
 			if layout.docks.mainFontSize then
-				mdw.config.mainFontSize = mdw.clamp(layout.docks.mainFontSize, 8, 20)
+				mdw.config.mainFontSize = mdw.clamp(layout.docks.mainFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
 			end
 		elseif layout.docks.fontSize then
 			-- Old format: migrate
-			mdw.config.contentFontSize = mdw.clamp(layout.docks.fontSize, 8, 20)
+			mdw.config.contentFontSize = mdw.clamp(layout.docks.fontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
 			local oldPromptSize = layout.docks.promptFontSize or layout.docks.fontSize
 			mdw.config.promptFontAdjust = oldPromptSize - layout.docks.fontSize
 		end
 		-- Keep the prompt offset within the effective clamp [8,30]
-		local promptEff = mdw.clamp(mdw.config.contentFontSize + mdw.config.promptFontAdjust, 8, 30)
+		local promptEff = mdw.clamp(mdw.config.contentFontSize + mdw.config.promptFontAdjust, mdw.config.minFontSize, mdw.config.maxEffectiveFontSize)
 		mdw.config.promptFontAdjust = promptEff - mdw.config.contentFontSize
 		if layout.docks.headerFontSize then
-			mdw.config.widgetHeaderFontSize = mdw.clamp(layout.docks.headerFontSize, 8, 20)
+			mdw.config.widgetHeaderFontSize = mdw.clamp(layout.docks.headerFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
 		end
 		if layout.docks.menuFontSize then
-			mdw.config.headerMenuFontSize = mdw.clamp(layout.docks.menuFontSize, 8, 20)
+			mdw.config.headerMenuFontSize = mdw.clamp(layout.docks.menuFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
 		end
 		if layout.docks.tabFontSize then
-			mdw.config.tabFontSize = mdw.clamp(layout.docks.tabFontSize, 8, 20)
+			mdw.config.tabFontSize = mdw.clamp(layout.docks.tabFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
 		end
 		-- Only restore a theme that still exists; otherwise keep the default
 		if layout.docks.theme and mdw.themes[layout.docks.theme] then
@@ -807,8 +807,7 @@ function mdw.setup()
 
 	-- Deferred dock reorganize to ensure fill button visibility after Qt layout settles
 	tempTimer(0, function()
-		mdw.reorganizeDock("left")
-		mdw.reorganizeDock("right")
+		mdw.reorganizeAllDocks()
 	end)
 
 	mdw.isSetUp = true
@@ -986,10 +985,7 @@ function mdw.onWindowResize()
 	mdw.updatePromptBar()
 
 	-- Reorganize widgets
-	if mdw.reorganizeDock then
-		mdw.reorganizeDock("left")
-		mdw.reorganizeDock("right")
-	end
+	mdw.reorganizeAllDocks()
 end
 
 ---------------------------------------------------------------------------

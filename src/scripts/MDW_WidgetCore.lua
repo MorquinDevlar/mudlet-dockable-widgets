@@ -138,9 +138,7 @@ function mdw.createWidget(name, title, x, y)
 	-- Create resize borders (hidden by default, shown when floating)
 	mdw.createResizeBorders(widget)
 
-	-- Create title bar buttons (FILL, LOCK, Close)
-
-	-- Render title (after buttons so truncation accounts for button space)
+	-- Render the widget title (truncated to fit the title bar's reserved padding)
 	mdw.renderWidgetTitle(widget)
 
 	-- Set up docked resize handle callbacks
@@ -319,7 +317,7 @@ function mdw.resizeWidgetContent(widget, targetWidth, targetHeight)
 	if overflow == "wrap" then
 		widget.content:setWrap(wrapWidth)
 	else
-		widget.content:setWrap(10000)
+		widget.content:setWrap(mdw.NO_WRAP)
 	end
 	widget._wrapWidth = wrapWidth
 	if overflow ~= "hidden" and widget.reflow then widget:reflow() end
@@ -554,7 +552,7 @@ end
 
 -- Reset the dock-only state (fill / locked width) a widget carried while docked
 -- and restore its pre-fill height, before it is re-placed somewhere new.
-local function clearDockOnlyState(widget)
+function mdw.clearDockOnlyState(widget)
 	if widget.fill and widget._preFillHeight then
 		widget.container:resize(nil, widget._preFillHeight)
 		mdw.resizeWidgetContent(widget, widget.container:get_width(), widget._preFillHeight)
@@ -577,7 +575,7 @@ function mdw.placeWidgetAtDrop(widget, intent, x, y)
 
 	-- Center of a (non-group) widget -> merge into it as a tab group.
 	if side and dropType == "tab" and intent.targetWidget and mdw.addToStack then
-		clearDockOnlyState(widget)
+		mdw.clearDockOnlyState(widget)
 		if intent.targetWidget.isStack then
 			mdw.addToStack(intent.targetWidget.name, widget.name)
 		else
@@ -588,7 +586,7 @@ function mdw.placeWidgetAtDrop(widget, intent, x, y)
 	end
 
 	if side then
-		clearDockOnlyState(widget)
+		mdw.clearDockOnlyState(widget)
 		mdw.dockWidgetWithPosition(widget, side, dropType, intent.rowIndex,
 			intent.positionInRow, intent.targetWidget)
 		mdw.hideResizeHandles(widget)
@@ -596,7 +594,7 @@ function mdw.placeWidgetAtDrop(widget, intent, x, y)
 	end
 
 	-- No dock zone -> float where released.
-	clearDockOnlyState(widget)
+	mdw.clearDockOnlyState(widget)
 	widget.docked = nil
 	widget.row = nil
 	widget.rowPosition = nil
@@ -693,15 +691,8 @@ function mdw.endDrag(widget, event)
 	mdw.placeWidgetAtDrop(widget, intent)
 
 	-- Reflow both sides (the widget may have moved between docks or to/from float).
-	mdw.reorganizeDock("left")
-	mdw.reorganizeDock("right")
+	mdw.reorganizeAllDocks()
 	mdw.saveLayout()
-end
-
---- Raise a widget above all others.
--- Delegates to mdw.raiseWidgetElements() which is the centralized implementation.
-function mdw.raiseWidget(widget)
-	mdw.raiseWidgetElements(widget)
 end
 
 --- Reflow a widget's content to repaint text at the current wrap width.
@@ -1059,18 +1050,6 @@ end
 
 function mdw.hideDropIndicator()
 	if mdw.dropZoneOverlay then mdw.dropZoneOverlay:hide() end
-end
-
-function mdw.hideDropIndicators()
-	mdw.hideDropIndicator()
-	mdw.updateDockHighlight(nil)
-	mdw.drag.insertSide = nil
-	mdw.drag.dropType = nil
-	mdw.drag.rowIndex = nil
-	mdw.drag.positionInRow = nil
-	mdw.drag.targetWidget = nil
-	mdw.reorganizeDock("left")
-	mdw.reorganizeDock("right")
 end
 
 ---------------------------------------------------------------------------
@@ -1531,6 +1510,13 @@ function mdw.reorganizeDock(side)
 	end
 
 	mdw.applyZOrder()
+end
+
+--- Reorganize both dock sides. Most layout changes affect both, so this is the
+-- common entry point; call reorganizeDock(side) directly only for one-sided work.
+function mdw.reorganizeAllDocks()
+	mdw.reorganizeDock("left")
+	mdw.reorganizeDock("right")
 end
 
 ---------------------------------------------------------------------------
@@ -2189,8 +2175,7 @@ function mdw.createWidgets()
 	mdw.createHeaderMenus()
 
 	-- Position any widgets that were created
-	mdw.reorganizeDock("left")
-	mdw.reorganizeDock("right")
+	mdw.reorganizeAllDocks()
 
 	mdw.echo("Created " .. #mdw.elements .. " UI elements")
 end
@@ -2205,7 +2190,7 @@ function mdw.createHeaderMenus()
 	local cfg = mdw.config
 	local height = cfg.headerHeight - cfg.separatorHeight
 	local gearSize = height
-	local charWidth = math.ceil(cfg.headerMenuFontSize * 0.65)
+	local charWidth = mdw.charWidthEstimate(cfg.headerMenuFontSize)
 
 	local buttonDefs = {
 		{var = "sidebarsButton", name = "MDW_SidebarsButton", text = "Sidebars",  toggle = "toggleSidebarsMenu"},
@@ -2405,7 +2390,7 @@ end
 -- spaced titles are not clipped, but never narrower than the default menu width.
 function mdw.computeWidgetsMenuWidth()
 	local cfg = mdw.config
-	local charWidth = math.ceil(cfg.headerMenuFontSize * 0.65)
+	local charWidth = mdw.charWidthEstimate(cfg.headerMenuFontSize)
 	local maxLen = 0
 	for _, widgetName in ipairs(mdw.getWidgetNames()) do
 		maxLen = math.max(maxLen, 4 + #mdw.widgetMenuLabel(widgetName))
@@ -2555,7 +2540,7 @@ function mdw.rebuildLayoutMenu()
 	-- ("My Custom Widget"), so a fixed width would clip them or crowd the controls.
 	-- Use the real monospace char width and leave comfortable padding before the controls.
 	local charWidth = calcFontSize(cfg.headerMenuFontSize, cfg.fontFamily)
-	if not charWidth or charWidth <= 0 then charWidth = math.ceil(cfg.headerMenuFontSize * 0.65) end
+	if not charWidth or charWidth <= 0 then charWidth = mdw.charWidthEstimate(cfg.headerMenuFontSize) end
 	local maxLabelLen = 0
 	for _, t in ipairs({ "Top Menu", "Widget Header", "Main Font Size", "Prompt" }) do
 		maxLabelLen = math.max(maxLabelLen, #t)
@@ -2768,7 +2753,7 @@ function mdw.rebuildThemeMenu()
 	-- Size each item to its text ("[x] " + name) instead of the full menu width, so
 	-- hovering (and the live preview it triggers) responds to the word, not the
 	-- whole row. The full-width background stays as the dropdown box.
-	local charWidth = math.ceil(cfg.headerMenuFontSize * 0.65)
+	local charWidth = mdw.charWidthEstimate(cfg.headerMenuFontSize)
 	for i, themeName in ipairs(themes) do
 		local itemY = menuY + cfg.menuPadding + (i - 1) * cfg.menuItemHeight
 		local itemWidth = cfg.menuPaddingLeft * 2 + (4 + #capitalizeThemeName(themeName)) * charWidth
@@ -3005,39 +2990,11 @@ function mdw.uninstall()
 	uninstallPackage(mdw.packageName)
 end
 
---- Adjust the base content font size for all widget content areas and prompt.
--- Changes the base; each widget's effective size = base + its fontAdjust.
--- @param delta number Amount to change (+1 or -1)
-function mdw.adjustContentFontSize(delta)
-	local cfg = mdw.config
-	local newSize = mdw.clamp(cfg.contentFontSize + delta, 8, 20)
-	if newSize == cfg.contentFontSize then return end
-	cfg.contentFontSize = newSize
-
-	-- Apply to all widgets with their individual offsets
-	for _, widget in pairs(mdw.widgets) do
-		mdw.applyWidgetFontSize(widget)
-	end
-
-	-- Apply to prompt bar
-	if mdw.promptBar then
-		local promptSize = mdw.getPromptEffectiveFontSize()
-		mdw.promptBar:setFontSize(promptSize)
-		local cw = mdw.promptBar:get_width()
-		mdw.promptBar:setWrap(mdw.calculateWrap(cw, promptSize))
-		mdw.ensurePromptBarHeight()
-	end
-
-	-- Rebuild menu to show new values
-	mdw.showLayoutMenu()
-	mdw.saveLayout()
-end
-
 --- Adjust the main Mudlet console font size.
 -- @param delta number Amount to change (+1 or -1)
 function mdw.adjustMainFontSize(delta)
 	local cfg = mdw.config
-	local newSize = mdw.clamp(cfg.mainFontSize + delta, 8, 20)
+	local newSize = mdw.clamp(cfg.mainFontSize + delta, cfg.minFontSize, cfg.maxFontSize)
 	if newSize == cfg.mainFontSize then return end
 	cfg.mainFontSize = newSize
 
@@ -3053,7 +3010,7 @@ end
 function mdw.adjustPromptFontAdjust(delta)
 	local cfg = mdw.config
 	local newAdjust = cfg.promptFontAdjust + delta
-	local effectiveSize = mdw.clamp(cfg.contentFontSize + newAdjust, 8, 30)
+	local effectiveSize = mdw.clamp(cfg.contentFontSize + newAdjust, cfg.minFontSize, cfg.maxEffectiveFontSize)
 	newAdjust = effectiveSize - cfg.contentFontSize
 	if newAdjust == cfg.promptFontAdjust then return end
 	cfg.promptFontAdjust = newAdjust
@@ -3080,35 +3037,12 @@ function mdw.adjustWidgetFontAdjust(widgetName, delta)
 
 	local cfg = mdw.config
 	local newAdjust = (widget.fontAdjust or 0) + delta
-	local effectiveSize = mdw.clamp(cfg.contentFontSize + newAdjust, 8, 30)
+	local effectiveSize = mdw.clamp(cfg.contentFontSize + newAdjust, cfg.minFontSize, cfg.maxEffectiveFontSize)
 	newAdjust = effectiveSize - cfg.contentFontSize
 	if newAdjust == (widget.fontAdjust or 0) then return end
 	widget.fontAdjust = newAdjust
 
 	mdw.applyWidgetFontSize(widget)
-
-	-- Rebuild menu to show new value
-	mdw.showLayoutMenu()
-	mdw.saveLayout()
-end
-
---- Adjust the header font size for all widget title bars.
--- @param delta number Amount to change (+1 or -1)
-function mdw.adjustHeaderFontSize(delta)
-	local cfg = mdw.config
-	local newSize = mdw.clamp(cfg.widgetHeaderFontSize + delta, 8, 20)
-	if newSize == cfg.widgetHeaderFontSize then return end
-	cfg.widgetHeaderFontSize = newSize
-
-	-- Rebuild styles so future widgets get the right size
-	mdw.buildStyles()
-
-	-- Apply to all existing widget title bars
-	for _, widget in pairs(mdw.widgets) do
-		widget.titleBar:setStyleSheet(mdw.styles.titleBar)
-		widget.titleBar:setFontSize(newSize)
-		mdw.renderWidgetTitle(widget)
-	end
 
 	-- Rebuild menu to show new value
 	mdw.showLayoutMenu()
@@ -3121,7 +3055,7 @@ end
 -- @param delta number Amount to change (+1 or -1)
 function mdw.adjustMenuFontSize(delta)
 	local cfg = mdw.config
-	local newSize = mdw.clamp(cfg.headerMenuFontSize + delta, 8, 20)
+	local newSize = mdw.clamp(cfg.headerMenuFontSize + delta, cfg.minFontSize, cfg.maxFontSize)
 	if newSize == cfg.headerMenuFontSize then return end
 	cfg.headerMenuFontSize = newSize
 	mdw.buildStyles()
@@ -3135,7 +3069,7 @@ end
 -- @param delta number Amount to change (+1 or -1)
 function mdw.adjustWidgetHeaderFontSize(delta)
 	local cfg = mdw.config
-	local newSize = mdw.clamp(cfg.tabFontSize + delta, 8, 20)
+	local newSize = mdw.clamp(cfg.tabFontSize + delta, cfg.minFontSize, cfg.maxFontSize)
 	if newSize == cfg.tabFontSize then return end
 	cfg.tabFontSize = newSize
 	mdw.buildStyles()

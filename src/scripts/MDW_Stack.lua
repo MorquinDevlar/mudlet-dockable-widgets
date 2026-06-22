@@ -16,16 +16,12 @@
 -- LOCAL HELPERS
 ---------------------------------------------------------------------------
 
-local function safeName(s)
-  return (tostring(s):gsub("[^%w]", "_"))
-end
-
 --- Pixel width of a stack tab "slot" (button + trailing gap) from its label. The
 -- gap is left as bar background between tabs; the button itself is rendered
 -- tabGap narrower (see refreshStackTabBar). All reorder/ghost math uses this slot.
 function mdw.stackTabWidth(title)
   local cfg = mdw.config
-  local charWidth = math.ceil(cfg.tabFontSize * 0.65)
+  local charWidth = mdw.charWidthEstimate(cfg.tabFontSize)
   -- Reserve a right-hand zone for the active tab's close (x); the group tab styles
   -- add matching right padding so the title keeps its position and the x sits clear.
   return cfg.tabPadding * 2 + #tostring(title) * charWidth + 8 + (cfg.tabGap or 0)
@@ -368,7 +364,7 @@ function mdw.addToStack(stackName, memberName, index)
   index = index or (#stack.members + 1)
   table.insert(stack.members, index, memberName)
 
-  local btnName = "MDW_" .. stackName .. "_Tab_" .. safeName(memberName)
+  local btnName = "MDW_" .. stackName .. "_Tab_" .. mdw.sanitizeName(memberName)
   -- Clear any stale button of the same name (e.g. a torn-out tab dropped back in)
   mdw.deleteElementByName(btnName)
   local btn = mdw.trackElement(Geyser.Label:new({
@@ -544,8 +540,7 @@ function mdw.rebuildStacksFromLayout()
   end
 
   mdw._restoringLayout = false
-  mdw.reorganizeDock("left")
-  mdw.reorganizeDock("right")
+  mdw.reorganizeAllDocks()
   mdw.saveLayout()
 end
 
@@ -942,8 +937,7 @@ function mdw.dropTabGhost(d)
   if s2 and s2.isStack and not s2.docked then
     mdw.layoutStack(s2)
   end
-  mdw.reorganizeDock("left")
-  mdw.reorganizeDock("right")
+  mdw.reorganizeAllDocks()
   mdw.saveLayout()
   if mdw.rebuildWidgetsMenu then mdw.rebuildWidgetsMenu() end
 end

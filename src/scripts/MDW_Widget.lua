@@ -128,7 +128,7 @@ function mdw.Widget:new(cons)
 	-- Overflow mode
 	self.overflow = cons.overflow or "wrap"
 	if self.overflow ~= "wrap" then
-		self.content:setWrap(10000)
+		self.content:setWrap(mdw.NO_WRAP)
 	end
 	-- Apply the effective font size (honours fontAdjust) and wrap at creation
 	mdw.applyWidgetFontSize(self)
@@ -213,36 +213,30 @@ function mdw.Widget:reflow()
 	end
 end
 
-function mdw.Widget:echo(text)
-	self:_bufferEcho("echo", text)
+-- Shared echo pipeline: buffer for later reflow, truncate in "ellipsis" mode,
+-- then emit via the matching console method. Keeps echo/cecho/decho/hecho in sync.
+local function emit(self, method, text)
+	self:_bufferEcho(method, text)
 	if self.overflow == "ellipsis" and self._wrapWidth then
-		text = mdw.truncateFormatted(text, "echo", self._wrapWidth)
+		text = mdw.truncateFormatted(text, method, self._wrapWidth)
 	end
-	self.content:echo(text)
+	self.content[method](self.content, text)
+end
+
+function mdw.Widget:echo(text)
+	emit(self, "echo", text)
 end
 
 function mdw.Widget:cecho(text)
-	self:_bufferEcho("cecho", text)
-	if self.overflow == "ellipsis" and self._wrapWidth then
-		text = mdw.truncateFormatted(text, "cecho", self._wrapWidth)
-	end
-	self.content:cecho(text)
+	emit(self, "cecho", text)
 end
 
 function mdw.Widget:decho(text)
-	self:_bufferEcho("decho", text)
-	if self.overflow == "ellipsis" and self._wrapWidth then
-		text = mdw.truncateFormatted(text, "decho", self._wrapWidth)
-	end
-	self.content:decho(text)
+	emit(self, "decho", text)
 end
 
 function mdw.Widget:hecho(text)
-	self:_bufferEcho("hecho", text)
-	if self.overflow == "ellipsis" and self._wrapWidth then
-		text = mdw.truncateFormatted(text, "hecho", self._wrapWidth)
-	end
-	self.content:hecho(text)
+	emit(self, "hecho", text)
 end
 
 function mdw.Widget:clear()
@@ -469,8 +463,8 @@ end
 
 function mdw.Widget.get(name)
 	local widget = mdw.widgets[name]
-	-- Only return if it's a Widget (not a TabbedWidget)
-	if widget and not widget.isTabbed then
+	-- Only return a plain Widget: not a TabbedWidget, and not an internal group (Stack).
+	if widget and not widget.isTabbed and not widget.isStack then
 		return widget
 	end
 	return nil
@@ -479,8 +473,8 @@ end
 function mdw.Widget.list()
 	local names = {}
 	for name, widget in pairs(mdw.widgets) do
-		-- Only list Widgets, not TabbedWidgets (consistent with Widget.get)
-		if not widget.isTabbed then
+		-- Only list plain Widgets, not TabbedWidgets or internal groups (matches Widget.get).
+		if not widget.isTabbed and not widget.isStack then
 			names[#names + 1] = name
 		end
 	end
@@ -490,12 +484,14 @@ end
 
 function mdw.Widget.hideAll()
 	for _, widget in pairs(mdw.widgets) do
-		widget:hide()
+		-- Skip internal groups (Stacks): they are plain tables with no :hide().
+		-- Each member widget hides through its group on its own iteration.
+		if not widget.isStack then widget:hide() end
 	end
 end
 
 function mdw.Widget.showAll()
 	for _, widget in pairs(mdw.widgets) do
-		widget:show()
+		if not widget.isStack then widget:show() end
 	end
 end

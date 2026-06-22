@@ -406,6 +406,11 @@ function mdw.notify(msg)
 	decho(string.format("<%s>[ MDW - <%s>%s<%s> ]\n", accent, body, tostring(msg), accent))
 end
 
+--- Wrap value that effectively disables wrapping on a MiniConsole.
+-- Used by overflow modes other than "wrap" (ellipsis/hidden) where MDW manages
+-- line length itself instead of letting Geyser wrap.
+mdw.NO_WRAP = 10000
+
 --- Clamp a value between min and max bounds.
 -- Why: Prevents dimension values from exceeding valid ranges,
 -- which would cause layout corruption or negative coordinates.
@@ -413,15 +418,31 @@ function mdw.clamp(value, min, max)
 	return math.max(min, math.min(max, value))
 end
 
+--- Estimated pixel width of one monospace glyph at a given font size.
+-- Why: Menus, tabs, and titles size themselves to their text; centralizing the
+-- estimate keeps every such calculation consistent (it used to vary 0.6 vs 0.65).
+function mdw.charWidthEstimate(fontSize)
+	return math.ceil((fontSize or mdw.config.contentFontSize) * mdw.config.monoCharRatio)
+end
+
+--- Replace any non-alphanumeric character with "_" for use in a Geyser element name.
+-- NOTE: distinct inputs can collide (e.g. "My Tab"/"My_Tab"); callers must ensure
+-- the source names are unique after sanitization.
+function mdw.sanitizeName(s)
+	return (tostring(s):gsub("[^%w]", "_"))
+end
+
 --- Get the effective font size for a widget given its fontAdjust offset.
 -- Clamps the result to a safe range.
 function mdw.getEffectiveFontSize(fontAdjust)
-	return mdw.clamp(mdw.config.contentFontSize + (fontAdjust or 0), 8, 30)
+	local cfg = mdw.config
+	return mdw.clamp(cfg.contentFontSize + (fontAdjust or 0), cfg.minFontSize, cfg.maxEffectiveFontSize)
 end
 
 --- Get the effective font size for the prompt bar.
 function mdw.getPromptEffectiveFontSize()
-	return mdw.clamp(mdw.config.contentFontSize + (mdw.config.promptFontAdjust or 0), 8, 30)
+	local cfg = mdw.config
+	return mdw.clamp(cfg.contentFontSize + (cfg.promptFontAdjust or 0), cfg.minFontSize, cfg.maxEffectiveFontSize)
 end
 
 --- Apply a widget's effective font size to its console(s), refresh the wrap
@@ -497,8 +518,7 @@ function mdw.renderWidgetTitle(widget)
 	local leftPad = cfg.titleButtonPadding + btnS + gap
 	local rightPad = cfg.closeButtonPadding + btnS
 	local availWidth = cw - leftPad - rightPad
-	-- Estimate character width for monospace font (~60% of font size)
-	local charWidth = cfg.widgetHeaderFontSize * 0.6
+	local charWidth = mdw.charWidthEstimate(cfg.widgetHeaderFontSize)
 	local maxChars = math.floor(availWidth / charWidth)
 	local title = widget.title
 	if #title > maxChars and maxChars > 3 then
@@ -925,12 +945,7 @@ function mdw.undockWidgetClass(widget, x, y)
 	widget.subRow = nil
 
 	-- Reset dock-only state and restore pre-fill height
-	if widget.fill and widget._preFillHeight then
-		widget.container:resize(nil, widget._preFillHeight)
-		mdw.resizeWidgetContent(widget, widget.container:get_width(), widget._preFillHeight)
-	end
-	widget.fill = false
-	widget._preFillHeight = nil
+	mdw.clearDockOnlyState(widget)
 
 	if x and y then
 		widget.container:move(x, y)
@@ -1373,8 +1388,6 @@ function mdw.applyThemeStyles()
 				end
 			end
 		end
-
-		-- Title bar button tints
 
 		-- Bottom resize handle: transparent with a thin border line for every kind
 		-- (stack, tabbed, plain), matching the creation style so the widened grab

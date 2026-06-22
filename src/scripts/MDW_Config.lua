@@ -168,6 +168,15 @@ mdw.config = {
 	tabFontSize = 11,          -- Font size for tab buttons in tabbed widgets
 	widgetHeaderFontSize = 12, -- Font size for widget title bars
 
+	-- Font size limits, applied everywhere a size is set, adjusted, or restored.
+	minFontSize = 8,           -- Smallest selectable font size
+	maxFontSize = 20,          -- Largest selectable base font size
+	maxEffectiveFontSize = 30, -- Upper clamp for derived sizes (base + per-widget adjust)
+
+	-- Estimated monospace glyph width as a fraction of the font's pixel size.
+	-- Used to size menus, tabs, and titles to their text without measuring each glyph.
+	monoCharRatio = 0.65,
+
 	-- Title bar buttons (fill, lock, close)
 	titleButtonSize = 12,     -- Width/height of square icon buttons (fill, lock)
 	titleButtonPadding = 5,   -- Padding from left edge for fill/lock buttons
