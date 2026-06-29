@@ -17,133 +17,133 @@
 -- Why: The docks provide the visual container for widgets and the
 -- splitters allow users to resize dock widths interactively.
 function mdw.createDocks()
-	local cfg = mdw.config
-	local winW, winH = getMainWindowSize()
+  local cfg = mdw.config
+  local winW, winH = getMainWindowSize()
 
-	-- Set Mudlet borders based on visibility (loaded from layout)
-	mdw.applyBorders()
+  -- Set Mudlet borders based on visibility (loaded from layout)
+  mdw.applyBorders()
 
-	-- Calculate sidebar height (window height minus header); clamp so a tiny
-	-- or zero-size window can't feed negative geometry into Geyser.
-	local sidebarHeight = math.max(0, winH - cfg.headerHeight)
+  -- Calculate sidebar height (window height minus header); clamp so a tiny
+  -- or zero-size window can't feed negative geometry into Geyser.
+  local sidebarHeight = math.max(0, winH - cfg.headerHeight)
 
-	mdw.createHeader(winW)
-	mdw.createPromptBar(winW)
-	mdw.createDropIndicators(winW)
-	mdw.createLeftDock(sidebarHeight)
-	mdw.createRightDock(sidebarHeight)
+  mdw.createHeader(winW)
+  mdw.createPromptBar(winW)
+  mdw.createDropIndicators(winW)
+  mdw.createLeftDock(sidebarHeight)
+  mdw.createRightDock(sidebarHeight)
 
-	-- Hide docks/prompt if they were saved as hidden
-	if not mdw.visibility.leftSidebar then
-		mdw.leftDock:hide()
-		mdw.leftSplitter:hide()
-	end
-	if not mdw.visibility.rightSidebar then
-		mdw.rightDock:hide()
-		mdw.rightSplitter:hide()
-	end
-	if not mdw.visibility.promptBar then
-		if mdw.promptBarContainer then mdw.promptBarContainer:hide() end
-		mdw.promptSeparator:hide()
-	end
+  -- Hide docks/prompt if they were saved as hidden
+  if not mdw.visibility.leftSidebar then
+    mdw.leftDock:hide()
+    mdw.leftSplitter:hide()
+  end
+  if not mdw.visibility.rightSidebar then
+    mdw.rightDock:hide()
+    mdw.rightSplitter:hide()
+  end
+  if not mdw.visibility.promptBar then
+    if mdw.promptBarContainer then mdw.promptBarContainer:hide() end
+    mdw.promptSeparator:hide()
+  end
 end
 
 function mdw.createHeader(winW)
-	local cfg = mdw.config
+  local cfg = mdw.config
 
-	mdw.headerPane = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_HeaderPane",
-		x = 0,
-		y = 0,
-		width = "100%",
-		height = cfg.headerHeight - cfg.separatorHeight,
-	}))
-	mdw.headerPane:setStyleSheet(mdw.styles.headerPane)
-	setLabelClickCallback("MDW_HeaderPane", function()
-		if mdw.closeAllMenus then mdw.closeAllMenus() end
-	end)
+  mdw.headerPane = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_HeaderPane",
+    x = 0,
+    y = 0,
+    width = "100%",
+    height = cfg.headerHeight - cfg.separatorHeight,
+  }))
+  mdw.headerPane:setStyleSheet(mdw.styles.headerPane)
+  setLabelClickCallback("MDW_HeaderPane", function()
+    if mdw.closeAllMenus then mdw.closeAllMenus() end
+  end)
 
-	-- Separator line frames the main text area
-	mdw.headerSeparator = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_HeaderSeparator",
-		x = 0,
-		y = cfg.headerHeight - cfg.separatorHeight,
-		width = "100%",
-		height = cfg.separatorHeight,
-	}))
-	mdw.headerSeparator:setStyleSheet(mdw.styles.separatorLine)
-	setLabelClickCallback("MDW_HeaderSeparator", function()
-		if mdw.closeAllMenus then mdw.closeAllMenus() end
-	end)
+  -- Separator line frames the main text area
+  mdw.headerSeparator = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_HeaderSeparator",
+    x = 0,
+    y = cfg.headerHeight - cfg.separatorHeight,
+    width = "100%",
+    height = cfg.separatorHeight,
+  }))
+  mdw.headerSeparator:setStyleSheet(mdw.styles.separatorLine)
+  setLabelClickCallback("MDW_HeaderSeparator", function()
+    if mdw.closeAllMenus then mdw.closeAllMenus() end
+  end)
 end
 
 function mdw.createPromptBar(winW)
-	local cfg = mdw.config
+  local cfg = mdw.config
 
-	-- Calculate effective dock widths based on visibility
-	local leftWidth = mdw.visibility.leftSidebar and cfg.leftDockWidth or 0
-	local rightWidth = mdw.visibility.rightSidebar and cfg.rightDockWidth or 0
+  -- Calculate effective dock widths based on visibility
+  local leftWidth = mdw.visibility.leftSidebar and cfg.leftDockWidth or 0
+  local rightWidth = mdw.visibility.rightSidebar and cfg.rightDockWidth or 0
 
-	-- Clamp so a window narrower than the docks can't feed negative width/wrap
-	local promptBarWidth = math.max(0, winW - leftWidth - rightWidth)
-	local promptBarContentHeight = cfg.promptBarHeight - cfg.separatorHeight
-	local bgRGB = cfg.widgetBackgroundRGB
-	local fgRGB = cfg.widgetForegroundRGB
+  -- Clamp so a window narrower than the docks can't feed negative width/wrap
+  local promptBarWidth = math.max(0, winW - leftWidth - rightWidth)
+  local promptBarContentHeight = cfg.promptBarHeight - cfg.separatorHeight
+  local bgRGB = cfg.widgetBackgroundRGB
+  local fgRGB = cfg.widgetForegroundRGB
 
-	-- Separator above prompt bar
-	mdw.promptSeparator = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_PromptSeparator",
-		x = leftWidth,
-		y = -cfg.promptBarHeight,
-		width = promptBarWidth,
-		height = cfg.separatorHeight,
-	}))
-	mdw.promptSeparator:setStyleSheet(mdw.styles.resizableSeparator)
-	mdw.promptSeparator:setCursor(mudlet.cursor.ResizeVertical)
-	mdw.setupPromptBarSplitter()
+  -- Separator above prompt bar
+  mdw.promptSeparator = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_PromptSeparator",
+    x = leftWidth,
+    y = -cfg.promptBarHeight,
+    width = promptBarWidth,
+    height = cfg.separatorHeight,
+  }))
+  mdw.promptSeparator:setStyleSheet(mdw.styles.resizableSeparator)
+  mdw.promptSeparator:setCursor(mudlet.cursor.ResizeVertical)
+  mdw.setupPromptBarSplitter()
 
-	-- Prompt bar container (handles positioning and click events)
-	local consoleWidth = promptBarWidth - cfg.contentPaddingLeft
-	mdw.promptBarContainer = mdw.trackElement(Geyser.Container:new({
-		name = "MDW_PromptBarContainer",
-		x = leftWidth,
-		y = -cfg.promptBarHeight + cfg.separatorHeight,
-		width = promptBarWidth,
-		height = promptBarContentHeight,
-	}))
+  -- Prompt bar container (handles positioning and click events)
+  local consoleWidth = promptBarWidth - cfg.contentPaddingLeft
+  mdw.promptBarContainer = mdw.trackElement(Geyser.Container:new({
+    name = "MDW_PromptBarContainer",
+    x = leftWidth,
+    y = -cfg.promptBarHeight + cfg.separatorHeight,
+    width = promptBarWidth,
+    height = promptBarContentHeight,
+  }))
 
-	-- Background label (for padding area and click handling)
-	mdw.promptBarBg = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_PromptBarBg",
-		x = 0,
-		y = 0,
-		width = "100%",
-		height = "100%",
-	}, mdw.promptBarContainer))
-	mdw.promptBarBg:setStyleSheet(string.format(
-		[[background-color: rgb(%d,%d,%d);]],
-		bgRGB[1], bgRGB[2], bgRGB[3]
-	))
-	setLabelClickCallback("MDW_PromptBarBg", function()
-		if mdw.closeAllMenus then mdw.closeAllMenus() end
-	end)
+  -- Background label (for padding area and click handling)
+  mdw.promptBarBg = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_PromptBarBg",
+    x = 0,
+    y = 0,
+    width = "100%",
+    height = "100%",
+  }, mdw.promptBarContainer))
+  mdw.promptBarBg:setStyleSheet(string.format(
+    [[background-color: rgb(%d,%d,%d);]],
+    bgRGB[1], bgRGB[2], bgRGB[3]
+  ))
+  setLabelClickCallback("MDW_PromptBarBg", function()
+    if mdw.closeAllMenus then mdw.closeAllMenus() end
+  end)
 
-	-- Prompt bar MiniConsole (offset by padding, child of container)
-	local topPadding = cfg.promptBarTopPadding
-	mdw.promptBar = mdw.trackElement(Geyser.MiniConsole:new({
-		name = "MDW_PromptBar",
-		x = cfg.contentPaddingLeft,
-		y = topPadding,
-		width = consoleWidth,
-		height = promptBarContentHeight - topPadding,
-	}, mdw.promptBarContainer))
-	mdw.promptBar:setColor(bgRGB[1], bgRGB[2], bgRGB[3], 255)
-	local promptSize = mdw.getPromptEffectiveFontSize()
-	mdw.promptBar:setFont(cfg.fontFamily)
-	mdw.promptBar:setFontSize(promptSize)
-	mdw.promptBar:setWrap(mdw.calculateWrap(consoleWidth, promptSize))
-	setBgColor("MDW_PromptBar", bgRGB[1], bgRGB[2], bgRGB[3])
-	setFgColor("MDW_PromptBar", fgRGB[1], fgRGB[2], fgRGB[3])
+  -- Prompt bar MiniConsole (offset by padding, child of container)
+  local topPadding = cfg.promptBarTopPadding
+  mdw.promptBar = mdw.trackElement(Geyser.MiniConsole:new({
+    name = "MDW_PromptBar",
+    x = cfg.contentPaddingLeft,
+    y = topPadding,
+    width = consoleWidth,
+    height = promptBarContentHeight - topPadding,
+  }, mdw.promptBarContainer))
+  mdw.promptBar:setColor(bgRGB[1], bgRGB[2], bgRGB[3], 255)
+  local promptSize = mdw.getPromptEffectiveFontSize()
+  mdw.promptBar:setFont(cfg.fontFamily)
+  mdw.promptBar:setFontSize(promptSize)
+  mdw.promptBar:setWrap(mdw.calculateWrap(consoleWidth, promptSize))
+  setBgColor("MDW_PromptBar", bgRGB[1], bgRGB[2], bgRGB[3])
+  setFgColor("MDW_PromptBar", fgRGB[1], fgRGB[2], fgRGB[3])
 end
 
 ---------------------------------------------------------------------------
@@ -152,23 +152,23 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.setPrompt(text)
-	if mdw.promptBar then
-		mdw.promptBar:clear()
-		mdw.promptBar:decho(text)
-	end
+  if mdw.promptBar then
+    mdw.promptBar:clear()
+    mdw.promptBar:decho(text)
+  end
 end
 
 function mdw.setPromptCecho(text)
-	if mdw.promptBar then
-		mdw.promptBar:clear()
-		mdw.promptBar:cecho(text)
-	end
+  if mdw.promptBar then
+    mdw.promptBar:clear()
+    mdw.promptBar:cecho(text)
+  end
 end
 
 function mdw.clearPrompt()
-	if mdw.promptBar then
-		mdw.promptBar:clear()
-	end
+  if mdw.promptBar then
+    mdw.promptBar:clear()
+  end
 end
 
 --- Capture the prompt from the main window with colors and show it in the prompt bar.
@@ -178,163 +178,163 @@ end
 -- @param deleteFromMain boolean Delete the captured line(s) from main (default true)
 -- @param lineCount number Number of prompt lines to capture (default config value)
 function mdw.capturePrompt(deleteFromMain, lineCount)
-	if not mdw.promptBar then return end
-	if deleteFromMain == nil then deleteFromMain = true end
+  if not mdw.promptBar then return end
+  if deleteFromMain == nil then deleteFromMain = true end
 
-	local cfg = mdw.config
-	local stripBg = "<(%d+,%d+,%d+):%d+,%d+,%d+>"
-	local current = getLineNumber()
-	local first = current
+  local cfg = mdw.config
+  local stripBg = "<(%d+,%d+,%d+):%d+,%d+,%d+>"
+  local current = getLineNumber()
+  local first = current
 
-	if cfg.promptPattern then
-		-- Smart multi-line: include each consecutive line ABOVE the GA line only while
-		-- it matches the prompt pattern. A different game's single-line prompt, or a
-		-- disabled extra line, won't match, so nothing is swallowed. Capped so an
-		-- over-broad pattern can't walk off with the whole scrollback.
-		local probe = current - 1
-		while probe >= 0 and (current - probe) <= 5 do
-			local got = getLines(probe, probe)
-			local txt = (type(got) == "table") and got[1] or got
-			if txt and txt ~= "" and string.find(txt, cfg.promptPattern) then
-				first = probe
-				probe = probe - 1
-			else
-				break
-			end
-		end
-	else
-		-- No pattern: capture exactly lineCount lines (default 1 = the GA line only).
-		-- A count > 1 is BLIND and can swallow a line above a shorter prompt.
-		local n = math.max(1, lineCount or cfg.promptLineCount or 1)
-		first = math.max(0, current - (n - 1))
-	end
+  if cfg.promptPattern then
+    -- Smart multi-line: include each consecutive line ABOVE the GA line only while
+    -- it matches the prompt pattern. A different game's single-line prompt, or a
+    -- disabled extra line, won't match, so nothing is swallowed. Capped so an
+    -- over-broad pattern can't walk off with the whole scrollback.
+    local probe = current - 1
+    while probe >= 0 and (current - probe) <= 5 do
+      local got = getLines(probe, probe)
+      local txt = (type(got) == "table") and got[1] or got
+      if txt and txt ~= "" and string.find(txt, cfg.promptPattern) then
+        first = probe
+        probe = probe - 1
+      else
+        break
+      end
+    end
+  else
+    -- No pattern: capture exactly lineCount lines (default 1 = the GA line only).
+    -- A count > 1 is BLIND and can swallow a line above a shorter prompt.
+    local n = math.max(1, lineCount or cfg.promptLineCount or 1)
+    first = math.max(0, current - (n - 1))
+  end
 
-	-- Single line (nothing matched / not configured): the original, proven path.
-	if first >= current then
-		selectCurrentLine()
-		mdw.promptBar:clear()
-		mdw.promptBar:decho(copy2decho():gsub(stripBg, "<%1>"))
-		if deleteFromMain then deleteLine() end
-		deselect()
-		return
-	end
+  -- Single line (nothing matched / not configured): the original, proven path.
+  if first >= current then
+    selectCurrentLine()
+    mdw.promptBar:clear()
+    mdw.promptBar:decho(copy2decho():gsub(stripBg, "<%1>"))
+    if deleteFromMain then deleteLine() end
+    deselect()
+    return
+  end
 
-	-- Multiple lines: walk from the first prompt line down to the GA line, keeping
-	-- each line's colors, and join them.
-	local parts = {}
-	for line = first, current do
-		moveCursor(0, line)
-		selectCurrentLine()
-		parts[#parts + 1] = copy2decho():gsub(stripBg, "<%1>")
-	end
+  -- Multiple lines: walk from the first prompt line down to the GA line, keeping
+  -- each line's colors, and join them.
+  local parts = {}
+  for line = first, current do
+    moveCursor(0, line)
+    selectCurrentLine()
+    parts[#parts + 1] = copy2decho():gsub(stripBg, "<%1>")
+  end
 
-	mdw.promptBar:clear()
-	mdw.promptBar:decho(table.concat(parts, "\n"))
+  mdw.promptBar:clear()
+  mdw.promptBar:decho(table.concat(parts, "\n"))
 
-	if deleteFromMain then
-		-- Delete bottom-up so the lower line numbers stay valid as lines are removed.
-		for line = current, first, -1 do
-			moveCursor(0, line)
-			selectCurrentLine()
-			deleteLine()
-		end
-	end
+  if deleteFromMain then
+    -- Delete bottom-up so the lower line numbers stay valid as lines are removed.
+    for line = current, first, -1 do
+      moveCursor(0, line)
+      selectCurrentLine()
+      deleteLine()
+    end
+  end
 
-	deselect()
-	moveCursorEnd()
+  deselect()
+  moveCursorEnd()
 end
 
 function mdw.createDropIndicators(_winW)
-	-- A single grey, semi-transparent preview block (DockView-style). It is moved
-	-- and resized per frame to cover the half/whole of the target widget the drop
-	-- will land on, or a band at the end of a side when not over any widget.
-	mdw.dropZoneOverlay = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_DropZoneOverlay",
-		x = -1000,
-		y = 0,
-		width = 100,
-		height = 100,
-	}))
-	mdw.dropZoneOverlay:setStyleSheet(mdw.styles.dropZone)
-	mdw.dropZoneOverlay:hide()
+  -- A single grey, semi-transparent preview block (DockView-style). It is moved
+  -- and resized per frame to cover the half/whole of the target widget the drop
+  -- will land on, or a band at the end of a side when not over any widget.
+  mdw.dropZoneOverlay = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_DropZoneOverlay",
+    x = -1000,
+    y = 0,
+    width = 100,
+    height = 100,
+  }))
+  mdw.dropZoneOverlay:setStyleSheet(mdw.styles.dropZone)
+  mdw.dropZoneOverlay:hide()
 end
 
 function mdw.createLeftDock(sidebarHeight)
-	local cfg = mdw.config
+  local cfg = mdw.config
 
-	mdw.leftDock = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_LeftDock",
-		x = 0,
-		y = cfg.headerHeight,
-		width = cfg.leftDockWidth - cfg.dockSplitterWidth,
-		height = sidebarHeight,
-	}))
-	mdw.leftDock:setStyleSheet(mdw.styles.sidebar)
-	setLabelClickCallback("MDW_LeftDock", function()
-		if mdw.closeAllMenus then mdw.closeAllMenus() end
-	end)
+  mdw.leftDock = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_LeftDock",
+    x = 0,
+    y = cfg.headerHeight,
+    width = cfg.leftDockWidth - cfg.dockSplitterWidth,
+    height = sidebarHeight,
+  }))
+  mdw.leftDock:setStyleSheet(mdw.styles.sidebar)
+  setLabelClickCallback("MDW_LeftDock", function()
+    if mdw.closeAllMenus then mdw.closeAllMenus() end
+  end)
 
-	-- Highlight overlay (hidden by default, shown during drag)
-	mdw.leftDockHighlight = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_LeftDockHighlight",
-		x = 0,
-		y = cfg.headerHeight,
-		width = cfg.leftDockWidth - cfg.dockSplitterWidth,
-		height = sidebarHeight,
-	}))
-	mdw.leftDockHighlight:setStyleSheet(mdw.styles.dockHighlight)
-	mdw.leftDockHighlight:hide()
+  -- Highlight overlay (hidden by default, shown during drag)
+  mdw.leftDockHighlight = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_LeftDockHighlight",
+    x = 0,
+    y = cfg.headerHeight,
+    width = cfg.leftDockWidth - cfg.dockSplitterWidth,
+    height = sidebarHeight,
+  }))
+  mdw.leftDockHighlight:setStyleSheet(mdw.styles.dockHighlight)
+  mdw.leftDockHighlight:hide()
 
-	-- Splitter for resizing
-	mdw.leftSplitter = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_LeftSplitter",
-		x = cfg.leftDockWidth - cfg.dockSplitterWidth,
-		y = cfg.headerHeight,
-		width = cfg.dockSplitterWidth,
-		height = sidebarHeight,
-	}))
-	mdw.leftSplitter:setStyleSheet(mdw.styles.splitter)
-	mdw.leftSplitter:setCursor(mudlet.cursor.ResizeHorizontal)
-	mdw.setupDockSplitter("left")
+  -- Splitter for resizing
+  mdw.leftSplitter = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_LeftSplitter",
+    x = cfg.leftDockWidth - cfg.dockSplitterWidth,
+    y = cfg.headerHeight,
+    width = cfg.dockSplitterWidth,
+    height = sidebarHeight,
+  }))
+  mdw.leftSplitter:setStyleSheet(mdw.styles.splitter)
+  mdw.leftSplitter:setCursor(mudlet.cursor.ResizeHorizontal)
+  mdw.setupDockSplitter("left")
 end
 
 function mdw.createRightDock(sidebarHeight)
-	local cfg = mdw.config
+  local cfg = mdw.config
 
-	mdw.rightDock = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_RightDock",
-		x = -cfg.rightDockWidth + cfg.dockSplitterWidth,
-		y = cfg.headerHeight,
-		width = cfg.rightDockWidth - cfg.dockSplitterWidth,
-		height = sidebarHeight,
-	}))
-	mdw.rightDock:setStyleSheet(mdw.styles.sidebar)
-	setLabelClickCallback("MDW_RightDock", function()
-		if mdw.closeAllMenus then mdw.closeAllMenus() end
-	end)
+  mdw.rightDock = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_RightDock",
+    x = -cfg.rightDockWidth + cfg.dockSplitterWidth,
+    y = cfg.headerHeight,
+    width = cfg.rightDockWidth - cfg.dockSplitterWidth,
+    height = sidebarHeight,
+  }))
+  mdw.rightDock:setStyleSheet(mdw.styles.sidebar)
+  setLabelClickCallback("MDW_RightDock", function()
+    if mdw.closeAllMenus then mdw.closeAllMenus() end
+  end)
 
-	-- Highlight overlay (hidden by default, shown during drag)
-	mdw.rightDockHighlight = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_RightDockHighlight",
-		x = -cfg.rightDockWidth + cfg.dockSplitterWidth,
-		y = cfg.headerHeight,
-		width = cfg.rightDockWidth - cfg.dockSplitterWidth,
-		height = sidebarHeight,
-	}))
-	mdw.rightDockHighlight:setStyleSheet(mdw.styles.dockHighlight)
-	mdw.rightDockHighlight:hide()
+  -- Highlight overlay (hidden by default, shown during drag)
+  mdw.rightDockHighlight = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_RightDockHighlight",
+    x = -cfg.rightDockWidth + cfg.dockSplitterWidth,
+    y = cfg.headerHeight,
+    width = cfg.rightDockWidth - cfg.dockSplitterWidth,
+    height = sidebarHeight,
+  }))
+  mdw.rightDockHighlight:setStyleSheet(mdw.styles.dockHighlight)
+  mdw.rightDockHighlight:hide()
 
-	-- Splitter for resizing
-	mdw.rightSplitter = mdw.trackElement(Geyser.Label:new({
-		name = "MDW_RightSplitter",
-		x = -cfg.rightDockWidth,
-		y = cfg.headerHeight,
-		width = cfg.dockSplitterWidth,
-		height = sidebarHeight,
-	}))
-	mdw.rightSplitter:setStyleSheet(mdw.styles.splitter)
-	mdw.rightSplitter:setCursor(mudlet.cursor.ResizeHorizontal)
-	mdw.setupDockSplitter("right")
+  -- Splitter for resizing
+  mdw.rightSplitter = mdw.trackElement(Geyser.Label:new({
+    name = "MDW_RightSplitter",
+    x = -cfg.rightDockWidth,
+    y = cfg.headerHeight,
+    width = cfg.dockSplitterWidth,
+    height = sidebarHeight,
+  }))
+  mdw.rightSplitter:setStyleSheet(mdw.styles.splitter)
+  mdw.rightSplitter:setCursor(mudlet.cursor.ResizeHorizontal)
+  mdw.setupDockSplitter("right")
 end
 
 ---------------------------------------------------------------------------
@@ -346,87 +346,87 @@ end
 -- Why: Splitters need click/move/release callbacks to track drag state
 -- and update dock width in real-time during the drag operation.
 function mdw.setupDockSplitter(side)
-	local splitterName = "MDW_" .. (side == "left" and "Left" or "Right") .. "Splitter"
-	local splitter = (side == "left") and mdw.leftSplitter or mdw.rightSplitter
+  local splitterName = "MDW_" .. (side == "left" and "Left" or "Right") .. "Splitter"
+  local splitter = (side == "left") and mdw.leftSplitter or mdw.rightSplitter
 
-	setLabelClickCallback(splitterName, function(event)
-		mdw.splitterDrag.active = true
-		mdw.splitterDrag.side = side
-		mdw.splitterDrag.offsetX = event.globalX - splitter:get_x()
-	end)
+  setLabelClickCallback(splitterName, function(event)
+    mdw.splitterDrag.active = true
+    mdw.splitterDrag.side = side
+    mdw.splitterDrag.offsetX = event.globalX - splitter:get_x()
+  end)
 
-	setLabelMoveCallback(splitterName, function(event)
-		if mdw.splitterDrag.active and mdw.splitterDrag.side == side then
-			local splitterX = event.globalX - mdw.splitterDrag.offsetX
-			mdw.resizeDockBySplitter(side, splitterX)
-		end
-	end)
+  setLabelMoveCallback(splitterName, function(event)
+    if mdw.splitterDrag.active and mdw.splitterDrag.side == side then
+      local splitterX = event.globalX - mdw.splitterDrag.offsetX
+      mdw.resizeDockBySplitter(side, splitterX)
+    end
+  end)
 
-	setLabelReleaseCallback(splitterName, function()
-		if mdw.splitterDrag.active and mdw.splitterDrag.side == side then
-			mdw.splitterDrag.active = false
-			mdw.splitterDrag.side = nil
-			if mdw.reorganizeDock then
-				mdw.reorganizeDock(side)
-			end
-			mdw.saveLayout()
-			-- Force repaint on all docked widgets after resize
-			for _, widget in pairs(mdw.widgets) do
-				if widget.docked == side then
-					mdw.refreshWidgetContent(widget)
-				end
-			end
-		end
-	end)
+  setLabelReleaseCallback(splitterName, function()
+    if mdw.splitterDrag.active and mdw.splitterDrag.side == side then
+      mdw.splitterDrag.active = false
+      mdw.splitterDrag.side = nil
+      if mdw.reorganizeDock then
+        mdw.reorganizeDock(side)
+      end
+      mdw.saveLayout()
+      -- Force repaint on all docked widgets after resize
+      for _, widget in pairs(mdw.widgets) do
+        if widget.docked == side then
+          mdw.refreshWidgetContent(widget)
+        end
+      end
+    end
+  end)
 end
 
 function mdw.resizeDockBySplitter(side, splitterX)
-	local winW = getMainWindowSize()
-	local cfg = mdw.config
-	local newWidth
+  local winW = getMainWindowSize()
+  local cfg = mdw.config
+  local newWidth
 
-	if side == "left" then
-		newWidth = splitterX + cfg.dockSplitterWidth
-	else
-		newWidth = winW - splitterX
-	end
+  if side == "left" then
+    newWidth = splitterX + cfg.dockSplitterWidth
+  else
+    newWidth = winW - splitterX
+  end
 
-	newWidth = mdw.clamp(newWidth, cfg.minDockWidth, cfg.maxDockWidth)
-	mdw.applyDockWidth(side, newWidth)
+  newWidth = mdw.clamp(newWidth, cfg.minDockWidth, cfg.maxDockWidth)
+  mdw.applyDockWidth(side, newWidth)
 end
 
 function mdw.applyDockWidth(side, newWidth)
-	local cfg = mdw.config
+  local cfg = mdw.config
 
-	if side == "left" then
-		cfg.leftDockWidth = newWidth
-		setBorderLeft(newWidth + cfg.dockGap)
-		mdw.leftDock:resize(newWidth - cfg.dockSplitterWidth, nil)
-		if mdw.leftDockHighlight then
-			mdw.leftDockHighlight:resize(newWidth - cfg.dockSplitterWidth, nil)
-		end
-		mdw.leftSplitter:move(newWidth - cfg.dockSplitterWidth, nil)
-	else
-		cfg.rightDockWidth = newWidth
-		setBorderRight(newWidth + cfg.dockGap)
-		mdw.rightDock:resize(newWidth - cfg.dockSplitterWidth, nil)
-		mdw.rightDock:move(-newWidth + cfg.dockSplitterWidth, nil)
-		if mdw.rightDockHighlight then
-			mdw.rightDockHighlight:resize(newWidth - cfg.dockSplitterWidth, nil)
-			mdw.rightDockHighlight:move(-newWidth + cfg.dockSplitterWidth, nil)
-		end
-		mdw.rightSplitter:move(-newWidth, nil)
-	end
+  if side == "left" then
+    cfg.leftDockWidth = newWidth
+    setBorderLeft(newWidth + cfg.dockGap)
+    mdw.leftDock:resize(newWidth - cfg.dockSplitterWidth, nil)
+    if mdw.leftDockHighlight then
+      mdw.leftDockHighlight:resize(newWidth - cfg.dockSplitterWidth, nil)
+    end
+    mdw.leftSplitter:move(newWidth - cfg.dockSplitterWidth, nil)
+  else
+    cfg.rightDockWidth = newWidth
+    setBorderRight(newWidth + cfg.dockGap)
+    mdw.rightDock:resize(newWidth - cfg.dockSplitterWidth, nil)
+    mdw.rightDock:move(-newWidth + cfg.dockSplitterWidth, nil)
+    if mdw.rightDockHighlight then
+      mdw.rightDockHighlight:resize(newWidth - cfg.dockSplitterWidth, nil)
+      mdw.rightDockHighlight:move(-newWidth + cfg.dockSplitterWidth, nil)
+    end
+    mdw.rightSplitter:move(-newWidth, nil)
+  end
 
-	-- Header spans full width, no repositioning needed
+  -- Header spans full width, no repositioning needed
 
-	-- Update prompt bar position and width
-	mdw.updatePromptBar()
+  -- Update prompt bar position and width
+  mdw.updatePromptBar()
 
-	-- Reorganize widgets in real-time during drag
-	if mdw.reorganizeDock then
-		mdw.reorganizeDock(side)
-	end
+  -- Reorganize widgets in real-time during drag
+  if mdw.reorganizeDock then
+    mdw.reorganizeDock(side)
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -437,77 +437,77 @@ end
 --- Set up drag handling for the prompt bar separator.
 -- Follows the same click/move/release pattern as dock splitters.
 function mdw.setupPromptBarSplitter()
-	local splitterName = "MDW_PromptSeparator"
+  local splitterName = "MDW_PromptSeparator"
 
-	setLabelClickCallback(splitterName, function(event)
-		mdw.promptBarDrag.active = true
-		mdw.promptBarDrag.offsetY = event.globalY - mdw.promptSeparator:get_y()
-	end)
+  setLabelClickCallback(splitterName, function(event)
+    mdw.promptBarDrag.active = true
+    mdw.promptBarDrag.offsetY = event.globalY - mdw.promptSeparator:get_y()
+  end)
 
-	setLabelMoveCallback(splitterName, function(event)
-		if not mdw.promptBarDrag.active then return end
-		local cfg = mdw.config
-		local _, winH = getMainWindowSize()
-		local separatorY = event.globalY - mdw.promptBarDrag.offsetY
-		local newHeight = winH - separatorY
-		-- Reserve a minimum main-console height so the prompt bar can't be
-		-- dragged up far enough to collapse the main display.
-		local maxHeight = math.max(cfg.minPromptBarHeight, winH - cfg.headerHeight - cfg.minMainHeight)
-		newHeight = mdw.clamp(newHeight, cfg.minPromptBarHeight, maxHeight)
-		mdw.applyPromptBarHeight(newHeight)
-	end)
+  setLabelMoveCallback(splitterName, function(event)
+    if not mdw.promptBarDrag.active then return end
+    local cfg = mdw.config
+    local _, winH = getMainWindowSize()
+    local separatorY = event.globalY - mdw.promptBarDrag.offsetY
+    local newHeight = winH - separatorY
+    -- Reserve a minimum main-console height so the prompt bar can't be
+    -- dragged up far enough to collapse the main display.
+    local maxHeight = math.max(cfg.minPromptBarHeight, winH - cfg.headerHeight - cfg.minMainHeight)
+    newHeight = mdw.clamp(newHeight, cfg.minPromptBarHeight, maxHeight)
+    mdw.applyPromptBarHeight(newHeight)
+  end)
 
-	setLabelReleaseCallback(splitterName, function()
-		if mdw.promptBarDrag.active then
-			mdw.promptBarDrag.active = false
-			mdw.saveLayout()
-		end
-	end)
+  setLabelReleaseCallback(splitterName, function()
+    if mdw.promptBarDrag.active then
+      mdw.promptBarDrag.active = false
+      mdw.saveLayout()
+    end
+  end)
 end
 
 --- Apply a new prompt bar height, repositioning all prompt bar elements.
 -- @param newHeight number The new total prompt bar height
 function mdw.applyPromptBarHeight(newHeight)
-	local cfg = mdw.config
-	cfg.promptBarHeight = newHeight
+  local cfg = mdw.config
+  cfg.promptBarHeight = newHeight
 
-	if mdw.visibility.promptBar then
-		setBorderBottom(newHeight + cfg.dockGap)
-	end
+  if mdw.visibility.promptBar then
+    setBorderBottom(newHeight + cfg.dockGap)
+  end
 
-	local promptBarContentHeight = newHeight - cfg.separatorHeight
+  local promptBarContentHeight = newHeight - cfg.separatorHeight
 
-	if mdw.promptSeparator then
-		mdw.promptSeparator:move(nil, -newHeight)
-	end
+  if mdw.promptSeparator then
+    mdw.promptSeparator:move(nil, -newHeight)
+  end
 
-	if mdw.promptBarContainer then
-		mdw.promptBarContainer:move(nil, -newHeight + cfg.separatorHeight)
-		mdw.promptBarContainer:resize(nil, promptBarContentHeight)
-	end
+  if mdw.promptBarContainer then
+    mdw.promptBarContainer:move(nil, -newHeight + cfg.separatorHeight)
+    mdw.promptBarContainer:resize(nil, promptBarContentHeight)
+  end
 
-	if mdw.promptBarBg then
-		mdw.promptBarBg:resize(nil, promptBarContentHeight)
-	end
+  if mdw.promptBarBg then
+    mdw.promptBarBg:resize(nil, promptBarContentHeight)
+  end
 
-	if mdw.promptBar then
-		local consoleHeight = promptBarContentHeight - cfg.promptBarTopPadding
-		mdw.promptBar:resize(nil, consoleHeight)
-	end
+  if mdw.promptBar then
+    local consoleHeight = promptBarContentHeight - cfg.promptBarTopPadding
+    mdw.promptBar:resize(nil, consoleHeight)
+  end
 end
 
 --- Ensure prompt bar height is tall enough for its effective font size.
 -- Called after changes to contentFontSize or promptFontAdjust.
 function mdw.ensurePromptBarHeight()
-	local cfg = mdw.config
-	local promptSize = mdw.getPromptEffectiveFontSize()
-	local _, charHeight = calcFontSize(promptSize, cfg.fontFamily)
-	if charHeight and charHeight > 0 then
-		local minHeight = charHeight + cfg.promptBarTopPadding + cfg.separatorHeight
-		if cfg.promptBarHeight < minHeight then
-			mdw.applyPromptBarHeight(minHeight)
-		end
-	end
+  local cfg = mdw.config
+  local promptSize = mdw.getPromptEffectiveFontSize()
+  local _, charHeight = calcFontSize(promptSize, cfg.fontFamily)
+  if charHeight and charHeight > 0 then
+    local minHeight = charHeight + cfg.promptBarTopPadding + cfg.separatorHeight
+    if cfg.promptBarHeight < minHeight then
+      mdw.applyPromptBarHeight(minHeight)
+    end
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -518,223 +518,223 @@ end
 --- Save the current layout to file.
 -- Captures dock widths, visibility, and all widget positions/sizes.
 function mdw.saveLayout()
-	-- Suppressed while rebuilding stacks on load (the layout is mid-restore;
-	-- rebuildStacksFromLayout saves once when done).
-	if mdw._restoringLayout then return end
+  -- Suppressed while rebuilding stacks on load (the layout is mid-restore;
+  -- rebuildStacksFromLayout saves once when done).
+  if mdw._restoringLayout then return end
 
-	local layout = {
-		version = 1,
-		docks = {
-			leftWidth = mdw.config.leftDockWidth,
-			rightWidth = mdw.config.rightDockWidth,
-			leftVisible = mdw.visibility.leftSidebar,
-			rightVisible = mdw.visibility.rightSidebar,
-			promptBarVisible = mdw.visibility.promptBar,
-			promptBarHeight = mdw.config.promptBarHeight,
-			contentFontSize = mdw.config.contentFontSize,
-			mainFontSize = mdw.config.mainFontSize,
-			promptFontAdjust = mdw.config.promptFontAdjust,
-			headerFontSize = mdw.config.widgetHeaderFontSize,
-			menuFontSize = mdw.config.headerMenuFontSize,
-			tabFontSize = mdw.config.tabFontSize,
-			theme = mdw.config.theme,
-			originalMainFontSize = mdw.config.originalMainFontSize,
-		},
-		widgets = {},
-	}
+  local layout = {
+    version = 1,
+    docks = {
+      leftWidth = mdw.config.leftDockWidth,
+      rightWidth = mdw.config.rightDockWidth,
+      leftVisible = mdw.visibility.leftSidebar,
+      rightVisible = mdw.visibility.rightSidebar,
+      promptBarVisible = mdw.visibility.promptBar,
+      promptBarHeight = mdw.config.promptBarHeight,
+      contentFontSize = mdw.config.contentFontSize,
+      mainFontSize = mdw.config.mainFontSize,
+      promptFontAdjust = mdw.config.promptFontAdjust,
+      headerFontSize = mdw.config.widgetHeaderFontSize,
+      menuFontSize = mdw.config.headerMenuFontSize,
+      tabFontSize = mdw.config.tabFontSize,
+      theme = mdw.config.theme,
+      originalMainFontSize = mdw.config.originalMainFontSize,
+    },
+    widgets = {},
+  }
 
-	for name, widget in pairs(mdw.widgets) do
-		-- Use originalDock if widget was docked to a hidden sidebar
-		local dockSide = widget.docked or widget.originalDock
+  for name, widget in pairs(mdw.widgets) do
+    -- Use originalDock if widget was docked to a hidden sidebar
+    local dockSide = widget.docked or widget.originalDock
 
-		layout.widgets[name] = {
-			dock = dockSide,
-			row = widget.row,
-			rowPosition = widget.rowPosition,
-			subRow = widget.subRow or 0,
-			widthRatio = widget.widthRatio,
-			fill = widget.fill or false,
-			fontAdjust = widget.fontAdjust or 0,
-			x = widget.container:get_x(),
-			y = widget.container:get_y(),
-			width = widget.container:get_width(),
-			height = (widget.fill and widget._preFillHeight) or widget.container:get_height(),
-			visible = widget.visible ~= false,
-		}
-		-- Save active tab and tab order for tabbed widgets
-		if widget.isTabbed then
-			layout.widgets[name].activeTab = widget:getActiveTab()
-			layout.widgets[name].tabOrder = {}
-			for i, tabObj in ipairs(widget.tabObjects) do
-				layout.widgets[name].tabOrder[i] = tabObj.name
-			end
-		end
-		-- Stacks save their ordered members + active tab; members record their
-		-- stack and the standalone slot to return to on ungroup.
-		if widget.isStack then
-			layout.widgets[name].isStack = true
-			layout.widgets[name].activeMember = widget.activeMember
-			layout.widgets[name].members = {}
-			for i, m in ipairs(widget.members) do
-				layout.widgets[name].members[i] = m
-			end
-		elseif widget.stackId then
-			layout.widgets[name].stackId = widget.stackId
-			layout.widgets[name].preStackSlot = widget._preStackSlot
-		end
-	end
+    layout.widgets[name] = {
+      dock = dockSide,
+      row = widget.row,
+      rowPosition = widget.rowPosition,
+      subRow = widget.subRow or 0,
+      widthRatio = widget.widthRatio,
+      fill = widget.fill or false,
+      fontAdjust = widget.fontAdjust or 0,
+      x = widget.container:get_x(),
+      y = widget.container:get_y(),
+      width = widget.container:get_width(),
+      height = (widget.fill and widget._preFillHeight) or widget.container:get_height(),
+      visible = widget.visible ~= false,
+    }
+    -- Save active tab and tab order for tabbed widgets
+    if widget.isTabbed then
+      layout.widgets[name].activeTab = widget:getActiveTab()
+      layout.widgets[name].tabOrder = {}
+      for i, tabObj in ipairs(widget.tabObjects) do
+        layout.widgets[name].tabOrder[i] = tabObj.name
+      end
+    end
+    -- Stacks save their ordered members + active tab; members record their
+    -- stack and the standalone slot to return to on ungroup.
+    if widget.isStack then
+      layout.widgets[name].isStack = true
+      layout.widgets[name].activeMember = widget.activeMember
+      layout.widgets[name].members = {}
+      for i, m in ipairs(widget.members) do
+        layout.widgets[name].members[i] = m
+      end
+    elseif widget.stackId then
+      layout.widgets[name].stackId = widget.stackId
+      layout.widgets[name].preStackSlot = widget._preStackSlot
+    end
+  end
 
-	table.save(mdw.layoutFile, layout)
-	mdw.debugEcho("Layout saved to " .. mdw.layoutFile)
+  table.save(mdw.layoutFile, layout)
+  mdw.debugEcho("Layout saved to " .. mdw.layoutFile)
 end
 
 function mdw.loadLayout()
-	if not io.exists(mdw.layoutFile) then
-		mdw.debugEcho("No saved layout found")
-		return false
-	end
+  if not io.exists(mdw.layoutFile) then
+    mdw.debugEcho("No saved layout found")
+    return false
+  end
 
-	local layout = {}
-	-- Tolerate a corrupt/truncated layout file: a raise here would otherwise
-	-- abort setup() before the UI is built, leaving no way to recover in-app.
-	local ok = pcall(table.load, mdw.layoutFile, layout)
-	if not ok or not layout.version or type(layout.widgets) ~= "table" then
-		mdw.debugEcho("Layout file missing/corrupt; using defaults")
-		return false
-	end
+  local layout = {}
+  -- Tolerate a corrupt/truncated layout file: a raise here would otherwise
+  -- abort setup() before the UI is built, leaving no way to recover in-app.
+  local ok = pcall(table.load, mdw.layoutFile, layout)
+  if not ok or not layout.version or type(layout.widgets) ~= "table" then
+    mdw.debugEcho("Layout file missing/corrupt; using defaults")
+    return false
+  end
 
-	-- Apply dock settings
-	if layout.docks then
-		mdw.config.leftDockWidth = layout.docks.leftWidth or mdw.config.leftDockWidth
-		mdw.config.rightDockWidth = layout.docks.rightWidth or mdw.config.rightDockWidth
-		-- Store visibility for application after UI is created
-		if layout.docks.leftVisible ~= nil then
-			mdw.visibility.leftSidebar = layout.docks.leftVisible
-		end
-		if layout.docks.rightVisible ~= nil then
-			mdw.visibility.rightSidebar = layout.docks.rightVisible
-		end
-		if layout.docks.promptBarVisible ~= nil then
-			mdw.visibility.promptBar = layout.docks.promptBarVisible
-		end
-		if layout.docks.promptBarHeight then
-			mdw.config.promptBarHeight = layout.docks.promptBarHeight
-		end
-		-- Font size migration: old format had fontSize + promptFontSize,
-		-- new format has contentFontSize + promptFontAdjust + mainFontSize.
-		-- Every value is clamped: a hand-edited or corrupt file must not push an
-		-- out-of-range size, especially mainFontSize which hits the real console.
-		if layout.docks.contentFontSize then
-			-- New format
-			mdw.config.contentFontSize = mdw.clamp(layout.docks.contentFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
-			if layout.docks.promptFontAdjust then
-				mdw.config.promptFontAdjust = layout.docks.promptFontAdjust
-			end
-			if layout.docks.mainFontSize then
-				mdw.config.mainFontSize = mdw.clamp(layout.docks.mainFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
-			end
-		elseif layout.docks.fontSize then
-			-- Old format: migrate
-			mdw.config.contentFontSize = mdw.clamp(layout.docks.fontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
-			local oldPromptSize = layout.docks.promptFontSize or layout.docks.fontSize
-			mdw.config.promptFontAdjust = oldPromptSize - layout.docks.fontSize
-		end
-		-- Keep the prompt offset within the effective clamp [8,30]
-		local promptEff = mdw.clamp(mdw.config.contentFontSize + mdw.config.promptFontAdjust, mdw.config.minFontSize, mdw.config.maxEffectiveFontSize)
-		mdw.config.promptFontAdjust = promptEff - mdw.config.contentFontSize
-		if layout.docks.headerFontSize then
-			mdw.config.widgetHeaderFontSize = mdw.clamp(layout.docks.headerFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
-		end
-		if layout.docks.menuFontSize then
-			mdw.config.headerMenuFontSize = mdw.clamp(layout.docks.menuFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
-		end
-		if layout.docks.tabFontSize then
-			mdw.config.tabFontSize = mdw.clamp(layout.docks.tabFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
-		end
-		-- Only restore a theme that still exists; otherwise keep the default
-		if layout.docks.theme and mdw.themes[layout.docks.theme] then
-			mdw.config.theme = layout.docks.theme
-		end
-		if layout.docks.originalMainFontSize then
-			mdw.config.originalMainFontSize = layout.docks.originalMainFontSize
-		end
-	end
+  -- Apply dock settings
+  if layout.docks then
+    mdw.config.leftDockWidth = layout.docks.leftWidth or mdw.config.leftDockWidth
+    mdw.config.rightDockWidth = layout.docks.rightWidth or mdw.config.rightDockWidth
+    -- Store visibility for application after UI is created
+    if layout.docks.leftVisible ~= nil then
+      mdw.visibility.leftSidebar = layout.docks.leftVisible
+    end
+    if layout.docks.rightVisible ~= nil then
+      mdw.visibility.rightSidebar = layout.docks.rightVisible
+    end
+    if layout.docks.promptBarVisible ~= nil then
+      mdw.visibility.promptBar = layout.docks.promptBarVisible
+    end
+    if layout.docks.promptBarHeight then
+      mdw.config.promptBarHeight = layout.docks.promptBarHeight
+    end
+    -- Font size migration: old format had fontSize + promptFontSize,
+    -- new format has contentFontSize + promptFontAdjust + mainFontSize.
+    -- Every value is clamped: a hand-edited or corrupt file must not push an
+    -- out-of-range size, especially mainFontSize which hits the real console.
+    if layout.docks.contentFontSize then
+      -- New format
+      mdw.config.contentFontSize = mdw.clamp(layout.docks.contentFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
+      if layout.docks.promptFontAdjust then
+        mdw.config.promptFontAdjust = layout.docks.promptFontAdjust
+      end
+      if layout.docks.mainFontSize then
+        mdw.config.mainFontSize = mdw.clamp(layout.docks.mainFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
+      end
+    elseif layout.docks.fontSize then
+      -- Old format: migrate
+      mdw.config.contentFontSize = mdw.clamp(layout.docks.fontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
+      local oldPromptSize = layout.docks.promptFontSize or layout.docks.fontSize
+      mdw.config.promptFontAdjust = oldPromptSize - layout.docks.fontSize
+    end
+    -- Keep the prompt offset within the effective clamp [8,30]
+    local promptEff = mdw.clamp(mdw.config.contentFontSize + mdw.config.promptFontAdjust, mdw.config.minFontSize, mdw.config.maxEffectiveFontSize)
+    mdw.config.promptFontAdjust = promptEff - mdw.config.contentFontSize
+    if layout.docks.headerFontSize then
+      mdw.config.widgetHeaderFontSize = mdw.clamp(layout.docks.headerFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
+    end
+    if layout.docks.menuFontSize then
+      mdw.config.headerMenuFontSize = mdw.clamp(layout.docks.menuFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
+    end
+    if layout.docks.tabFontSize then
+      mdw.config.tabFontSize = mdw.clamp(layout.docks.tabFontSize, mdw.config.minFontSize, mdw.config.maxFontSize)
+    end
+    -- Only restore a theme that still exists; otherwise keep the default
+    if layout.docks.theme and mdw.themes[layout.docks.theme] then
+      mdw.config.theme = layout.docks.theme
+    end
+    if layout.docks.originalMainFontSize then
+      mdw.config.originalMainFontSize = layout.docks.originalMainFontSize
+    end
+  end
 
-	-- Store widget layouts for application during widget creation
-	mdw.pendingLayouts = layout.widgets or {}
+  -- Store widget layouts for application during widget creation
+  mdw.pendingLayouts = layout.widgets or {}
 
-	mdw.debugEcho("Layout loaded from " .. mdw.layoutFile)
-	return true
+  mdw.debugEcho("Layout loaded from " .. mdw.layoutFile)
+  return true
 end
 
 -- Call this and then reload the profile to get fresh default layouts.
 function mdw.clearLayout()
-	if io.exists(mdw.layoutFile) then
-		os.remove(mdw.layoutFile)
-		mdw.echo("Layout file deleted: " .. mdw.layoutFile)
-		mdw.echo("Reload profile to apply default layout")
-	else
-		mdw.echo("No layout file to delete")
-	end
-	mdw.pendingLayouts = {}
+  if io.exists(mdw.layoutFile) then
+    os.remove(mdw.layoutFile)
+    mdw.echo("Layout file deleted: " .. mdw.layoutFile)
+    mdw.echo("Reload profile to apply default layout")
+  else
+    mdw.echo("No layout file to delete")
+  end
+  mdw.pendingLayouts = {}
 end
 
 function mdw.showLayout()
-	if not io.exists(mdw.layoutFile) then
-		mdw.echo("No saved layout file exists")
-		return
-	end
+  if not io.exists(mdw.layoutFile) then
+    mdw.echo("No saved layout file exists")
+    return
+  end
 
-	local layout = {}
-	table.load(mdw.layoutFile, layout)
+  local layout = {}
+  table.load(mdw.layoutFile, layout)
 
-	mdw.echo("=== Saved Layout ===")
-	mdw.echo("File: " .. mdw.layoutFile)
-	mdw.echo("Version: " .. tostring(layout.version))
+  mdw.echo("=== Saved Layout ===")
+  mdw.echo("File: " .. mdw.layoutFile)
+  mdw.echo("Version: " .. tostring(layout.version))
 
-	if layout.docks then
-		mdw.echo("Docks:")
-		mdw.echo("  Left width: " .. tostring(layout.docks.leftWidth))
-		mdw.echo("  Right width: " .. tostring(layout.docks.rightWidth))
-		mdw.echo("  Left visible: " .. tostring(layout.docks.leftVisible))
-		mdw.echo("  Right visible: " .. tostring(layout.docks.rightVisible))
-		mdw.echo("  Prompt bar visible: " .. tostring(layout.docks.promptBarVisible))
-		mdw.echo("  Prompt bar height: " .. tostring(layout.docks.promptBarHeight or "default"))
-		mdw.echo("  Content font size: " .. tostring(layout.docks.contentFontSize or layout.docks.fontSize or "default"))
-		mdw.echo("  Main font size: " .. tostring(layout.docks.mainFontSize or "default"))
-		mdw.echo("  Prompt font adjust: " .. tostring(layout.docks.promptFontAdjust or "default"))
-		mdw.echo("  Header font size: " .. tostring(layout.docks.headerFontSize or "default"))
-		mdw.echo("  Theme: " .. tostring(layout.docks.theme or "gold"))
-	end
+  if layout.docks then
+    mdw.echo("Docks:")
+    mdw.echo("  Left width: " .. tostring(layout.docks.leftWidth))
+    mdw.echo("  Right width: " .. tostring(layout.docks.rightWidth))
+    mdw.echo("  Left visible: " .. tostring(layout.docks.leftVisible))
+    mdw.echo("  Right visible: " .. tostring(layout.docks.rightVisible))
+    mdw.echo("  Prompt bar visible: " .. tostring(layout.docks.promptBarVisible))
+    mdw.echo("  Prompt bar height: " .. tostring(layout.docks.promptBarHeight or "default"))
+    mdw.echo("  Content font size: " .. tostring(layout.docks.contentFontSize or layout.docks.fontSize or "default"))
+    mdw.echo("  Main font size: " .. tostring(layout.docks.mainFontSize or "default"))
+    mdw.echo("  Prompt font adjust: " .. tostring(layout.docks.promptFontAdjust or "default"))
+    mdw.echo("  Header font size: " .. tostring(layout.docks.headerFontSize or "default"))
+    mdw.echo("  Theme: " .. tostring(layout.docks.theme or "gold"))
+  end
 
-	if layout.widgets then
-		mdw.echo("Saved Widgets:")
-		for name, w in pairs(layout.widgets) do
-			local dockStr = w.dock or "floating"
-			local visStr = w.visible and "visible" or "hidden"
-			mdw.echo(string.format("  %s: dock=%s, row=%s, visible=%s",
-				name, dockStr, tostring(w.row), visStr))
-		end
-	end
+  if layout.widgets then
+    mdw.echo("Saved Widgets:")
+    for name, w in pairs(layout.widgets) do
+      local dockStr = w.dock or "floating"
+      local visStr = w.visible and "visible" or "hidden"
+      mdw.echo(string.format("  %s: dock=%s, row=%s, visible=%s",
+        name, dockStr, tostring(w.row), visStr))
+    end
+  end
 end
 
 function mdw.showWidgets()
-	mdw.echo("=== Current Widgets ===")
-	mdw.echo("Visibility: left=" .. tostring(mdw.visibility.leftSidebar) ..
-		", right=" .. tostring(mdw.visibility.rightSidebar))
+  mdw.echo("=== Current Widgets ===")
+  mdw.echo("Visibility: left=" .. tostring(mdw.visibility.leftSidebar) ..
+    ", right=" .. tostring(mdw.visibility.rightSidebar))
 
-	local count = 0
-	for name, w in pairs(mdw.widgets) do
-		count = count + 1
-		local dockStr = w.docked or "floating"
-		local visStr = (w.visible ~= false) and "visible" or "hidden"
-		mdw.echo(string.format("  %s: dock=%s, row=%s, rowPos=%s, subRow=%s, visible=%s",
-			name, dockStr, tostring(w.row), tostring(w.rowPosition), tostring(w.subRow or 0), visStr))
-	end
+  local count = 0
+  for name, w in pairs(mdw.widgets) do
+    count = count + 1
+    local dockStr = w.docked or "floating"
+    local visStr = (w.visible ~= false) and "visible" or "hidden"
+    mdw.echo(string.format("  %s: dock=%s, row=%s, rowPos=%s, subRow=%s, visible=%s",
+      name, dockStr, tostring(w.row), tostring(w.rowPosition), tostring(w.subRow or 0), visStr))
+  end
 
-	if count == 0 then
-		mdw.echo("  (no widgets registered)")
-	end
+  if count == 0 then
+    mdw.echo("  (no widgets registered)")
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -743,84 +743,84 @@ end
 ---------------------------------------------------------------------------
 
 function mdw.setup()
-	-- Idempotent: never build a second UI on top of an existing one. Guards
-	-- against a package update that deferred teardown, or a double profile-load.
-	if mdw.isSetUp then mdw.teardown() end
+  -- Idempotent: never build a second UI on top of an existing one. Guards
+  -- against a package update that deferred teardown, or a double profile-load.
+  if mdw.isSetUp then mdw.teardown() end
 
-	mdw.echo("Setting up UI...")
-	mdw.notify("Initialising")
+  mdw.echo("Setting up UI...")
+  mdw.notify("Initialising")
 
-	-- Clear any stale theme hover-preview so styles build from the committed theme
-	mdw._previewTheme = nil
-	mdw._themePreviewActive = false
+  -- Clear any stale theme hover-preview so styles build from the committed theme
+  mdw._previewTheme = nil
+  mdw._themePreviewActive = false
 
-	-- Load saved layout first (sets dock widths, theme, and pendingLayouts)
-	mdw.loadLayout()
+  -- Load saved layout first (sets dock widths, theme, and pendingLayouts)
+  mdw.loadLayout()
 
-	-- Rebuild styles with loaded theme before creating any UI elements
-	mdw.buildStyles()
+  -- Rebuild styles with loaded theme before creating any UI elements
+  mdw.buildStyles()
 
-	-- Capture the user's original main console font once (before we change it),
-	-- so a full uninstall can restore it. Persisted via the layout file. Guarded
-	-- because getFontSize() may be absent or differently-shaped across versions.
-	if mdw.config.originalMainFontSize == nil then
-		local ok, size = pcall(function() return getFontSize and getFontSize() end)
-		mdw.config.originalMainFontSize = (ok and type(size) == "number" and size) or mdw.config.mainFontSize
-	end
+  -- Capture the user's original main console font once (before we change it),
+  -- so a full uninstall can restore it. Persisted via the layout file. Guarded
+  -- because getFontSize() may be absent or differently-shaped across versions.
+  if mdw.config.originalMainFontSize == nil then
+    local ok, size = pcall(function() return getFontSize and getFontSize() end)
+    mdw.config.originalMainFontSize = (ok and type(size) == "number" and size) or mdw.config.mainFontSize
+  end
 
-	-- Apply main console font size and background color
-	setFontSize(mdw.config.mainFontSize)
-	mdw.applyMainBackground()
+  -- Apply main console font size and background color
+  setFontSize(mdw.config.mainFontSize)
+  mdw.applyMainBackground()
 
-	mdw.notify("Building widgets")
-	mdw.createDocks()
+  mdw.notify("Building widgets")
+  mdw.createDocks()
 
-	-- Call user-registered widget creation functions first
-	-- This allows widgets to be created before menus are built
-	if mdw.userWidgets then
-		for _, func in ipairs(mdw.userWidgets) do
-			local ok, err = pcall(func)
-			if not ok then
-				mdw.echo("<red>Error in user widget function: " .. tostring(err))
-			end
-		end
-	end
+  -- Call user-registered widget creation functions first
+  -- This allows widgets to be created before menus are built
+  if mdw.userWidgets then
+    for _, func in ipairs(mdw.userWidgets) do
+      local ok, err = pcall(func)
+      if not ok then
+        mdw.echo("<red>Error in user widget function: " .. tostring(err))
+      end
+    end
+  end
 
-	-- Create header menus and finalize widget layout
-	if mdw.createWidgets then
-		mdw.createWidgets()
-	else
-		mdw.echo("<red>Warning: mdw.createWidgets not defined")
-	end
+  -- Create header menus and finalize widget layout
+  if mdw.createWidgets then
+    mdw.createWidgets()
+  else
+    mdw.echo("<red>Warning: mdw.createWidgets not defined")
+  end
 
-	-- Apply z-order to ensure all elements are properly layered
-	mdw.applyZOrder()
+  -- Apply z-order to ensure all elements are properly layered
+  mdw.applyZOrder()
 
-	-- Enable/disable the built-in prompt-capture trigger per config
-	mdw.applyPromptTrigger()
+  -- Enable/disable the built-in prompt-capture trigger per config
+  mdw.applyPromptTrigger()
 
-	-- Fire event so user scripts can create additional widgets
-	raiseEvent("mdwReady")
+  -- Fire event so user scripts can create additional widgets
+  raiseEvent("mdwReady")
 
-	-- Rebuild saved tab groups now that all member widgets exist
-	if mdw.rebuildStacksFromLayout then mdw.rebuildStacksFromLayout() end
+  -- Rebuild saved tab groups now that all member widgets exist
+  if mdw.rebuildStacksFromLayout then mdw.rebuildStacksFromLayout() end
 
-	-- Deferred dock reorganize to ensure fill button visibility after Qt layout settles
-	tempTimer(0, function()
-		mdw.reorganizeAllDocks()
-	end)
+  -- Deferred dock reorganize to ensure fill button visibility after Qt layout settles
+  tempTimer(0, function()
+    mdw.reorganizeAllDocks()
+  end)
 
-	mdw.isSetUp = true
-	mdw.echo("UI ready!")
-	mdw.notify("Ready")
+  mdw.isSetUp = true
+  mdw.echo("UI ready!")
+  mdw.notify("Ready")
 end
 
 --- Register a function to create user widgets on package load.
 -- This function will be called during mdw.setup() after default widgets are created.
 -- Use this to ensure your custom widgets are recreated when the package reloads.
 function mdw.registerWidgets(func)
-	mdw.userWidgets = mdw.userWidgets or {}
-	mdw.userWidgets[#mdw.userWidgets + 1] = func
+  mdw.userWidgets = mdw.userWidgets or {}
+  mdw.userWidgets[#mdw.userWidgets + 1] = func
 end
 
 --- Enable or disable the built-in prompt-capture trigger to match config.
@@ -828,12 +828,12 @@ end
 -- which case MDW's trigger should not also fire. Guarded - the trigger may not
 -- exist yet (e.g. called before the package's triggers are installed).
 function mdw.applyPromptTrigger()
-	local name = "MDW_PromptCapture"
-	if mdw.config.usePromptTrigger == false then
-		pcall(disableTrigger, name)
-	else
-		pcall(enableTrigger, name)
-	end
+  local name = "MDW_PromptCapture"
+  if mdw.config.usePromptTrigger == false then
+    pcall(disableTrigger, name)
+  else
+    pcall(enableTrigger, name)
+  end
 end
 
 --- Configure MDW. Call once from your own script at load time - it runs before
@@ -844,66 +844,66 @@ end
 -- "mdwReady" event or pass `widgets`.
 -- @param opts table Config overrides (e.g. { usePromptTrigger = false, theme = "ruby" })
 function mdw.configure(opts)
-	if type(opts) ~= "table" then
-		error("mdw.configure expects a table of options", 2)
-	end
-	for k, v in pairs(opts) do
-		if k == "widgets" and type(v) == "function" then
-			mdw.registerWidgets(v)
-		else
-			mdw.config[k] = v
-		end
-	end
-	-- If the UI is already up, re-apply the settings that can change live.
-	if mdw.isSetUp then
-		mdw.applyPromptTrigger()
-	end
-	return mdw
+  if type(opts) ~= "table" then
+    error("mdw.configure expects a table of options", 2)
+  end
+  for k, v in pairs(opts) do
+    if k == "widgets" and type(v) == "function" then
+      mdw.registerWidgets(v)
+    else
+      mdw.config[k] = v
+    end
+  end
+  -- If the UI is already up, re-apply the settings that can change live.
+  if mdw.isSetUp then
+    mdw.applyPromptTrigger()
+  end
+  return mdw
 end
 
 function mdw.teardown()
-	mdw.echo("Cleaning up UI...")
-	mdw.notify("Cleaning up")
+  mdw.echo("Cleaning up UI...")
+  mdw.notify("Cleaning up")
 
-	-- Close menus first: this reclaims the click-away overlay and the
-	-- dynamically-built Font Size / Theme menu labels. Those are not tracked
-	-- elements, so destroyAllElements() cannot see them.
-	if mdw.closeAllMenus then mdw.closeAllMenus() end
-	if mdw.destroyLayoutMenuElements then mdw.destroyLayoutMenuElements() end
-	if mdw.destroyThemeMenuElements then mdw.destroyThemeMenuElements() end
-	if mdw.destroyAdminMenuElements then mdw.destroyAdminMenuElements() end
-	mdw.menus = { sidebarsOpen = false, widgetsOpen = false, layoutOpen = false, themeOpen = false, adminOpen = false }
+  -- Close menus first: this reclaims the click-away overlay and the
+  -- dynamically-built Font Size / Theme menu labels. Those are not tracked
+  -- elements, so destroyAllElements() cannot see them.
+  if mdw.closeAllMenus then mdw.closeAllMenus() end
+  if mdw.destroyLayoutMenuElements then mdw.destroyLayoutMenuElements() end
+  if mdw.destroyThemeMenuElements then mdw.destroyThemeMenuElements() end
+  if mdw.destroyAdminMenuElements then mdw.destroyAdminMenuElements() end
+  mdw.menus = { sidebarsOpen = false, widgetsOpen = false, layoutOpen = false, themeOpen = false, adminOpen = false }
 
-	mdw.destroyAllElements()
+  mdw.destroyAllElements()
 
-	-- Clear userWidgets so they re-register fresh on reload
-	mdw.userWidgets = {}
+  -- Clear userWidgets so they re-register fresh on reload
+  mdw.userWidgets = {}
 
-	setBorderLeft(0)
-	setBorderRight(0)
-	setBorderTop(0)
-	setBorderBottom(0)
+  setBorderLeft(0)
+  setBorderRight(0)
+  setBorderTop(0)
+  setBorderBottom(0)
 
-	mdw.isSetUp = false
-	mdw.echo("Cleanup complete")
+  mdw.isSetUp = false
+  mdw.echo("Cleanup complete")
 end
 
 --- Handle package installation.
 -- Why: Called by Mudlet when package is installed or updated.
 -- Sets up the UI after successful installation.
 function mdw.onInstall(_, package)
-	if package ~= mdw.packageName then return end
+  if package ~= mdw.packageName then return end
 
-	if mdw.isUpdating then
-		mdw.isUpdating = false
-		mdw.echo("Update complete!")
-		mdw.notify("Updating")
-	else
-		mdw.echo("Package installed!")
-		mdw.notify("Installing")
-	end
+  if mdw.isUpdating then
+    mdw.isUpdating = false
+    mdw.echo("Update complete!")
+    mdw.notify("Updating")
+  else
+    mdw.echo("Package installed!")
+    mdw.notify("Installing")
+  end
 
-	mdw.setup()
+  mdw.setup()
 end
 
 --- Handle package uninstall.
@@ -913,79 +913,79 @@ end
 -- Layout is preserved on disk either way, and setup() is idempotent, so we
 -- always tear down here - skipping teardown would orphan or duplicate elements.
 function mdw.onUninstall(_, package)
-	if package ~= mdw.packageName then return end
+  if package ~= mdw.packageName then return end
 
-	if mdw.fullUninstalling then
-		-- A full uninstall already deleted the layout file; don't recreate it,
-		-- and it's not an update, so don't arm update detection.
-		mdw.isUpdating = false
-	else
-		-- Save layout, then mark a possible update: a package update fires
-		-- uninstall immediately followed by install. isUpdating survives the
-		-- script reload (MDW_Config preserves it) for onInstall to read.
-		mdw.saveLayout()
-		mdw.isUpdating = (mdw.isSetUp == true)
-	end
+  if mdw.fullUninstalling then
+    -- A full uninstall already deleted the layout file; don't recreate it,
+    -- and it's not an update, so don't arm update detection.
+    mdw.isUpdating = false
+  else
+    -- Save layout, then mark a possible update: a package update fires
+    -- uninstall immediately followed by install. isUpdating survives the
+    -- script reload (MDW_Config preserves it) for onInstall to read.
+    mdw.saveLayout()
+    mdw.isUpdating = (mdw.isSetUp == true)
+  end
 
-	mdw.teardown()
-	mdw.killAllHandlers()
+  mdw.teardown()
+  mdw.killAllHandlers()
 end
 
 --- Handle profile load (Mudlet startup with existing profile).
 -- Why: Re-creates the UI when loading a profile that has the package installed.
 function mdw.onProfileLoad()
-	if not mdw.isSetUp then
-		mdw.setup()
-	end
+  if not mdw.isSetUp then
+    mdw.setup()
+  end
 end
 
 --- Re-apply Mudlet borders after reconnection.
 -- Why: Mudlet resets setBorderLeft/Right/Top/Bottom to 0 on new connections.
 function mdw.onConnection()
-	mdw.applyBorders()
-	mdw.applyMainBackground()
+  mdw.applyBorders()
+  mdw.applyMainBackground()
 end
 
 --- Handle window resize events.
 -- Why: Updates dock and widget positions to match new window dimensions.
 function mdw.onWindowResize()
-	local _, winH = getMainWindowSize()
-	local cfg = mdw.config
-	local sidebarHeight = winH - cfg.headerHeight
+  local _, winH = getMainWindowSize()
+  local cfg = mdw.config
+  local sidebarHeight = winH - cfg.headerHeight
 
-	-- The admin gear is left-anchored (fixed x), so it needs no resize reposition.
+  -- The admin gear is left-anchored (fixed x), so it needs no resize reposition.
 
-	-- Update left dock
-	if mdw.leftDock then
-		mdw.leftDock:move(nil, cfg.headerHeight)
-		mdw.leftDock:resize(nil, sidebarHeight)
-		if mdw.leftDockHighlight then
-			mdw.leftDockHighlight:move(nil, cfg.headerHeight)
-			mdw.leftDockHighlight:resize(nil, sidebarHeight)
-		end
-		mdw.leftSplitter:move(nil, cfg.headerHeight)
-		mdw.leftSplitter:resize(nil, sidebarHeight)
-	end
+  -- Update left dock
+  if mdw.leftDock then
+    mdw.leftDock:move(nil, cfg.headerHeight)
+    mdw.leftDock:resize(nil, sidebarHeight)
+    if mdw.leftDockHighlight then
+      mdw.leftDockHighlight:move(nil, cfg.headerHeight)
+      mdw.leftDockHighlight:resize(nil, sidebarHeight)
+    end
+    mdw.leftSplitter:move(nil, cfg.headerHeight)
+    mdw.leftSplitter:resize(nil, sidebarHeight)
+  end
 
-	-- Update right dock
-	if mdw.rightDock then
-		mdw.rightDock:move(-cfg.rightDockWidth + cfg.dockSplitterWidth, cfg.headerHeight)
-		mdw.rightDock:resize(nil, sidebarHeight)
-		if mdw.rightDockHighlight then
-			mdw.rightDockHighlight:move(-cfg.rightDockWidth + cfg.dockSplitterWidth, cfg.headerHeight)
-			mdw.rightDockHighlight:resize(nil, sidebarHeight)
-		end
-		mdw.rightSplitter:move(-cfg.rightDockWidth, cfg.headerHeight)
-		mdw.rightSplitter:resize(nil, sidebarHeight)
-	end
+  -- Update right dock
+  if mdw.rightDock then
+    mdw.rightDock:move(-cfg.rightDockWidth + cfg.dockSplitterWidth, cfg.headerHeight)
+    mdw.rightDock:resize(nil, sidebarHeight)
+    if mdw.rightDockHighlight then
+      mdw.rightDockHighlight:move(-cfg.rightDockWidth + cfg.dockSplitterWidth, cfg.headerHeight)
+      mdw.rightDockHighlight:resize(nil, sidebarHeight)
+    end
+    mdw.rightSplitter:move(-cfg.rightDockWidth, cfg.headerHeight)
+    mdw.rightSplitter:resize(nil, sidebarHeight)
+  end
 
-	-- Header spans full width, no resize needed
+  -- Header spans full width, no resize needed
 
-	-- Update prompt bar position and width
-	mdw.updatePromptBar()
+  -- Update prompt bar position and width
+  mdw.updatePromptBar()
 
-	-- Reorganize widgets
-	mdw.reorganizeAllDocks()
+  -- Reorganize widgets
+  mdw.reorganizeAllDocks()
 end
 
 ---------------------------------------------------------------------------
