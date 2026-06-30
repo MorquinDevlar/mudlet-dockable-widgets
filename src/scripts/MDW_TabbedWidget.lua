@@ -472,7 +472,6 @@ local function channelTabBarCtx(tw)
   return {
     tabs = tw.tabObjects,
     y = tw._headless and 0 or cfg.titleHeight,
-    originX = function() return tw.container:get_x() end,
     barWidth = function() return tw.tabBar:get_width() end,
     widthOf = function() return tw.tabBar:get_width() / math.max(1, #tw.tabObjects) end,
     onReorder = function(fromIdx, toIdx) mdw.reorderTab(tw, fromIdx, toIdx) end,
@@ -493,10 +492,15 @@ function mdw.setupTabDrag(tabbedWidget, tabObj)
     -- Select on mouse-down so a click OR a drag both activate this tab (the
     -- dragged tab is then genuinely selected, which is why it's highlighted).
     tw:selectTab(tabName)
+    local pressed = tw.tabsByName[tabName]
     mdw.tabDrag = {
       tabbedWidget = tw,
-      tabObj = tw.tabsByName[tabName],
+      tabObj = pressed,
       startMouseX = event.globalX,
+      -- The dragged button's container-relative left at grab time; the slide
+      -- anchors to this and adds the cursor delta (frame-agnostic). get_x() is
+      -- absolute, move() is parent-relative, so subtract the container's x.
+      startRelX = pressed.button:get_x() - tw.container:get_x(),
       hasMoved = false,
       ctx = channelTabBarCtx(tw),
     }
@@ -512,7 +516,7 @@ function mdw.setupTabDrag(tabbedWidget, tabObj)
       d.hasMoved = true
       d.tabObj.button:setCursor(mudlet.cursor.ClosedHand)
     end
-    mdw.barTabSlide(d.ctx, d.tabObj, event)
+    mdw.barTabSlide(d.ctx, d.tabObj, event, d.startRelX, d.startMouseX)
   end)
 
   setLabelReleaseCallback(labelName, function(event)
@@ -522,7 +526,7 @@ function mdw.setupTabDrag(tabbedWidget, tabObj)
     -- A plain click already selected the tab on mouse-down; nothing more to do.
     if not d.hasMoved then return end
     d.tabObj.button:setCursor(mudlet.cursor.PointingHand)
-    mdw.barTabCommit(d.ctx, d.tabObj, event)
+    mdw.barTabCommit(d.ctx, d.tabObj, event, d.startRelX, d.startMouseX)
   end)
 end
 

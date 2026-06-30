@@ -643,6 +643,10 @@ function mdw.setupStackTabDrag(stack, tabObj)
       -- Where on the tab the press landed (label-local), so the drop-detection
       -- point can track the real cursor instead of the ghost's centre.
       clickLocalX = event.x, clickLocalY = event.y,
+      -- The tab button's container-relative left at grab time; reorder anchors to
+      -- this and adds the cursor delta (frame-agnostic). get_x() is absolute,
+      -- move() is parent-relative, so subtract the container's x.
+      startRelX = tabObj.button:get_x() - stack.container:get_x(),
     }
   end)
 
@@ -683,7 +687,7 @@ function mdw.setupStackTabDrag(stack, tabObj)
     end
 
     if d.mode == "reorder" then
-      mdw.handleStackTabReorder(s, tabObj, event)
+      mdw.handleStackTabReorder(s, tabObj, event, d.startRelX, d.startX)
     elseif d.mode == "tearout" then
       mdw.updateTabGhost(s, tabObj, event)
     end
@@ -708,7 +712,7 @@ function mdw.setupStackTabDrag(stack, tabObj)
         end
       end
     elseif d.mode == "reorder" then
-      if s then mdw.commitStackTabReorder(s, tabObj, event) end
+      if s then mdw.commitStackTabReorder(s, tabObj, event, d.startRelX, d.startX) end
     elseif d.mode == "tearout" then
       -- Defer the detach + placement out of this button's own release callback
       -- (placement deletes this very tab button).
@@ -732,7 +736,6 @@ function mdw.stackTabBarCtx(stack)
   return {
     tabs = stack.tabObjects,
     y = 0,
-    originX = function() return stack.container:get_x() end,
     barWidth = function() return stack.tabBar:get_width() end,
     widthOf = function(t) return mdw.stackTabWidth(t.name) end,
     onReorder = function(fromIdx, toIdx)
@@ -744,13 +747,13 @@ function mdw.stackTabBarCtx(stack)
 end
 
 --- Slide the dragged tab to follow the cursor x (committed on release).
-function mdw.handleStackTabReorder(stack, tabObj, event)
-  mdw.barTabSlide(mdw.stackTabBarCtx(stack), tabObj, event)
+function mdw.handleStackTabReorder(stack, tabObj, event, startRelX, startMouseX)
+  mdw.barTabSlide(mdw.stackTabBarCtx(stack), tabObj, event, startRelX, startMouseX)
 end
 
 --- Commit a tab reorder from the cursor's x relative to the other tabs.
-function mdw.commitStackTabReorder(stack, tabObj, event)
-  mdw.barTabCommit(mdw.stackTabBarCtx(stack), tabObj, event)
+function mdw.commitStackTabReorder(stack, tabObj, event, startRelX, startMouseX)
+  mdw.barTabCommit(mdw.stackTabBarCtx(stack), tabObj, event, startRelX, startMouseX)
 end
 
 --- Tear-out uses a small "ghost" that follows the cursor (like DockView); the

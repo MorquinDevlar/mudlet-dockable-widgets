@@ -443,32 +443,52 @@ end
 -- Only the dragged tab follows the cursor; the drop index is recomputed on
 -- release by walking the other tabs at their real widths, so it is correct for
 -- equal- AND variable-width tabs (the old channel code assumed equal widths).
--- ctx: { tabs, originX(), barWidth(), widthOf(tabObj), y, onReorder(from,to), refresh() }
+-- ctx: { tabs, barWidth(), widthOf(tabObj), y, onReorder(from,to), refresh() }
+-- The drag is ANCHORED, like the tear-out ghost: the dragged button starts at
+-- startRelX (its container-relative left at grab time) and follows the cursor by
+-- the event delta (event.globalX - startMouseX). This never subtracts a Geyser
+-- position from an event coord (only a delta of two event coords), so it is immune
+-- to any window/event-frame offset. The previous "event.globalX - container:get_x()"
+-- mixed the two frames and pinned the dragged tab to the far edge.
 ---------------------------------------------------------------------------
+
+--- The dragged tab's live container-relative left (clamped to the bar) and centre,
+-- from the grab anchor plus the cursor delta. Shared by slide and commit so the
+-- live preview and the committed drop index always agree.
+local function draggedTabRel(ctx, tabObj, event, startRelX, startMouseX)
+  local draggedW = ctx.widthOf(tabObj)
+  local relX = mdw.clamp(startRelX + (event.globalX - startMouseX), 0, math.max(0, ctx.barWidth() - draggedW))
+  return relX, relX + draggedW / 2
+end
+
+--- Drop index for a dragged centre: walk the other tabs left to right at their
+-- widths (from the bar's left, 0); passing a tab's midpoint lands the drop after it.
+local function dropIndexFor(ctx, tabs, fromIdx, centre)
+  local x = 0
+  local toIdx = 1
+  for i, t in ipairs(tabs) do
+    if i ~= fromIdx then
+      local tw = ctx.widthOf(t)
+      if centre > x + tw / 2 then toIdx = toIdx + 1 end
+      x = x + tw
+    end
+  end
+  return toIdx
+end
 
 --- Drag a tab: the dragged button follows the cursor while the other tabs shift
 -- in real time to open a gap at the live drop slot ("make room" as you drag).
-function mdw.barTabSlide(ctx, tabObj, event)
+function mdw.barTabSlide(ctx, tabObj, event, startRelX, startMouseX)
   local tabs = ctx.tabs
   local draggedW = ctx.widthOf(tabObj)
-  local cursorRel = event.globalX - ctx.originX()
+  local relX, centre = draggedTabRel(ctx, tabObj, event, startRelX, startMouseX)
 
   local fromIdx
   for i, t in ipairs(tabs) do
     if t == tabObj then fromIdx = i break end
   end
 
-  -- Live drop index: walk the other tabs at their widths; passing a midpoint
-  -- means the tab would land after it.
-  local x = 0
-  local toIdx = 1
-  for i, t in ipairs(tabs) do
-    if i ~= fromIdx then
-      local tw = ctx.widthOf(t)
-      if cursorRel > x + tw / 2 then toIdx = toIdx + 1 end
-      x = x + tw
-    end
-  end
+  local toIdx = dropIndexFor(ctx, tabs, fromIdx, centre)
 
   -- Re-lay the other tabs, leaving a gap (the dragged tab's width) at the drop
   -- slot so they visibly move into place as the drag progresses.
@@ -484,13 +504,12 @@ function mdw.barTabSlide(ctx, tabObj, event)
   end
 
   -- The dragged tab follows the cursor, raised above the rest.
-  local relX = mdw.clamp(cursorRel - draggedW / 2, 0, math.max(0, ctx.barWidth() - draggedW))
   tabObj.button:move(relX, ctx.y)
   tabObj.button:raise()
 end
 
---- Commit a reorder from the cursor's x relative to the other tabs, then refresh.
-function mdw.barTabCommit(ctx, tabObj, event)
+--- Commit a reorder from the dragged tab's centre relative to the other tabs.
+function mdw.barTabCommit(ctx, tabObj, event, startRelX, startMouseX)
   local tabs = ctx.tabs
   local fromIdx
   for i, t in ipairs(tabs) do
@@ -498,17 +517,8 @@ function mdw.barTabCommit(ctx, tabObj, event)
   end
   if not fromIdx then ctx.refresh() return end
 
-  -- Walk the other tabs left to right at their widths; passing a tab's
-  -- midpoint means the drop lands after it.
-  local x = ctx.originX()
-  local toIdx = 1
-  for i, t in ipairs(tabs) do
-    if i ~= fromIdx then
-      local tw = ctx.widthOf(t)
-      if event.globalX > x + tw / 2 then toIdx = toIdx + 1 end
-      x = x + tw
-    end
-  end
+  local _, centre = draggedTabRel(ctx, tabObj, event, startRelX, startMouseX)
+  local toIdx = dropIndexFor(ctx, tabs, fromIdx, centre)
 
   if toIdx ~= fromIdx then
     ctx.onReorder(fromIdx, toIdx)
