@@ -23,7 +23,7 @@ MDW gives your [Mudlet](https://www.mudlet.org/) profile a custom sidebar UI. Cr
 
 ```
 +----------------+------------------------+------------------+
-|   Header Bar (Sidebars | Widgets | Font Size | Theme) (gear)|
+| Header Bar (Gear) (Sidebars | Widgets | Font Size | Theme) |
 +----------------+------------------------+------------------+
 |                |                        |                  |
 |   Left Dock    |    Main Display        |   Right Dock     |
