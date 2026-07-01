@@ -6,10 +6,12 @@
   and features available in MDW. Users can use these as templates for
   creating their own widgets.
 
-  To disable these examples, either:
-  1. Remove this file from the package
-  2. Comment out the mdw.registerWidgets() call at the bottom
-  3. Set mdw.loadExamples = false before the package loads
+  To disable these examples without editing the package (survives re-download),
+  set mdw.loadExamples = false from your own script:
+
+    mdw.loadExamples = false
+
+  The flag is checked at setup time, so load order does not matter.
 
   Dependencies: MDW_Config.lua, MDW_Helpers.lua, MDW_Init.lua, MDW_WidgetCore.lua,
                 MDW_Widget.lua, MDW_TabbedWidget.lua
@@ -20,8 +22,13 @@
 ---------------------------------------------------------------------------
 
 --- Create all example widgets.
--- Called during mdw.setup() via mdw.registerWidgets().
+-- Called during mdw.setup() via mdw.registerWidgets(). The mdw.loadExamples
+-- gate is checked here (at setup time) rather than at registration time, so a
+-- user script can set mdw.loadExamples = false from outside the package and
+-- have it honored regardless of script load order.
 local function createExampleWidgets()
+  if mdw.loadExamples == false then return end
+
   ---------------------------------------------------------------------------
   -- BASIC WIDGETS (Left Dock)
   ---------------------------------------------------------------------------
@@ -163,9 +170,7 @@ end
 -- REGISTRATION
 ---------------------------------------------------------------------------
 
--- Check if examples should be loaded (can be disabled by setting mdw.loadExamples = false)
-mdw.loadExamples = mdw.loadExamples == nil and true or mdw.loadExamples
-
-if mdw.loadExamples then
-  mdw.registerWidgets(createExampleWidgets)
-end
+-- Always register; createExampleWidgets checks mdw.loadExamples at setup time.
+-- This lets a user script set mdw.loadExamples = false from outside the package,
+-- honored regardless of when that script loads relative to this one.
+mdw.registerWidgets(createExampleWidgets)

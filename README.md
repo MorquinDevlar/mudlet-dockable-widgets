@@ -189,14 +189,17 @@ The examples also include:
 
 ### Disabling Examples
 
-To disable the example widgets, add this before MDW loads:
+To disable the example widgets, set this flag from your own script:
 
 ```lua
 mdw = mdw or {}
 mdw.loadExamples = false
 ```
 
-Or remove/deactivate `MDW_Examples` from the package scripts.
+The flag is read when the UI is built (at setup time), not when scripts load, so
+it works regardless of load order - and because it lives in your own script, it
+survives re-downloading or updating the package. Leave it unset (or `true`) to
+keep the examples.
 
 ## Building from Source
 
